@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Pacific Coast Ponds</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase.js"></script>
+  <style>
+    :root{ --green:#1E5E37; --blue:#2CA7DF; --cream:#F8FAF7; --dark:#0F1C12; }
+    body { font-family: Inter, ui-sans-serif, system-ui; }
+    h1,h2,h3 { font-family: Oswald, sans-serif; text-transform: uppercase; letter-spacing: .5px; }
+    .sidebar-link { display:flex; align-items:center; gap:.75rem; padding:.65rem 1rem; border-radius:.5rem; font-weight:600; font-size:.9rem; color:rgba(255,255,255,.75); transition:background .15s; }
+    .sidebar-link:hover, .sidebar-link.active { background:rgba(255,255,255,.12); color:#fff; }
+    .stat-card { background:#fff; border:1px solid #e5e7eb; border-radius:.75rem; padding:1.5rem; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+
+  <!-- LOGIN SCREEN (shown when not authenticated) -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-[var(--dark)]">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+      <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-12 mx-auto mb-6">
+      <h1 class="text-2xl text-center mb-6">Admin Login</h1>
+      <form id="loginForm" class="space-y-4">
+        <input id="loginEmail" type="email" placeholder="Email" required
+          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+        <input id="loginPassword" type="password" placeholder="Password" required
+          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+        <button type="submit"
+          class="w-full py-3 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition">
+          Sign In
+        </button>
+      </form>
+      <p id="loginError" class="mt-3 text-red-600 text-sm text-center hidden"></p>
+    </div>
+  </div>
+
+  <!-- MAIN APP (shown when authenticated) -->
+  <div id="appShell" class="hidden min-h-screen flex">
+
+    <!-- Sidebar -->
+    <aside class="w-60 bg-[var(--dark)] flex flex-col fixed inset-y-0 left-0 z-30">
+      <div class="p-5 border-b border-white/10">
+        <p class="text-white font-bold uppercase text-sm">Pacific Coast Ponds</p>
+        <p class="text-white/50 text-xs mt-0.5">Admin Portal</p>
+      </div>
+      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+        <a href="#" data-page="dashboard" class="sidebar-link active">
+          <span>⊞</span> Dashboard
+        </a>
+        <a href="#" data-page="customers" class="sidebar-link">
+          <span>👤</span> Customers
+        </a>
+        <a href="#" data-page="schedule" class="sidebar-link">
+          <span>📅</span> Schedule
+        </a>
+        <a href="#" data-page="techs" class="sidebar-link">
+          <span>🔧</span> Technicians
+        </a>
+        <a href="#" data-page="products" class="sidebar-link">
+          <span>📦</span> Products
+        </a>
+        <a href="#" data-page="billing" class="sidebar-link">
+          <span>💳</span> Billing
+        </a>
+        <a href="#" data-page="messages" class="sidebar-link">
+          <span>💬</span> Messages
+        </a>
+      </nav>
+      <div class="p-3 border-t border-white/10">
+        <button id="logoutBtn" class="sidebar-link w-full text-left">
+          <span>→</span> Sign Out
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main content area -->
+    <main class="ml-60 flex-1 p-8 overflow-y-auto">
+      <div id="pageContent"></div>
+    </main>
+  </div>
+
+  <script>
+    // ─── AUTH ────────────────────────────────────────────────────────────────
+    async function checkAuth() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        // Verify admin role
+        const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+        if (profile?.role === 'admin') {
+          showApp();
+          return;
+        }
+        await sb.auth.signOut();
+      }
+      showLogin();
+    }
+
+    function showLogin() {
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('appShell').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appShell').classList.remove('hidden');
+      loadPage('dashboard');
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email    = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const errEl    = document.getElementById('loginError');
+      errEl.classList.add('hidden');
+
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        errEl.textContent = error.message;
+        errEl.classList.remove('hidden');
+        return;
+      }
+      checkAuth();
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await sb.auth.signOut();
+      showLogin();
+    });
+
+    // ─── NAVIGATION ──────────────────────────────────────────────────────────
+    document.querySelectorAll('[data-page]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('[data-page]').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        loadPage(link.dataset.page);
+      });
+    });
+
+    function loadPage(page) {
+      const el = document.getElementById('pageContent');
+      const pages = {
+        dashboard: renderDashboard,
+        customers: renderCustomers,
+        schedule:  renderSchedule,
+        techs:     renderTechs,
+        products:  renderProducts,
+        billing:   renderBilling,
+        messages:  renderMessages,
+      };
+      if (pages[page]) pages[page](el);
+    }
+
+    // ─── PAGES ───────────────────────────────────────────────────────────────
+    async function renderDashboard(el) {
+      el.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-8">Dashboard</h1>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10" id="statCards">
+          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Active Customers</p><p class="text-4xl font-bold mt-2" id="statCustomers">—</p></div>
+          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Visits This Week</p><p class="text-4xl font-bold mt-2" id="statVisits">—</p></div>
+          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Open Messages</p><p class="text-4xl font-bold mt-2" id="statMessages">—</p></div>
+          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Unpaid Invoices</p><p class="text-4xl font-bold mt-2" id="statInvoices">—</p></div>
+        </div>
+        <div class="bg-white rounded-xl border p-6">
+          <h2 class="text-xl font-bold mb-4">Upcoming Visits</h2>
+          <div id="upcomingVisits" class="text-gray-400 text-sm">Loading...</div>
+        </div>
+      `;
+      loadDashboardStats();
+    }
+
+    async function loadDashboardStats() {
+      const now = new Date();
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+
+      const [customers, visits, messages] = await Promise.all([
+        sb.from('service_accounts').select('id', { count: 'exact', head: true }),
+        sb.from('service_visits').select('id', { count: 'exact', head: true })
+          .gte('scheduled_date', now.toISOString())
+          .lte('scheduled_date', weekEnd.toISOString()),
+        sb.from('messages').select('id', { count: 'exact', head: true }).eq('read_by_admin', false),
+      ]);
+
+      if (document.getElementById('statCustomers')) {
+        document.getElementById('statCustomers').textContent = customers.count ?? 0;
+        document.getElementById('statVisits').textContent    = visits.count ?? 0;
+        document.getElementById('statMessages').textContent  = messages.count ?? 0;
+        document.getElementById('statInvoices').textContent  = '—';
+      }
+
+      const { data: upcomingData } = await sb.from('service_visits')
+        .select('id, scheduled_date, service_accounts(profiles(full_name)), technicians(profiles(full_name))')
+        .gte('scheduled_date', now.toISOString())
+        .order('scheduled_date', { ascending: true })
+        .limit(5);
+
+      const uvEl = document.getElementById('upcomingVisits');
+      if (uvEl) {
+        if (!upcomingData?.length) {
+          uvEl.innerHTML = '<p class="text-gray-400">No visits scheduled yet.</p>';
+        } else {
+          uvEl.innerHTML = `<table class="w-full text-sm">
+            <thead><tr class="text-left text-gray-400 border-b">
+              <th class="pb-2">Date</th><th class="pb-2">Customer</th><th class="pb-2">Tech</th>
+            </tr></thead>
+            <tbody>
+              ${upcomingData.map(v => `<tr class="border-b last:border-0">
+                <td class="py-2">${new Date(v.scheduled_date).toLocaleDateString()}</td>
+                <td class="py-2">${v.service_accounts?.profiles?.full_name ?? '—'}</td>
+                <td class="py-2">${v.technicians?.profiles?.full_name ?? '—'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`;
+        }
+      }
+    }
+
+    async function renderCustomers(el) {
+      el.innerHTML = `
+        <div class="flex items-center justify-between mb-8">
+          <h1 class="text-3xl font-extrabold">Customers</h1>
+          <button id="addCustomerBtn" class="px-5 py-2.5 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition">+ Add Customer</button>
+        </div>
+        <div class="bg-white rounded-xl border overflow-hidden">
+          <div id="customerTable" class="p-6 text-gray-400 text-sm">Loading...</div>
+        </div>
+        <!-- Add Customer Modal -->
+        <div id="addCustomerModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+            <h2 class="text-2xl font-bold mb-5">New Customer</h2>
+            <form id="addCustomerForm" class="space-y-3">
+              <input name="full_name" placeholder="Full Name" required class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+              <input name="email" type="email" placeholder="Email" required class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+              <input name="phone" type="tel" placeholder="Phone" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+              <input name="address" placeholder="Service Address" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+              <input name="monthly_service_fee" type="number" placeholder="Monthly Service Fee ($)" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+              <textarea name="pond_notes" rows="2" placeholder="Pond notes (size, fish count, equipment...)" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none"></textarea>
+              <div class="flex gap-3 pt-2">
+                <button type="submit" class="flex-1 py-2.5 bg-[var(--green)] text-white font-bold uppercase rounded-lg">Save Customer</button>
+                <button type="button" id="cancelAddCustomer" class="flex-1 py-2.5 border-2 font-bold uppercase rounded-lg">Cancel</button>
+              </div>
+              <p id="addCustomerError" class="text-red-600 text-sm hidden"></p>
+            </form>
+          </div>
+        </div>
+      `;
+      loadCustomers();
+
+      document.getElementById('addCustomerBtn').addEventListener('click', () => {
+        document.getElementById('addCustomerModal').classList.remove('hidden');
+      });
+      document.getElementById('cancelAddCustomer').addEventListener('click', () => {
+        document.getElementById('addCustomerModal').classList.add('hidden');
+      });
+      document.getElementById('addCustomerForm').addEventListener('submit', saveCustomer);
+    }
+
+    async function loadCustomers() {
+      const { data, error } = await sb.from('service_accounts')
+        .select('id, address, monthly_service_fee, pond_notes, profiles(full_name, email, phone)')
+        .order('created_at', { ascending: false });
+
+      const el = document.getElementById('customerTable');
+      if (!el) return;
+      if (error || !data?.length) {
+        el.innerHTML = '<p class="text-gray-400">No customers yet. Add your first one.</p>';
+        return;
+      }
+      el.innerHTML = `<table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-400 border-b text-xs uppercase">
+          <th class="pb-3">Name</th><th class="pb-3">Email</th><th class="pb-3">Phone</th>
+          <th class="pb-3">Address</th><th class="pb-3">Monthly Fee</th>
+        </tr></thead>
+        <tbody>
+          ${data.map(c => `<tr class="border-b last:border-0 hover:bg-gray-50 cursor-pointer">
+            <td class="py-3 font-semibold">${c.profiles?.full_name ?? '—'}</td>
+            <td class="py-3 text-gray-500">${c.profiles?.email ?? '—'}</td>
+            <td class="py-3 text-gray-500">${c.profiles?.phone ?? '—'}</td>
+            <td class="py-3 text-gray-500">${c.address ?? '—'}</td>
+            <td class="py-3">$${c.monthly_service_fee ?? 0}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    }
+
+    async function saveCustomer(e) {
+      e.preventDefault();
+      const form = e.target;
+      const fd   = new FormData(form);
+      const errEl = document.getElementById('addCustomerError');
+      errEl.classList.add('hidden');
+
+      // 1. Create auth user (invite flow — they'll get a magic link)
+      const { data: inviteData, error: inviteErr } = await sb.auth.admin.inviteUserByEmail(fd.get('email'));
+      if (inviteErr) {
+        // Fall back to creating profile record only (no auth invite from client side)
+        // Full invite flow requires a Netlify Function with service role key — placeholder for now
+        errEl.textContent = 'Customer saved locally. Auth invite requires backend function (coming soon).';
+        errEl.classList.remove('hidden');
+      }
+
+      // 2. Insert profile + service account (will be linked properly once auth is wired)
+      const { error: saErr } = await sb.from('service_accounts').insert({
+        address:             fd.get('address'),
+        monthly_service_fee: parseFloat(fd.get('monthly_service_fee')) || 0,
+        pond_notes:          fd.get('pond_notes'),
+      });
+
+      if (saErr) {
+        errEl.textContent = saErr.message;
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('addCustomerModal').classList.add('hidden');
+      form.reset();
+      loadCustomers();
+    }
+
+    async function renderSchedule(el) {
+      el.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-8">Schedule</h1>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+          Schedule builder coming in next build. Customers and techs must be added first.
+        </div>
+      `;
+    }
+
+    async function renderTechs(el) {
+      el.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-8">Technicians</h1>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+          Tech management coming in next build.
+        </div>
+      `;
+    }
+
+    async function renderProducts(el) {
+      el.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-8">Products</h1>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+          Product catalog coming in next build.
+        </div>
+      `;
+    }
+
+    async function renderBilling(el) {
+      el.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-8">Billing</h1>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+          Billing & Stripe invoicing coming in next build.
+        </div>
+      `;
+    }
+
+    async function renderMessages(el) {
+      el.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-8">Messages</h1>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+          Messaging coming in next build.
+        </div>
+      `;
+    }
+
+    // ─── BOOT ────────────────────────────────────────────────────────────────
+    checkAuth();
+  </script>
+</body>
+</html>

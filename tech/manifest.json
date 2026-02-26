@@ -1,0 +1,14 @@
+{
+  "name": "PCP Tech",
+  "short_name": "PCP Tech",
+  "description": "Pacific Coast Ponds — Technician App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F1C12",
+  "theme_color": "#1E5E37",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "https://paccoastponds.com/assets/logo.webp", "sizes": "192x192", "type": "image/webp" },
+    { "src": "https://paccoastponds.com/assets/logo.webp", "sizes": "512x512", "type": "image/webp" }
+  ]
+}

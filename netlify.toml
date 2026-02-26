@@ -1,0 +1,15 @@
+# ─── MARKETING SITE ─────────────────────────────────────────────────────────
+# This config is used when deploying the root repo as paccoastponds.com
+# The portal, tech, and admin sites are separate Netlify deployments
+# pointing to their respective subdirectories.
+
+[build]
+  publish = "public"
+  functions = "functions"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- Homepage -->
+  <url>
+    <loc>https://paccoastponds.com/</loc>
+    <lastmod>2025-08-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+
+    <!-- Image entries to help index design work -->
+    <image:image>
+      <image:loc>https://paccoastponds.com/assets/render1.webp</image:loc>
+      <image:title>Custom koi pond design rendering in Orange County</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://paccoastponds.com/assets/render2.webp</image:loc>
+      <image:title>Modern linear koi pond concept in Los Angeles</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://paccoastponds.com/assets/render3.webp</image:loc>
+      <image:title>Naturalistic pond design with waterfall in Southern California</image:title>
+    </image:image>
+  </url>
+
+  <!-- Thank-you / Calendly page -->
+  <url>
+    <loc>https://paccoastponds.com/thank-you</loc>
+    <lastmod>2025-08-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Key sections (anchors) -->
+  <url>
+    <loc>https://paccoastponds.com/#services</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://paccoastponds.com/#gallery</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://paccoastponds.com/#areas</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+</urlset>

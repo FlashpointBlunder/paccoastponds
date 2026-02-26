@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thank You | Schedule Your Free Estimate | Pacific Coast Ponds</title>
+  <meta name="description" content="Thanks for your request! Pick a time for your free on-site koi pond design consultation.">
+  <link rel="canonical" href="https://paccoastponds.com/thank-you">
+
+  <!-- Calendly assets -->
+  <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
+  <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
+
+  <!-- Performance hints -->
+  <link rel="preconnect" href="https://assets.calendly.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- LocalBusiness schema for consistency (with Nimbata phone) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "Pacific Coast Ponds",
+    "image": "https://paccoastponds.com/assets/logo.webp",
+    "url": "https://paccoastponds.com",
+    "telephone": "+1-949-541-4903",
+    "address": { "@type": "PostalAddress", "addressLocality": "Orange County", "addressRegion": "CA", "addressCountry": "US" }
+  }
+  </script>
+
+  <style>
+    :root{ --brand-green:#1E5E37; --brand-blue:#2CA7DF; --brand-cream:#F8FAF7; --brand-dark:#0F1C12; }
+    body{font-family:Inter,ui-sans-serif,system-ui}
+    h1,h2,h3{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.5px}
+    #calWrap { min-width:320px; height:780px; }
+    .mobile-bar{backdrop-filter:saturate(140%) blur(8px); background:rgba(15,28,18,.8); padding-bottom: max(12px, env(safe-area-inset-bottom));}
+  </style>
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- Header -->
+  <header class="w-full border-b-4 border-[var(--brand-green)]">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <img src="./assets/logo.webp" alt="Pacific Coast Ponds logo" class="h-12 w-auto" width="160" height="48">
+        <span class="text-xl font-bold uppercase">Pacific Coast Ponds</span>
+      </a>
+      <a href="/" class="text-sm underline">Back to site</a>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto px-6 py-10">
+    <h1 class="text-4xl font-extrabold">Thanks — let’s get you scheduled</h1>
+    <p class="mt-3 text-gray-700">We received your request. Pick a time below for your <strong>on-site consultation</strong> and we’ll confirm details by email. Your info is prefilled so it’s quick.</p>
+
+    <!-- What Happens Next -->
+    <section class="mt-8">
+      <h2 class="text-2xl font-extrabold">What Happens Next</h2>
+      <ol class="mt-4 space-y-3 text-gray-700 list-decimal list-inside">
+        <li>Pick a time that works for your <strong>on-site consultation</strong> — your details are already prefilled.</li>
+        <li>We’ll confirm by email and may request site photos or notes in advance to prepare.</li>
+        <li>At the visit: we’ll walk the property together, discuss design goals, timing, and budget, then provide your free 3D concept + fixed-price proposal.</li>
+      </ol>
+    </section>
+
+    <!-- Calendly Inline Embed -->
+    <div class="mt-8">
+      <div id="calWrap" class="calendly-inline-widget"></div>
+      <noscript>
+        <p class="mt-4 text-sm">JavaScript is required to schedule. You can also
+          <a class="underline" href="https://calendly.com/paccoastponds" rel="nofollow">open Calendly directly</a>.
+        </p>
+      </noscript>
+    </div>
+
+    <p class="mt-6 text-sm text-gray-700">
+      Can’t find a time? Call us at <a class="underline" href="tel:+19495414903">(949) 541-4903</a> and we’ll fit you in.
+    </p>
+
+    <div class="mt-6 text-sm text-gray-600">
+      Prefer email? <a class="underline" href="mailto:build@paccoastponds.com">build@paccoastponds.com</a>
+    </div>
+  </main>
+
+  <!-- Phone normalization (safety) -->
+  <script>
+    function normalizePhoneUS(input) {
+      if (!input) return "";
+      const digits = (""+input).replace(/\D+/g, "");
+      if (digits.startsWith("1") && digits.length === 11) return "+1" + digits.slice(1);
+      if (digits.length === 10) return "+1" + digits;
+      if (input.trim().startsWith("+")) return input.trim();
+      return input.trim();
+    }
+  </script>
+
+  <!-- Robust Calendly embed with prefill + fallbacks + URL cleanup -->
+  <script>
+    (function(){
+      const p = new URLSearchParams(location.search);
+      const fields = {
+        name:   p.get("name")   || "",
+        email:  p.get("email")  || "",
+        phone:  normalizePhoneUS(p.get("phone") || ""),
+        zip:    p.get("zip")    || "",
+        street: p.get("street") || "",
+        state:  p.get("state")  || "",
+        city:   p.get("city")   || ""
+      };
+
+      const base = "https://calendly.com/paccoastponds";
+      const qs = new URLSearchParams();
+      if (fields.name)  qs.set("name", fields.name);
+      if (fields.email) qs.set("email", fields.email);
+      // Custom question mapping: a1=Phone, a2=ZIP, a3=Street, a4=State, a5=City
+      if (fields.phone)  qs.set("a1", fields.phone);
+      if (fields.zip)    qs.set("a2", fields.zip);
+      if (fields.street) qs.set("a3", fields.street);
+      if (fields.state)  qs.set("a4", fields.state);
+      if (fields.city)   qs.set("a5", fields.city);
+      const fullUrl = qs.toString() ? `${base}?${qs.toString()}` : base;
+
+      // Zero-JS embed path
+      const target = document.getElementById("calWrap");
+      target.setAttribute("data-url", fullUrl);
+
+      // Programmatic init fallback
+      function initCalendly(){
+        if (!window.Calendly || !document.getElementById("calWrap")) {
+          return setTimeout(initCalendly, 60);
+        }
+        try {
+          Calendly.initInlineWidget({ url: fullUrl, parentElement: document.getElementById("calWrap") });
+          // Strip PII from URL after init
+          try { history.replaceState({}, "", location.origin + location.pathname); } catch(e){}
+        } catch(e) {
+          console.error("Calendly init failed:", e);
+        }
+      }
+      if (document.readyState === "complete") initCalendly();
+      else window.addEventListener("load", initCalendly);
+      setTimeout(initCalendly, 400);
+      setTimeout(initCalendly, 1200);
+    })();
+  </script>
+
+  <!-- Mobile bottom bar: Call + Schedule (mirrors index) -->
+  <div class="mobile-bar fixed inset-x-0 bottom-0 z-50 md:hidden">
+    <div class="max-w-5xl mx-auto px-3 pb-2 pt-2 grid grid-cols-2 gap-3">
+      <a href="tel:+19495414903"
+         class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-green)] text-white shadow-lg"
+         aria-label="Call Pacific Coast Ponds now">
+         📞 Call Now
+      </a>
+      <a href="https://calendly.com/paccoastponds"
+         class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-blue)] text-white shadow-lg"
+         aria-label="Schedule your free estimate">
+         Schedule
+      </a>
+    </div>
+  </div>
+  <div class="h-20 md:hidden"></div>
+
+</body>
+</html>

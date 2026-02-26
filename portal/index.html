@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Account — Pacific Coast Ponds</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase.js"></script>
+  <style>
+    :root{ --green:#1E5E37; --blue:#2CA7DF; --cream:#F8FAF7; --dark:#0F1C12; }
+    body { font-family: Inter, ui-sans-serif, system-ui; }
+    h1,h2,h3 { font-family: Oswald, sans-serif; text-transform: uppercase; letter-spacing: .5px; }
+  </style>
+</head>
+<body class="bg-[var(--cream)] text-gray-900 min-h-screen">
+
+  <!-- LOGIN -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-[var(--dark)]">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+      <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-12 mx-auto mb-6">
+      <h1 class="text-2xl text-center mb-2">My Account</h1>
+      <p class="text-center text-gray-500 text-sm mb-6">Sign in to view your service schedule</p>
+      <form id="loginForm" class="space-y-4">
+        <input id="loginEmail" type="email" placeholder="Email" required
+          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+        <input id="loginPassword" type="password" placeholder="Password" required
+          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
+        <button type="submit"
+          class="w-full py-3 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition">
+          Sign In
+        </button>
+      </form>
+      <p id="loginError" class="mt-3 text-red-600 text-sm text-center hidden"></p>
+      <p class="mt-4 text-xs text-center text-gray-400">First time? Check your email for your setup link.</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="appShell" class="hidden">
+    <!-- Header -->
+    <header class="bg-white border-b-4 border-[var(--green)] sticky top-0 z-40">
+      <div class="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-10">
+          <span class="font-bold uppercase">My Account</span>
+        </div>
+        <button id="logoutBtn" class="text-sm text-gray-500 hover:text-gray-900 underline">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Nav tabs -->
+    <div class="bg-white border-b sticky top-[76px] z-30">
+      <div class="max-w-3xl mx-auto px-6 flex gap-6">
+        <button data-tab="schedule" class="tab-btn py-3 text-sm font-semibold border-b-2 border-[var(--green)] text-[var(--green)]">Schedule</button>
+        <button data-tab="messages" class="tab-btn py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500">Messages</button>
+        <button data-tab="shop"     class="tab-btn py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500">Shop</button>
+        <button data-tab="billing"  class="tab-btn py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500">Billing</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <main class="max-w-3xl mx-auto px-6 py-8">
+      <div id="tabContent"></div>
+    </main>
+  </div>
+
+  <script>
+    async function checkAuth() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+        if (profile?.role === 'customer') { showApp(); return; }
+        await sb.auth.signOut();
+      }
+      showLogin();
+    }
+
+    function showLogin() {
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('appShell').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appShell').classList.remove('hidden');
+      loadTab('schedule');
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('loginError');
+      errEl.classList.add('hidden');
+      const { error } = await sb.auth.signInWithPassword({
+        email:    document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPassword').value,
+      });
+      if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+      checkAuth();
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await sb.auth.signOut(); showLogin();
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('border-[var(--green)]', 'text-[var(--green)]');
+          b.classList.add('border-transparent', 'text-gray-500');
+        });
+        btn.classList.add('border-[var(--green)]', 'text-[var(--green)]');
+        btn.classList.remove('border-transparent', 'text-gray-500');
+        loadTab(btn.dataset.tab);
+      });
+    });
+
+    function loadTab(tab) {
+      const el = document.getElementById('tabContent');
+      const tabs = { schedule: renderSchedule, messages: renderMessages, shop: renderShop, billing: renderBilling };
+      if (tabs[tab]) tabs[tab](el);
+    }
+
+    async function renderSchedule(el) {
+      el.innerHTML = '<p class="text-gray-400">Loading your schedule...</p>';
+      const { data: { user } } = await sb.auth.getUser();
+      const { data: account } = await sb.from('service_accounts').select('id').eq('customer_id', user.id).single();
+      if (!account) { el.innerHTML = '<p class="text-gray-400">No service account found. Contact us to get set up.</p>'; return; }
+
+      const { data: visits } = await sb.from('service_visits')
+        .select('id, scheduled_date, status, notes, technicians(profiles(full_name))')
+        .eq('service_account_id', account.id)
+        .gte('scheduled_date', new Date().toISOString())
+        .order('scheduled_date', { ascending: true })
+        .limit(10);
+
+      if (!visits?.length) {
+        el.innerHTML = '<p class="text-gray-400">No upcoming visits scheduled. Your tech will reach out soon.</p>';
+        return;
+      }
+
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-5">Upcoming Visits</h2>
+        <div class="space-y-4">
+          ${visits.map(v => `
+            <div class="bg-white rounded-xl border p-5">
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="font-semibold text-lg">${new Date(v.scheduled_date).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
+                  <p class="text-gray-500 text-sm mt-1">Tech: ${v.technicians?.profiles?.full_name ?? 'TBD'}</p>
+                  ${v.notes ? `<p class="text-gray-600 text-sm mt-2">${v.notes}</p>` : ''}
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase ${v.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${v.status ?? 'scheduled'}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    async function renderMessages(el) {
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-5">Messages</h2>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">Messaging coming soon.</div>
+      `;
+    }
+
+    async function renderShop(el) {
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-5">Request Products</h2>
+        <p class="text-gray-500 text-sm mb-4">Add items to your basket and we'll bring them on your next visit.</p>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">Product catalog coming soon.</div>
+      `;
+    }
+
+    async function renderBilling(el) {
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-5">Billing</h2>
+        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">Monthly statements and payment method coming soon.</div>
+      `;
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>
