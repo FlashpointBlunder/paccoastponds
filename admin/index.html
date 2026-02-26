@@ -420,12 +420,19 @@ async function openCustomerDetail(accountId) {
   const name  = c.profiles?.full_name || c.contact_name  || '—';
   const email = c.profiles?.email     || c.contact_email || '—';
   const phone = c.profiles?.phone     || c.contact_phone || '—';
-  const canInvite = !c.customer_id && c.contact_email;
+  // customer_id is set immediately on invite, so we check auth.users to know
+  // whether the customer has actually clicked the link and set their password.
+  let portalConfirmed = false;
+  if (c.customer_id) {
+    const { data: confirmed } = await sb.rpc('is_user_confirmed', { uid: c.customer_id });
+    portalConfirmed = confirmed === true;
+  }
+  const canInvite = !portalConfirmed && c.contact_email;
   const inviteLabel = c.invite_sent_at ? 'Resend Invite' : 'Send Invite';
 
   let statusBadge;
   if (!c.active)             statusBadge = '<span class="badge badge-gray">Inactive</span>';
-  else if (c.customer_id)    statusBadge = '<span class="badge badge-green">Active</span>';
+  else if (portalConfirmed)  statusBadge = '<span class="badge badge-green">Active</span>';
   else if (c.invite_sent_at) statusBadge = '<span class="badge badge-yellow">Invited</span>';
   else                       statusBadge = '<span class="badge badge-gray">Not Invited</span>';
 
