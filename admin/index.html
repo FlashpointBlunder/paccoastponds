@@ -385,7 +385,8 @@ async function loadCustomerTable(filter = _custFilter) {
 }
 
 async function sendCustomerInvite(saId, email, name, phone) {
-  if (!confirm(`Send account invite to ${email}?`)) return;
+  const label = document.getElementById('inviteBtnLabel')?.textContent || 'Send Invite';
+  if (!confirm(`${label} to ${email}?`)) return;
   try {
     await callInvite(email, name, phone, 'customer', saId);
     toast('Invite sent to ' + email);
@@ -419,7 +420,8 @@ async function openCustomerDetail(accountId) {
   const name  = c.profiles?.full_name || c.contact_name  || '—';
   const email = c.profiles?.email     || c.contact_email || '—';
   const phone = c.profiles?.phone     || c.contact_phone || '—';
-  const canInvite = !c.invite_sent_at && c.contact_email;
+  const canInvite = !c.customer_id && c.contact_email;
+  const inviteLabel = c.invite_sent_at ? 'Resend Invite' : 'Send Invite';
 
   let statusBadge;
   if (!c.active)             statusBadge = '<span class="badge badge-gray">Inactive</span>';
@@ -437,7 +439,7 @@ async function openCustomerDetail(accountId) {
         ← Back to Customers
       </button>
       <div class="flex gap-2 flex-wrap">
-        ${canInvite ? `<button class="btn-blue" onclick="sendCustomerInvite('${c.id}','${c.contact_email}','${(c.contact_name||'').replace(/'/g,"\\'")}','${(c.contact_phone||'')}')">Send Invite</button>` : ''}
+        ${canInvite ? `<button class="btn-blue" onclick="sendCustomerInvite('${c.id}','${c.contact_email}','${(c.contact_name||'').replace(/'/g,"\\'")}','${(c.contact_phone||'')}')"><span id="inviteBtnLabel">${inviteLabel}</span></button>` : ''}
         <button class="btn-green" onclick="openEditCustomer()">Edit</button>
         <button class="px-4 py-2 ${toggleClass} text-white rounded-lg font-bold text-sm uppercase" onclick="toggleCustomerActive('${c.id}', ${c.active})">${toggleLabel}</button>
         <button class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm uppercase hover:bg-red-700" onclick="deleteCustomer('${c.id}','${c.customer_id||''}')">Delete</button>
