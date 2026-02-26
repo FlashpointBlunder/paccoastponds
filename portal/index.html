@@ -161,11 +161,219 @@
       `;
     }
 
+    // ── Portal messaging state ────────────────────────────────────
+    let _pAccountId = null;
+    let _pUserId    = null;
+    let _pChannel   = null;
+
+    const P_CAT_LABEL = {
+      upcoming_visit:'Upcoming Visit', product_inquiry:'Product Inquiry',
+      billing_issue:'Billing Issue',   ask_tech:'Ask Tech',
+      pond_emergency:'Pond Emergency'
+    };
+    const P_CAT_COLOR = {
+      upcoming_visit:'text-blue-700 bg-blue-50',
+      product_inquiry:'text-yellow-700 bg-yellow-50',
+      billing_issue:'text-orange-700 bg-orange-50',
+      ask_tech:'text-purple-700 bg-purple-50',
+      pond_emergency:'text-red-700 bg-red-50'
+    };
+    function pTimeAgo(s) {
+      if (!s) return '';
+      const d = Math.floor((Date.now() - new Date(s)) / 1000);
+      if (d < 60)    return 'just now';
+      if (d < 3600)  return Math.floor(d/60)+'m ago';
+      if (d < 86400) return Math.floor(d/3600)+'h ago';
+      return Math.floor(d/86400)+'d ago';
+    }
+    function pEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
     async function renderMessages(el) {
+      if (_pChannel) { sb.removeChannel(_pChannel); _pChannel = null; }
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const { data: { user } } = await sb.auth.getUser();
+      _pUserId = user.id;
+      const { data: account } = await sb.from('service_accounts').select('id').eq('customer_id', user.id).single();
+      if (!account) { el.innerHTML = '<p class="text-gray-400 text-sm">No service account found. Contact us to get set up.</p>'; return; }
+      _pAccountId = account.id;
+      await showPortalTicketList(el);
+    }
+
+    async function showPortalTicketList(el) {
+      if (_pChannel) { sb.removeChannel(_pChannel); _pChannel = null; }
+      const { data: tickets } = await sb.from('tickets')
+        .select('id, category, subject, status, urgent, updated_at')
+        .eq('service_account_id', _pAccountId)
+        .order('urgent', { ascending: false })
+        .order('updated_at', { ascending: false });
       el.innerHTML = `
-        <h2 class="text-2xl font-extrabold mb-5">Messages</h2>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">Messaging coming soon.</div>
-      `;
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-2xl font-extrabold">Messages</h2>
+          <button onclick="showPortalNewTicket()" class="px-4 py-2 bg-[var(--green)] text-white text-sm font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition">
+            + New Message
+          </button>
+        </div>
+        ${!tickets?.length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No messages yet. Tap "+ New Message" to get started.</div>'
+          : `<div class="space-y-3">${tickets.map(t => `
+              <div onclick="openPortalTicket('${t.id}')"
+                   class="bg-white rounded-xl border p-4 cursor-pointer hover:shadow-md transition
+                          ${t.urgent ? 'border-l-4 border-l-red-500' : ''}">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="font-semibold text-sm">${pEsc(t.subject)}</p>
+                  <span class="text-xs text-gray-400 shrink-0">${pTimeAgo(t.updated_at)}</span>
+                </div>
+                <div class="flex items-center gap-2 mt-2 flex-wrap">
+                  <span class="text-xs px-2 py-0.5 rounded-full font-semibold ${P_CAT_COLOR[t.category]||'bg-gray-100 text-gray-600'}">${P_CAT_LABEL[t.category]||t.category}</span>
+                  ${t.urgent ? '<span class="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white font-bold">URGENT</span>' : ''}
+                  <span class="text-xs px-2 py-0.5 rounded-full ${t.status==='open'?'bg-green-100 text-green-700':'bg-gray-200 text-gray-500'}">${t.status}</span>
+                </div>
+              </div>`).join('')}
+            </div>`
+        }`;
+    }
+
+    function showPortalNewTicket() {
+      const el = document.getElementById('tabContent');
+      el.innerHTML = `
+        <div class="flex items-center gap-3 mb-5">
+          <button onclick="showPortalTicketList(document.getElementById('tabContent'))"
+                  class="text-[var(--green)] text-sm font-semibold">← Back</button>
+          <h2 class="text-2xl font-extrabold">New Message</h2>
+        </div>
+        <div class="bg-white rounded-xl border p-5 space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Category</label>
+            <select id="ntCat" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]">
+              <option value="upcoming_visit">Upcoming Visit</option>
+              <option value="product_inquiry">Product Inquiry</option>
+              <option value="billing_issue">Billing Issue</option>
+              <option value="ask_tech">Ask Tech</option>
+              <option value="pond_emergency">🚨 Pond Emergency</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Subject</label>
+            <input id="ntSubject" type="text" placeholder="Brief description..."
+                   class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Message</label>
+            <textarea id="ntMessage" rows="4" placeholder="Describe your question or issue..."
+                      class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] resize-none"></textarea>
+          </div>
+          <button onclick="submitPortalTicket()"
+                  class="w-full py-3 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition text-sm">
+            Send Message
+          </button>
+          <p id="ntErr" class="text-red-600 text-sm text-center hidden"></p>
+        </div>`;
+    }
+
+    async function submitPortalTicket() {
+      const category = document.getElementById('ntCat').value;
+      const subject  = document.getElementById('ntSubject').value.trim();
+      const message  = document.getElementById('ntMessage').value.trim();
+      const errEl    = document.getElementById('ntErr');
+      if (!subject) { errEl.textContent = 'Please enter a subject.'; errEl.classList.remove('hidden'); return; }
+      if (!message) { errEl.textContent = 'Please enter a message.'; errEl.classList.remove('hidden'); return; }
+      errEl.classList.add('hidden');
+      const { data: ticket, error: tErr } = await sb.from('tickets')
+        .insert({ service_account_id: _pAccountId, category, subject, created_by: _pUserId })
+        .select().single();
+      if (tErr) { errEl.textContent = tErr.message; errEl.classList.remove('hidden'); return; }
+      const { error: mErr } = await sb.from('ticket_messages')
+        .insert({ ticket_id: ticket.id, sender_id: _pUserId, content: message });
+      if (mErr) { errEl.textContent = mErr.message; errEl.classList.remove('hidden'); return; }
+      // Non-blocking email notification
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        fetch('/.netlify/functions/send-ticket-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ ticket_id: ticket.id })
+        });
+      } catch(e) {}
+      openPortalTicket(ticket.id);
+    }
+
+    async function openPortalTicket(ticketId) {
+      if (_pChannel) { sb.removeChannel(_pChannel); _pChannel = null; }
+      const el = document.getElementById('tabContent');
+      el.innerHTML = '<p class="text-gray-400 text-sm p-4">Loading...</p>';
+      const { data: ticket } = await sb.from('tickets')
+        .select('id, category, subject, status, urgent')
+        .eq('id', ticketId).single();
+      const { data: msgs } = await sb.from('ticket_messages')
+        .select('id, content, created_at, profiles(full_name, role)')
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true });
+      const isClosed = ticket.status === 'closed';
+      const buildBubble = (m) => {
+        const isMe = m.profiles?.role === 'customer';
+        return `
+          <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+            <div class="max-w-xs sm:max-w-sm rounded-2xl px-4 py-2.5 ${isMe ? 'bg-[var(--green)] text-white' : 'bg-white border text-gray-900'}">
+              <p class="text-xs font-semibold mb-1 ${isMe?'text-white/70':'text-gray-400'}">${pEsc(m.profiles?.full_name||(isMe?'You':'Pacific Coast Ponds'))}</p>
+              <p class="text-sm leading-relaxed">${pEsc(m.content)}</p>
+              <p class="text-xs mt-1.5 ${isMe?'text-white/50':'text-gray-400'}">${pTimeAgo(m.created_at)}</p>
+            </div>
+          </div>`;
+      };
+      el.innerHTML = `
+        <div class="flex items-center gap-3 mb-4">
+          <button onclick="showPortalTicketList(document.getElementById('tabContent'))"
+                  class="text-[var(--green)] text-sm font-semibold shrink-0">← Back</button>
+          <div class="min-w-0">
+            <h2 class="text-lg font-bold truncate">${pEsc(ticket.subject)}</h2>
+            <p class="text-xs text-gray-500">${P_CAT_LABEL[ticket.category]||ticket.category} · <span class="${ticket.status==='open'?'text-green-600':'text-gray-400'}">${ticket.status}</span></p>
+          </div>
+          ${ticket.urgent ? '<span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-red-500 text-white font-bold shrink-0">URGENT</span>' : ''}
+        </div>
+        <div class="bg-gray-50 rounded-xl border overflow-hidden flex flex-col" style="height:62vh;">
+          <div id="portalThread" class="flex-1 overflow-y-auto p-4 space-y-3">
+            ${(msgs||[]).map(buildBubble).join('')}
+          </div>
+          <div class="bg-white border-t p-3">
+            ${isClosed
+              ? '<p class="text-xs text-center text-gray-400 py-1">This ticket is closed.</p>'
+              : `<div class="flex gap-2 items-end">
+                   <textarea id="pReplyText" rows="2" placeholder="Type a message..."
+                             class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] resize-none"></textarea>
+                   <button onclick="portalSendReply('${ticketId}')"
+                           class="px-4 py-2.5 bg-[var(--green)] text-white font-bold text-sm rounded-lg">Send</button>
+                 </div>`
+            }
+          </div>
+        </div>`;
+      const thread = document.getElementById('portalThread');
+      if (thread) thread.scrollTop = thread.scrollHeight;
+      _pChannel = sb.channel(`portal-ticket-${ticketId}`)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticketId}`
+        }, async (payload) => {
+          const { data: m } = await sb.from('ticket_messages')
+            .select('id, content, created_at, profiles(full_name, role)')
+            .eq('id', payload.new.id).single();
+          if (!m) return;
+          const thread = document.getElementById('portalThread');
+          if (!thread) return;
+          const div = document.createElement('div');
+          div.innerHTML = buildBubble(m);
+          thread.appendChild(div.firstElementChild);
+          thread.scrollTop = thread.scrollHeight;
+        }).subscribe();
+    }
+
+    async function portalSendReply(ticketId) {
+      const textEl = document.getElementById('pReplyText');
+      const content = textEl?.value?.trim();
+      if (!content) return;
+      const { error } = await sb.from('ticket_messages')
+        .insert({ ticket_id: ticketId, sender_id: _pUserId, content });
+      if (error) { alert(error.message); return; }
+      textEl.value = '';
     }
 
     async function renderShop(el) {

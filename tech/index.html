@@ -204,13 +204,146 @@
       `;
     }
 
+    // ── Tech messaging state ──────────────────────────────────────
+    let _tChannel = null;
+
+    const T_CAT_LABEL = {
+      upcoming_visit:'Upcoming Visit', product_inquiry:'Product Inquiry',
+      billing_issue:'Billing Issue',   ask_tech:'Ask Tech',
+      pond_emergency:'Pond Emergency'
+    };
+    function tTimeAgo(s) {
+      if (!s) return '';
+      const d = Math.floor((Date.now() - new Date(s)) / 1000);
+      if (d < 60)    return 'just now';
+      if (d < 3600)  return Math.floor(d/60)+'m ago';
+      if (d < 86400) return Math.floor(d/3600)+'h ago';
+      return Math.floor(d/86400)+'d ago';
+    }
+    function tEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
     async function renderMessages(el) {
+      if (_tChannel) { sb.removeChannel(_tChannel); _tChannel = null; }
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      if (!currentTechId) { el.innerHTML = '<p class="text-gray-400 text-sm">No tech profile. Contact admin.</p>'; return; }
+      await showTechTicketList(el);
+    }
+
+    async function showTechTicketList(el) {
+      if (_tChannel) { sb.removeChannel(_tChannel); _tChannel = null; }
+      // RLS automatically limits to accounts this tech services
+      const { data: tickets, error } = await sb.from('tickets')
+        .select('id, category, subject, status, urgent, updated_at, service_accounts(contact_name, profiles(full_name))')
+        .in('category', ['ask_tech', 'pond_emergency'])
+        .order('urgent', { ascending: false })
+        .order('updated_at', { ascending: false });
+      if (error) { el.innerHTML = `<p class="text-red-500 text-sm">${error.message}</p>`; return; }
       el.innerHTML = `
         <h2 class="text-xl font-extrabold mb-4">Messages</h2>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Customer messaging coming in next build.
+        ${!tickets?.length
+          ? '<div class="bg-white rounded-xl border p-6 text-center text-gray-400 text-sm">No messages for you right now.</div>'
+          : `<div class="space-y-3">${tickets.map(t => {
+              const name = t.service_accounts?.contact_name || t.service_accounts?.profiles?.full_name || 'Unknown';
+              return `
+                <div onclick="openTechTicket('${t.id}')"
+                     class="bg-white rounded-xl border p-4 cursor-pointer active:bg-gray-50
+                            ${t.urgent ? 'border-l-4 border-l-red-500' : ''}">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="font-bold text-sm">${tEsc(name)}</p>
+                      <p class="text-xs text-gray-600 mt-0.5 truncate">${tEsc(t.subject)}</p>
+                    </div>
+                    <span class="text-xs text-gray-400 shrink-0">${tTimeAgo(t.updated_at)}</span>
+                  </div>
+                  <div class="flex items-center gap-2 mt-2 flex-wrap">
+                    <span class="text-xs px-2 py-0.5 rounded ${t.category==='pond_emergency'?'bg-red-100 text-red-800 font-bold':'bg-purple-100 text-purple-800 font-semibold'}">${T_CAT_LABEL[t.category]||t.category}</span>
+                    ${t.urgent ? '<span class="text-xs px-2 py-0.5 rounded bg-red-500 text-white font-bold">URGENT</span>' : ''}
+                    <span class="text-xs px-2 py-0.5 rounded ${t.status==='open'?'bg-green-100 text-green-700':'bg-gray-200 text-gray-500'}">${t.status}</span>
+                  </div>
+                </div>`;
+            }).join('')}</div>`
+        }`;
+    }
+
+    async function openTechTicket(ticketId) {
+      if (_tChannel) { sb.removeChannel(_tChannel); _tChannel = null; }
+      const el = document.getElementById('pageContent');
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const { data: { user } } = await sb.auth.getUser();
+      const { data: ticket } = await sb.from('tickets')
+        .select('id, category, subject, status, urgent, service_accounts(contact_name, profiles(full_name))')
+        .eq('id', ticketId).single();
+      const { data: msgs } = await sb.from('ticket_messages')
+        .select('id, content, created_at, profiles(full_name, role)')
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true });
+      const name = ticket.service_accounts?.contact_name || ticket.service_accounts?.profiles?.full_name || 'Unknown';
+      const isClosed = ticket.status === 'closed';
+      const buildBubble = (m) => {
+        const isMe = m.profiles?.role === 'tech';
+        return `
+          <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+            <div class="max-w-xs rounded-2xl px-4 py-2.5 ${isMe ? 'bg-[var(--green)] text-white' : 'bg-white border text-gray-900'}">
+              <p class="text-xs font-semibold mb-1 ${isMe?'text-white/70':'text-gray-400'}">${tEsc(m.profiles?.full_name||(isMe?'You':'Customer'))}</p>
+              <p class="text-sm leading-relaxed">${tEsc(m.content)}</p>
+              <p class="text-xs mt-1.5 ${isMe?'text-white/50':'text-gray-400'}">${tTimeAgo(m.created_at)}</p>
+            </div>
+          </div>`;
+      };
+      el.innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <button onclick="showTechTicketList(document.getElementById('pageContent'))"
+                  class="text-[var(--green)] text-sm font-semibold">← Back</button>
+          <div class="min-w-0">
+            <p class="font-bold text-sm truncate">${tEsc(ticket.subject)}</p>
+            <p class="text-xs text-gray-500">${tEsc(name)}</p>
+          </div>
+          ${ticket.urgent ? '<span class="ml-auto text-xs px-2 py-0.5 rounded bg-red-500 text-white font-bold shrink-0">URGENT</span>' : ''}
         </div>
-      `;
+        <div class="bg-gray-50 rounded-xl border overflow-hidden flex flex-col" style="height:65vh;">
+          <div id="techThread" class="flex-1 overflow-y-auto p-3 space-y-3">
+            ${(msgs||[]).map(buildBubble).join('')}
+          </div>
+          <div class="bg-white border-t p-3">
+            ${isClosed
+              ? '<p class="text-xs text-center text-gray-400 py-1">Ticket is closed.</p>'
+              : `<div class="flex gap-2 items-end">
+                   <textarea id="tReplyText" rows="2" placeholder="Type a reply..."
+                             class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] resize-none"></textarea>
+                   <button onclick="techSendReply('${ticketId}','${user.id}')"
+                           class="px-3 py-2.5 bg-[var(--green)] text-white font-bold text-sm rounded-lg">Send</button>
+                 </div>`
+            }
+          </div>
+        </div>`;
+      const thread = document.getElementById('techThread');
+      if (thread) thread.scrollTop = thread.scrollHeight;
+      _tChannel = sb.channel(`tech-ticket-${ticketId}`)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticketId}`
+        }, async (payload) => {
+          const { data: m } = await sb.from('ticket_messages')
+            .select('id, content, created_at, profiles(full_name, role)')
+            .eq('id', payload.new.id).single();
+          if (!m) return;
+          const thread = document.getElementById('techThread');
+          if (!thread) return;
+          const div = document.createElement('div');
+          div.innerHTML = buildBubble(m);
+          thread.appendChild(div.firstElementChild);
+          thread.scrollTop = thread.scrollHeight;
+        }).subscribe();
+    }
+
+    async function techSendReply(ticketId, userId) {
+      const textEl = document.getElementById('tReplyText');
+      const content = textEl?.value?.trim();
+      if (!content) return;
+      const { error } = await sb.from('ticket_messages')
+        .insert({ ticket_id: ticketId, sender_id: userId, content });
+      if (error) { alert(error.message); return; }
+      textEl.value = '';
     }
 
     // Register service worker for PWA
