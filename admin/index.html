@@ -300,7 +300,10 @@ async function loadCustomerTable() {
 
   const el = document.getElementById('customerTableWrap');
   if (!el) return;
-  if (error || !data?.length) {
+  if (error) {
+    el.innerHTML = `<p class="text-red-500 p-2">Error: ${error.message}</p>`; return;
+  }
+  if (!data?.length) {
     el.innerHTML = '<p class="text-gray-400 p-2">No customers yet.</p>'; return;
   }
 
