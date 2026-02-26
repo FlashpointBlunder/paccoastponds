@@ -273,8 +273,19 @@ async function renderCustomers(el) {
             <input name="contact_phone" type="tel" placeholder="Phone" class="field" />
           </div>
           <input name="address" placeholder="Service Address" class="field" />
-          <input name="monthly_service_fee" type="number" step="0.01" placeholder="Monthly Service Fee ($)" class="field" />
-          <textarea name="pond_notes" rows="2" placeholder="Pond notes (size, fish count, equipment...)" class="field"></textarea>
+          <input name="billing_address" placeholder="Billing Address (leave blank if same as service)" class="field" />
+          <label class="flex items-center gap-3 py-1 cursor-pointer select-none">
+            <input type="checkbox" name="is_subscription" id="addSubCheck"
+                   onchange="document.getElementById('addFeeWrap').classList.toggle('hidden',!this.checked)"
+                   class="w-4 h-4 rounded accent-[var(--green)]" />
+            <span class="text-sm font-medium text-gray-700">Monthly Subscription</span>
+          </label>
+          <div id="addFeeWrap" class="hidden">
+            <input name="monthly_service_fee" type="number" step="0.01" min="0"
+                   placeholder="Monthly Service Fee ($)" class="field" />
+          </div>
+          <textarea name="pond_notes" rows="2" placeholder="Pond notes (size, fish count...)" class="field"></textarea>
+          <textarea name="equipment_notes" rows="2" placeholder="Equipment (pump model, filter type, UV, aerator...)" class="field"></textarea>
           <p class="text-xs text-gray-400">No account invite will be sent yet. You control when that happens.</p>
           <div class="flex gap-3 pt-1">
             <button type="submit" class="btn-green flex-1 py-2.5">Save Customer</button>
@@ -293,19 +304,22 @@ async function renderCustomers(el) {
     const fd = new FormData(e.target);
     const errEl = document.getElementById('addCustErr');
     errEl.classList.add('hidden');
-
+    const isSub = document.getElementById('addSubCheck').checked;
     const { error } = await sb.from('service_accounts').insert({
       contact_name:        fd.get('contact_name'),
       contact_email:       fd.get('contact_email'),
       contact_phone:       fd.get('contact_phone'),
       address:             fd.get('address'),
-      monthly_service_fee: parseFloat(fd.get('monthly_service_fee')) || 0,
-      pond_notes:          fd.get('pond_notes'),
+      billing_address:     fd.get('billing_address') || null,
+      is_subscription:     isSub,
+      monthly_service_fee: isSub ? (parseFloat(fd.get('monthly_service_fee')) || 0) : 0,
+      pond_notes:          fd.get('pond_notes') || null,
+      equipment_notes:     fd.get('equipment_notes') || null,
     });
-
     if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
     closeModal('addCustomerModal');
     e.target.reset();
+    document.getElementById('addFeeWrap').classList.add('hidden');
     toast('Customer added');
     loadCustomerTable();
   });
@@ -325,7 +339,7 @@ function setCustFilter(btn, filter) {
 
 async function loadCustomerTable(filter = _custFilter) {
   let query = sb.from('service_accounts')
-    .select('id, active, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
+    .select('id, active, contact_name, contact_email, contact_phone, address, is_subscription, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
     .order('created_at', { ascending: false });
 
   if (filter === 'active')      query = query.eq('active', true).not('customer_id', 'is', null);
@@ -342,7 +356,7 @@ async function loadCustomerTable(filter = _custFilter) {
 
   el.innerHTML = `<table>
     <thead><tr>
-      <th>Name</th><th>Email</th><th>Phone</th><th>Address</th><th>Monthly Fee</th><th>Status</th>
+      <th>Name</th><th>Email</th><th>Phone</th><th>Service Address</th><th>Plan</th><th>Status</th>
     </tr></thead>
     <tbody>
       ${data.map(c => {
@@ -354,12 +368,15 @@ async function loadCustomerTable(filter = _custFilter) {
         else if (c.customer_id)    { badge = 'badge-green';  statusLabel = 'Active'; }
         else if (c.invite_sent_at) { badge = 'badge-yellow'; statusLabel = 'Invited'; }
         else                       { badge = 'badge-gray';   statusLabel = 'Not Invited'; }
+        const plan = c.is_subscription
+          ? `<span class="badge badge-green">${fmtMoney(c.monthly_service_fee)}/mo</span>`
+          : '<span class="text-gray-400 text-xs">One-off</span>';
         return `<tr class="cursor-pointer" onclick="openCustomerDetail('${c.id}')">
           <td class="font-semibold">${name}</td>
           <td class="text-gray-500">${email}</td>
           <td class="text-gray-500">${phone}</td>
           <td class="text-gray-500">${c.address || '—'}</td>
-          <td>${fmtMoney(c.monthly_service_fee)}</td>
+          <td>${plan}</td>
           <td><span class="badge ${badge}">${statusLabel}</span></td>
         </tr>`;
       }).join('')}
@@ -379,12 +396,15 @@ async function sendCustomerInvite(saId, email, name, phone) {
 }
 
 // ─── CUSTOMER DETAIL ──────────────────────────────────────────────────────────
+let _currentAccountId = null;
+
 async function openCustomerDetail(accountId) {
+  _currentAccountId = accountId;
   const el = document.getElementById('pageContent');
   el.innerHTML = '<p class="text-gray-400">Loading...</p>';
 
   const { data: c, error } = await sb.from('service_accounts')
-    .select('id, active, contact_name, contact_email, contact_phone, address, monthly_service_fee, pond_notes, invite_sent_at, customer_id, created_at, profiles(full_name, email, phone)')
+    .select('id, active, contact_name, contact_email, contact_phone, address, billing_address, is_subscription, monthly_service_fee, pond_notes, equipment_notes, invite_sent_at, customer_id, created_at, profiles(full_name, email, phone)')
     .eq('id', accountId)
     .single();
 
@@ -412,26 +432,29 @@ async function openCustomerDetail(accountId) {
 
   el.innerHTML = `
     <!-- Back + actions -->
-    <div class="flex items-center justify-between mb-6">
-      <button onclick="loadPage('customers')" class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 font-semibold">
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <button onclick="loadPage('customers')" class="text-sm text-gray-500 hover:text-gray-900 font-semibold">
         ← Back to Customers
       </button>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         ${canInvite ? `<button class="btn-blue" onclick="sendCustomerInvite('${c.id}','${c.contact_email}','${(c.contact_name||'').replace(/'/g,"\\'")}','${(c.contact_phone||'')}')">Send Invite</button>` : ''}
-        <button class="btn-green" onclick="openEditCustomer('${c.id}')">Edit</button>
+        <button class="btn-green" onclick="openEditCustomer()">Edit</button>
         <button class="px-4 py-2 ${toggleClass} text-white rounded-lg font-bold text-sm uppercase" onclick="toggleCustomerActive('${c.id}', ${c.active})">${toggleLabel}</button>
         <button class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm uppercase hover:bg-red-700" onclick="deleteCustomer('${c.id}','${c.customer_id||''}')">Delete</button>
       </div>
     </div>
 
-    <!-- Header -->
+    <!-- Header card -->
     <div class="bg-white rounded-xl border p-6 mb-5">
-      <div class="flex items-start justify-between">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 class="text-3xl font-extrabold">${name}</h1>
-          <p class="text-gray-500 mt-1">${email}</p>
+          <h1 class="text-3xl font-extrabold">${escHtml(name)}</h1>
+          <p class="text-gray-500 mt-1">${escHtml(email)}</p>
         </div>
-        ${statusBadge}
+        <div class="flex items-center gap-2 flex-wrap">
+          ${c.is_subscription ? '<span class="badge badge-green">Subscription</span>' : '<span class="badge badge-gray">One-off</span>'}
+          ${statusBadge}
+        </div>
       </div>
     </div>
 
@@ -440,16 +463,17 @@ async function openCustomerDetail(accountId) {
       <div class="bg-white rounded-xl border p-5">
         <h3 class="text-xs font-bold uppercase text-gray-400 mb-3">Contact</h3>
         <div class="space-y-2 text-sm">
-          <div class="flex justify-between"><span class="text-gray-500">Phone</span><span class="font-medium">${phone}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">Email</span><span class="font-medium">${email}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Phone</span><span class="font-medium">${escHtml(phone)}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Email</span><span class="font-medium">${escHtml(email)}</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Customer since</span><span class="font-medium">${fmtDate(c.created_at)}</span></div>
         </div>
       </div>
       <div class="bg-white rounded-xl border p-5">
-        <h3 class="text-xs font-bold uppercase text-gray-400 mb-3">Service</h3>
+        <h3 class="text-xs font-bold uppercase text-gray-400 mb-3">Service &amp; Billing</h3>
         <div class="space-y-2 text-sm">
-          <div class="flex justify-between"><span class="text-gray-500">Address</span><span class="font-medium text-right max-w-[60%]">${c.address || '—'}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">Monthly Fee</span><span class="font-bold text-lg">${fmtMoney(c.monthly_service_fee)}</span></div>
+          <div class="flex justify-between gap-2"><span class="text-gray-500 shrink-0">Service Address</span><span class="font-medium text-right">${escHtml(c.address || '—')}</span></div>
+          <div class="flex justify-between gap-2"><span class="text-gray-500 shrink-0">Billing Address</span><span class="font-medium text-right">${c.billing_address ? escHtml(c.billing_address) : '<span class="text-gray-400">Same as service</span>'}</span></div>
+          ${c.is_subscription ? `<div class="flex justify-between pt-1 border-t"><span class="text-gray-500">Monthly Fee</span><span class="font-bold text-lg text-[var(--green)]">${fmtMoney(c.monthly_service_fee)}/mo</span></div>` : ''}
         </div>
       </div>
     </div>
@@ -458,11 +482,34 @@ async function openCustomerDetail(accountId) {
     ${c.pond_notes ? `
     <div class="bg-white rounded-xl border p-5 mb-5">
       <h3 class="text-xs font-bold uppercase text-gray-400 mb-2">Pond Notes</h3>
-      <p class="text-sm text-gray-700">${c.pond_notes}</p>
+      <p class="text-sm text-gray-700 whitespace-pre-wrap">${escHtml(c.pond_notes)}</p>
     </div>` : ''}
 
+    <!-- Equipment -->
+    <div class="bg-white rounded-xl border p-5 mb-5">
+      <h3 class="text-xs font-bold uppercase text-gray-400 mb-2">Equipment</h3>
+      ${c.equipment_notes
+        ? `<p class="text-sm text-gray-700 whitespace-pre-wrap">${escHtml(c.equipment_notes)}</p>`
+        : '<p class="text-gray-400 text-sm">No equipment recorded. Click Edit to add.</p>'}
+    </div>
+
+    <!-- Pond Photos -->
+    <div class="bg-white rounded-xl border p-5 mb-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xs font-bold uppercase text-gray-400">Pond Photos</h3>
+        <label class="btn-outline text-xs cursor-pointer" id="uploadPhotoBtn">
+          + Upload Photos
+          <input type="file" class="hidden" multiple accept="image/*"
+                 onchange="uploadPondPhotos(this)">
+        </label>
+      </div>
+      <div id="pondPhotosGrid" class="grid grid-cols-3 gap-3">
+        <p class="text-gray-400 text-sm col-span-3">Loading photos...</p>
+      </div>
+    </div>
+
     <!-- Visit history -->
-    <div class="bg-white rounded-xl border p-5">
+    <div class="bg-white rounded-xl border p-5 mb-5">
       <h3 class="text-xs font-bold uppercase text-gray-400 mb-4">Service History</h3>
       ${!visits?.length ? '<p class="text-gray-400 text-sm">No visits yet.</p>' : `
       <table>
@@ -471,7 +518,7 @@ async function openCustomerDetail(accountId) {
           ${visits.map(v => `<tr>
             <td class="font-medium">${fmtDate(v.scheduled_date)}</td>
             <td class="text-gray-500">${v.technicians?.profiles?.full_name || '—'}</td>
-            <td class="text-gray-400 text-xs max-w-xs truncate">${v.notes || ''}</td>
+            <td class="text-gray-400 text-xs max-w-xs truncate">${escHtml(v.notes || '')}</td>
             <td><span class="badge ${v.status==='completed'?'badge-green':v.status==='cancelled'?'badge-gray':'badge-blue'}">${v.status}</span></td>
           </tr>`).join('')}
         </tbody>
@@ -483,14 +530,26 @@ async function openCustomerDetail(accountId) {
       <div class="modal">
         <h2 class="text-2xl font-bold mb-5">Edit Customer</h2>
         <form id="editCustomerForm" class="space-y-3">
-          <input name="contact_name"  class="field" placeholder="Full Name" value="${c.contact_name || ''}" />
+          <input name="contact_name" class="field" placeholder="Full Name" value="${escHtml(c.contact_name || '')}" />
           <div class="grid grid-cols-2 gap-3">
-            <input name="contact_email" type="email" class="field" placeholder="Email" value="${c.contact_email || ''}" />
-            <input name="contact_phone" type="tel"   class="field" placeholder="Phone" value="${c.contact_phone || ''}" />
+            <input name="contact_email" type="email" class="field" placeholder="Email" value="${escHtml(c.contact_email || '')}" />
+            <input name="contact_phone" type="tel"   class="field" placeholder="Phone" value="${escHtml(c.contact_phone || '')}" />
           </div>
-          <input name="address" class="field" placeholder="Service Address" value="${c.address || ''}" />
-          <input name="monthly_service_fee" type="number" step="0.01" class="field" placeholder="Monthly Fee ($)" value="${c.monthly_service_fee || ''}" />
-          <textarea name="pond_notes" rows="3" class="field" placeholder="Pond notes...">${c.pond_notes || ''}</textarea>
+          <input name="address" class="field" placeholder="Service Address" value="${escHtml(c.address || '')}" />
+          <input name="billing_address" class="field" placeholder="Billing Address (leave blank if same as service)" value="${escHtml(c.billing_address || '')}" />
+          <label class="flex items-center gap-3 py-1 cursor-pointer select-none">
+            <input type="checkbox" name="is_subscription" id="editSubCheck"
+                   ${c.is_subscription ? 'checked' : ''}
+                   onchange="document.getElementById('editFeeWrap').classList.toggle('hidden',!this.checked)"
+                   class="w-4 h-4 rounded accent-[var(--green)]" />
+            <span class="text-sm font-medium text-gray-700">Monthly Subscription</span>
+          </label>
+          <div id="editFeeWrap" class="${c.is_subscription ? '' : 'hidden'}">
+            <input name="monthly_service_fee" type="number" step="0.01" min="0"
+                   class="field" placeholder="Monthly Fee ($)" value="${c.monthly_service_fee || ''}" />
+          </div>
+          <textarea name="pond_notes" rows="2" class="field" placeholder="Pond notes...">${escHtml(c.pond_notes || '')}</textarea>
+          <textarea name="equipment_notes" rows="2" class="field" placeholder="Equipment (pump model, filter type, UV, aerator...)">${escHtml(c.equipment_notes || '')}</textarea>
           <div class="flex gap-3 pt-1">
             <button type="submit" class="btn-green flex-1 py-2.5">Save Changes</button>
             <button type="button" class="btn-outline flex-1" onclick="closeModal('editCustomerModal')">Cancel</button>
@@ -501,18 +560,24 @@ async function openCustomerDetail(accountId) {
     </div>
   `;
 
+  loadPondPhotos(accountId);
+
   document.getElementById('editCustomerForm').addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const errEl = document.getElementById('editCustErr');
     errEl.classList.add('hidden');
+    const isSub = document.getElementById('editSubCheck').checked;
     const { error } = await sb.from('service_accounts').update({
       contact_name:        fd.get('contact_name'),
       contact_email:       fd.get('contact_email'),
       contact_phone:       fd.get('contact_phone'),
       address:             fd.get('address'),
-      monthly_service_fee: parseFloat(fd.get('monthly_service_fee')) || 0,
-      pond_notes:          fd.get('pond_notes'),
+      billing_address:     fd.get('billing_address') || null,
+      is_subscription:     isSub,
+      monthly_service_fee: isSub ? (parseFloat(fd.get('monthly_service_fee')) || 0) : 0,
+      pond_notes:          fd.get('pond_notes') || null,
+      equipment_notes:     fd.get('equipment_notes') || null,
     }).eq('id', accountId);
     if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
     closeModal('editCustomerModal');
@@ -521,7 +586,68 @@ async function openCustomerDetail(accountId) {
   });
 }
 
-function openEditCustomer(id) { openModal('editCustomerModal'); }
+function openEditCustomer() { openModal('editCustomerModal'); }
+
+// ─── POND PHOTOS ───────────────────────────────────────────────────────────────
+async function loadPondPhotos(accountId) {
+  const gridEl = document.getElementById('pondPhotosGrid');
+  if (!gridEl) return;
+
+  const { data: files, error } = await sb.storage
+    .from('pond-photos')
+    .list(accountId, { sortBy: { column: 'created_at', order: 'desc' } });
+
+  if (error) { gridEl.innerHTML = `<p class="text-red-500 text-sm col-span-3">${error.message}</p>`; return; }
+  if (!files?.length) { gridEl.innerHTML = '<p class="text-gray-400 text-sm col-span-3">No photos yet.</p>'; return; }
+
+  const urlResults = await Promise.all(
+    files.map(f => sb.storage.from('pond-photos').createSignedUrl(`${accountId}/${f.name}`, 3600))
+  );
+
+  gridEl.innerHTML = files.map((f, i) => {
+    const url = urlResults[i]?.data?.signedUrl || '';
+    const path = `${accountId}/${f.name}`;
+    return `
+      <div class="relative group rounded-xl overflow-hidden bg-gray-100" style="aspect-ratio:1">
+        <img src="${url}" class="w-full h-full object-cover" loading="lazy" />
+        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+          <a href="${url}" target="_blank"
+             class="text-white text-xs font-bold px-3 py-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition">
+            View Full
+          </a>
+          <button onclick="deletePondPhoto('${path}')"
+                  class="text-white text-xs font-bold px-3 py-1.5 bg-red-500/80 rounded-lg hover:bg-red-600/80 transition">
+            Delete
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function uploadPondPhotos(input) {
+  const files = Array.from(input.files);
+  if (!files.length || !_currentAccountId) return;
+  const labelEl = document.getElementById('uploadPhotoBtn');
+  if (labelEl) labelEl.textContent = `Uploading ${files.length} photo${files.length>1?'s':''}...`;
+
+  await Promise.all(files.map(f => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    const path = `${_currentAccountId}/${crypto.randomUUID()}.${ext}`;
+    return sb.storage.from('pond-photos').upload(path, f);
+  }));
+
+  input.value = '';
+  if (labelEl) labelEl.innerHTML = '+ Upload Photos<input type="file" class="hidden" multiple accept="image/*" onchange="uploadPondPhotos(this)">';
+  toast(`${files.length} photo${files.length>1?'s':''} uploaded`);
+  loadPondPhotos(_currentAccountId);
+}
+
+async function deletePondPhoto(path) {
+  if (!confirm('Delete this photo?')) return;
+  const { error } = await sb.storage.from('pond-photos').remove([path]);
+  if (error) { toast(error.message, false); return; }
+  loadPondPhotos(_currentAccountId);
+}
 
 async function deleteCustomer(accountId, userId) {
   if (!confirm('Permanently delete this customer and all their data? This cannot be undone.')) return;
