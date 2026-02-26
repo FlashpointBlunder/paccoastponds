@@ -295,7 +295,7 @@ async function renderCustomers(el) {
 
 async function loadCustomerTable() {
   const { data, error } = await sb.from('service_accounts')
-    .select('id, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name, email)')
+    .select('id, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
     .order('created_at', { ascending: false });
 
   const el = document.getElementById('customerTableWrap');
