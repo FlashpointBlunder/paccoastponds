@@ -236,9 +236,16 @@ async function renderDashboard(el) {
 // ═══════════════════════════════════════════════════════════════
 async function renderCustomers(el) {
   el.innerHTML = `
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-4">
       <h1 class="text-3xl font-extrabold">Customers</h1>
       <button class="btn-green" onclick="openModal('addCustomerModal')">+ Add Customer</button>
+    </div>
+    <div class="flex gap-2 mb-4" id="custFilterBar">
+      <button class="filter-btn active-filter px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-[var(--green)] text-[var(--green)]" data-filter="active" onclick="setCustFilter(this,'active')">Active</button>
+      <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" data-filter="all" onclick="setCustFilter(this,'all')">All</button>
+      <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" data-filter="inactive" onclick="setCustFilter(this,'inactive')">Inactive</button>
+      <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" data-filter="invited" onclick="setCustFilter(this,'invited')">Invited</button>
+      <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" data-filter="not_invited" onclick="setCustFilter(this,'not_invited')">Not Invited</button>
     </div>
     <div class="bg-white rounded-xl border overflow-hidden">
       <div id="customerTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
@@ -268,7 +275,7 @@ async function renderCustomers(el) {
     </div>
   `;
 
-  loadCustomerTable();
+  loadCustomerTable('active');
 
   document.getElementById('addCustomerForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -293,10 +300,29 @@ async function renderCustomers(el) {
   });
 }
 
-async function loadCustomerTable() {
-  const { data, error } = await sb.from('service_accounts')
+let _custFilter = 'active';
+function setCustFilter(btn, filter) {
+  _custFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active-filter','border-[var(--green)]','text-[var(--green)]');
+    b.classList.add('border-gray-200','text-gray-500');
+  });
+  btn.classList.add('active-filter','border-[var(--green)]','text-[var(--green)]');
+  btn.classList.remove('border-gray-200','text-gray-500');
+  loadCustomerTable(filter);
+}
+
+async function loadCustomerTable(filter = _custFilter) {
+  let query = sb.from('service_accounts')
     .select('id, active, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
     .order('created_at', { ascending: false });
+
+  if (filter === 'active')      query = query.eq('active', true).not('customer_id', 'is', null);
+  if (filter === 'inactive')    query = query.eq('active', false);
+  if (filter === 'invited')     query = query.eq('active', true).not('invite_sent_at', 'is', null).is('customer_id', null);
+  if (filter === 'not_invited') query = query.is('invite_sent_at', null);
+
+  const { data, error } = await query;
 
   const el = document.getElementById('customerTableWrap');
   if (!el) return;
@@ -517,9 +543,14 @@ async function toggleCustomerActive(accountId, currentActive) {
 // ═══════════════════════════════════════════════════════════════
 async function renderTechs(el) {
   el.innerHTML = `
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-4">
       <h1 class="text-3xl font-extrabold">Technicians</h1>
       <button class="btn-green" onclick="openModal('addTechModal')">+ Add Technician</button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <button class="tech-filter-btn active-filter px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-[var(--green)] text-[var(--green)]" onclick="setTechFilter(this,'active')">Active</button>
+      <button class="tech-filter-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" onclick="setTechFilter(this,'all')">All</button>
+      <button class="tech-filter-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" onclick="setTechFilter(this,'inactive')">Inactive</button>
     </div>
     <div class="bg-white rounded-xl border overflow-hidden">
       <div id="techTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
@@ -544,7 +575,7 @@ async function renderTechs(el) {
     </div>
   `;
 
-  loadTechTable();
+  loadTechTable('active');
 
   document.getElementById('addTechForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -560,7 +591,7 @@ async function renderTechs(el) {
       closeModal('addTechModal');
       e.target.reset();
       toast('Technician added and invite sent');
-      loadTechTable();
+      loadTechTable(_techFilter);
     } catch(err) {
       errEl.textContent = err.message; errEl.classList.remove('hidden');
     } finally {
@@ -569,10 +600,27 @@ async function renderTechs(el) {
   });
 }
 
-async function loadTechTable() {
-  const { data, error } = await sb.from('technicians')
+let _techFilter = 'active';
+function setTechFilter(btn, filter) {
+  _techFilter = filter;
+  document.querySelectorAll('.tech-filter-btn').forEach(b => {
+    b.classList.remove('active-filter','border-[var(--green)]','text-[var(--green)]');
+    b.classList.add('border-gray-200','text-gray-500');
+  });
+  btn.classList.add('active-filter','border-[var(--green)]','text-[var(--green)]');
+  btn.classList.remove('border-gray-200','text-gray-500');
+  loadTechTable(filter);
+}
+
+async function loadTechTable(filter = _techFilter) {
+  let query = sb.from('technicians')
     .select('id, active, created_at, profiles(full_name, email, phone)')
     .order('created_at', { ascending: false });
+
+  if (filter === 'active')   query = query.eq('active', true);
+  if (filter === 'inactive') query = query.eq('active', false);
+
+  const { data, error } = await query;
 
   const el = document.getElementById('techTableWrap');
   if (!el) return;
