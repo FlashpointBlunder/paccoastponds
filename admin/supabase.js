@@ -1,9 +1,5 @@
-// Supabase client — shared across all portal pages
-// SUPABASE_URL and SUPABASE_ANON_KEY are injected by Netlify environment variables
-// In local dev, replace the values below temporarily (never commit real keys)
-
-const SUPABASE_URL  = window.ENV_SUPABASE_URL  || 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON = window.ENV_SUPABASE_ANON || 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL  = 'https://wxrifqyqhgkllslprtai.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4cmlmcXlxaGdrbGxzbHBydGFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNzUxMzMsImV4cCI6MjA4NzY1MTEzM30.Rnfg9eIQkvnyHMMyYn1GS1LYuZFJ32mxR1qWieS4RkA';
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
