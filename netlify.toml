@@ -4,7 +4,6 @@
 # pointing to their respective subdirectories.
 
 [build]
-  publish = "public"
   functions = "functions"
 
 [[headers]]
