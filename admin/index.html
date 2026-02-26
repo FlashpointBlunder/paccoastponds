@@ -922,14 +922,318 @@ async function cancelVisit(id) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// PRODUCTS (placeholder — next build)
+// PRODUCTS
 // ═══════════════════════════════════════════════════════════════
+let _prodCategoryFilter = 'all';
+
 async function renderProducts(el) {
   el.innerHTML = `
-    <h1 class="text-3xl font-extrabold mb-6">Products</h1>
-    <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-      Product catalog coming in next build.
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-3xl font-extrabold">Products</h1>
+      <div class="flex gap-2">
+        <button class="btn-outline" onclick="openModal('manageCatsModal')">Manage Categories</button>
+        <button class="btn-green" onclick="openAddProduct()">+ Add Product</button>
+      </div>
+    </div>
+
+    <!-- Category filter pills -->
+    <div class="flex flex-wrap gap-2 mb-5" id="prodCatPills">
+      <button class="prod-cat-btn active-filter px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-[var(--green)] text-[var(--green)]"
+        onclick="setProdCatFilter(this,'all')">All</button>
+      <button class="prod-cat-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500"
+        onclick="setProdCatFilter(this,'uncategorized')">Uncategorized</button>
+    </div>
+
+    <!-- Product table -->
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <div id="productTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
+    </div>
+
+    <!-- Manage Categories Modal -->
+    <div id="manageCatsModal" class="modal-bg hidden">
+      <div class="modal">
+        <h2 class="text-2xl font-bold mb-4">Manage Categories</h2>
+        <div id="catList" class="space-y-2 mb-4 max-h-64 overflow-y-auto">Loading...</div>
+        <form id="addCatForm" class="flex gap-2 mt-2">
+          <select id="catParentSelect" class="field flex-1">
+            <option value="">Top-level category</option>
+          </select>
+          <input name="catName" placeholder="Category name" required class="field flex-1" />
+          <button type="submit" class="btn-green px-4">Add</button>
+        </form>
+        <p id="addCatErr" class="text-red-600 text-sm mt-2 hidden"></p>
+        <div class="mt-4 text-right">
+          <button class="btn-outline" onclick="closeModal('manageCatsModal')">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add / Edit Product Modal -->
+    <div id="productModal" class="modal-bg hidden">
+      <div class="modal">
+        <h2 class="text-2xl font-bold mb-4" id="productModalTitle">Add Product</h2>
+        <form id="productForm" class="space-y-3">
+          <input type="hidden" name="product_id" />
+          <input name="name" placeholder="Product Name *" required class="field" />
+          <input name="sku" placeholder="SKU (optional)" class="field" />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Category</label>
+              <select name="category_id" class="field mt-1" id="productCatSelect">
+                <option value="">Uncategorized</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Price *</label>
+              <input name="price" type="number" step="0.01" placeholder="0.00" required class="field mt-1" />
+            </div>
+          </div>
+          <textarea name="description" rows="2" placeholder="Description (optional)" class="field"></textarea>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" class="btn-green flex-1 py-2.5" id="productSubmitBtn">Save Product</button>
+            <button type="button" class="btn-outline flex-1" onclick="closeModal('productModal')">Cancel</button>
+          </div>
+          <p id="productFormErr" class="text-red-600 text-sm hidden"></p>
+        </form>
+      </div>
+    </div>
+  `;
+
+  await loadCategoryPills();
+  loadProductTable('all');
+  bindProductModalForm();
+  loadManageCategories();
+
+  document.getElementById('manageCatsModal').addEventListener('click', e => {
+    if (e.target.id === 'manageCatsModal') closeModal('manageCatsModal');
+  });
+  document.getElementById('addCatForm').addEventListener('submit', addCategory);
+}
+
+function setProdCatFilter(btn, filter) {
+  _prodCategoryFilter = filter;
+  document.querySelectorAll('.prod-cat-btn').forEach(b => {
+    b.classList.remove('active-filter','border-[var(--green)]','text-[var(--green)]');
+    b.classList.add('border-gray-200','text-gray-500');
+  });
+  btn.classList.add('active-filter','border-[var(--green)]','text-[var(--green)]');
+  btn.classList.remove('border-gray-200','text-gray-500');
+  loadProductTable(filter);
+}
+
+async function loadCategoryPills() {
+  const { data: cats } = await sb.from('product_categories')
+    .select('id, name, parent_id').order('sort_order').order('name');
+  if (!cats?.length) return;
+
+  const pills = document.getElementById('prodCatPills');
+  if (!pills) return;
+
+  // Only show top-level categories as pills
+  const topLevel = cats.filter(c => !c.parent_id);
+  topLevel.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'prod-cat-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500';
+    btn.textContent = cat.name;
+    btn.onclick = function() { setProdCatFilter(this, cat.id); };
+    pills.appendChild(btn);
+  });
+}
+
+async function loadProductTable(filter) {
+  let query = sb.from('products')
+    .select('id, name, sku, price, description, active, category_id, product_categories(id, name, parent_id, product_categories(name))')
+    .order('name');
+
+  if (filter === 'uncategorized') query = query.is('category_id', null);
+  else if (filter !== 'all') {
+    // filter by top-level category: include products in this cat or any sub-cat of it
+    const { data: subcats } = await sb.from('product_categories').select('id').eq('parent_id', filter);
+    const ids = [filter, ...(subcats||[]).map(s => s.id)];
+    query = query.in('category_id', ids);
+  }
+
+  const { data, error } = await query;
+  const el = document.getElementById('productTableWrap');
+  if (!el) return;
+  if (error) { el.innerHTML = `<p class="text-red-500 p-2">Error: ${error.message}</p>`; return; }
+  if (!data?.length) { el.innerHTML = '<p class="text-gray-400 p-2">No products yet.</p>'; return; }
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Status</th><th class="text-right">Actions</th>
+    </tr></thead>
+    <tbody>
+      ${data.map(p => {
+        const cat = p.product_categories
+          ? (p.product_categories.product_categories?.name
+              ? `${p.product_categories.product_categories.name} › ${p.product_categories.name}`
+              : p.product_categories.name)
+          : '—';
+        return `<tr>
+          <td class="font-semibold">${p.name}${p.description ? `<p class="text-xs text-gray-400 font-normal mt-0.5 truncate max-w-xs">${p.description}</p>` : ''}</td>
+          <td class="text-gray-400 text-xs">${p.sku || '—'}</td>
+          <td class="text-gray-500 text-sm">${cat}</td>
+          <td class="font-semibold">${fmtMoney(p.price)}</td>
+          <td><span class="badge ${p.active ? 'badge-green' : 'badge-gray'}">${p.active ? 'Active' : 'Inactive'}</span></td>
+          <td class="text-right">
+            <div class="flex justify-end gap-2">
+              <button class="btn-outline text-xs px-2 py-1" onclick="openEditProduct('${p.id}')">Edit</button>
+              <button class="btn-outline text-xs px-2 py-1" onclick="toggleProductActive('${p.id}',${p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+              <button class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded" onclick="deleteProduct('${p.id}','${(p.name).replace(/'/g,"\\'")}')">Delete</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function openAddProduct() {
+  document.getElementById('productModalTitle').textContent = 'Add Product';
+  document.getElementById('productForm').reset();
+  document.querySelector('[name=product_id]').value = '';
+  document.getElementById('productSubmitBtn').textContent = 'Save Product';
+  await populateProductCatSelect();
+  openModal('productModal');
+}
+
+async function openEditProduct(productId) {
+  const { data: p } = await sb.from('products').select('*').eq('id', productId).single();
+  if (!p) return;
+  document.getElementById('productModalTitle').textContent = 'Edit Product';
+  document.getElementById('productSubmitBtn').textContent = 'Save Changes';
+  await populateProductCatSelect(p.category_id);
+  const f = document.getElementById('productForm');
+  f.querySelector('[name=product_id]').value = p.id;
+  f.querySelector('[name=name]').value       = p.name || '';
+  f.querySelector('[name=sku]').value        = p.sku  || '';
+  f.querySelector('[name=price]').value      = p.price || '';
+  f.querySelector('[name=description]').value = p.description || '';
+  openModal('productModal');
+}
+
+async function populateProductCatSelect(selectedId = '') {
+  const { data: cats } = await sb.from('product_categories')
+    .select('id, name, parent_id').order('sort_order').order('name');
+  const sel = document.getElementById('productCatSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Uncategorized</option>';
+  if (!cats?.length) return;
+  const top = cats.filter(c => !c.parent_id);
+  top.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat.id; opt.textContent = cat.name;
+    if (cat.id === selectedId) opt.selected = true;
+    sel.appendChild(opt);
+    // Sub-categories indented
+    cats.filter(c => c.parent_id === cat.id).forEach(sub => {
+      const sopt = document.createElement('option');
+      sopt.value = sub.id; sopt.textContent = `  └ ${sub.name}`;
+      if (sub.id === selectedId) sopt.selected = true;
+      sel.appendChild(sopt);
+    });
+  });
+}
+
+function bindProductModalForm() {
+  document.getElementById('productForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const errEl = document.getElementById('productFormErr');
+    errEl.classList.add('hidden');
+    const productId = fd.get('product_id');
+    const payload = {
+      name:        fd.get('name'),
+      sku:         fd.get('sku') || null,
+      price:       parseFloat(fd.get('price')),
+      description: fd.get('description') || null,
+      category_id: fd.get('category_id') || null,
+    };
+    const { error } = productId
+      ? await sb.from('products').update(payload).eq('id', productId)
+      : await sb.from('products').insert(payload);
+    if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+    closeModal('productModal');
+    toast(productId ? 'Product updated' : 'Product added');
+    loadProductTable(_prodCategoryFilter);
+  });
+}
+
+async function toggleProductActive(productId, current) {
+  await sb.from('products').update({ active: !current }).eq('id', productId);
+  toast(!current ? 'Product activated' : 'Product deactivated');
+  loadProductTable(_prodCategoryFilter);
+}
+
+async function deleteProduct(productId, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const { error } = await sb.from('products').delete().eq('id', productId);
+  if (error) { toast(error.message, false); return; }
+  toast('Product deleted');
+  loadProductTable(_prodCategoryFilter);
+}
+
+// ─── CATEGORY MANAGEMENT ──────────────────────────────────────────────────────
+async function loadManageCategories() {
+  const { data: cats } = await sb.from('product_categories')
+    .select('id, name, parent_id').order('sort_order').order('name');
+  const el = document.getElementById('catList');
+  if (!el) return;
+  if (!cats?.length) { el.innerHTML = '<p class="text-gray-400 text-sm">No categories yet.</p>'; return; }
+
+  const top = cats.filter(c => !c.parent_id);
+  el.innerHTML = top.map(cat => {
+    const subs = cats.filter(c => c.parent_id === cat.id);
+    return `<div class="border rounded-lg overflow-hidden">
+      <div class="flex items-center justify-between px-3 py-2 bg-gray-50">
+        <span class="font-semibold text-sm">${cat.name}</span>
+        <button class="text-red-500 text-xs hover:text-red-700" onclick="deleteCategory('${cat.id}','${cat.name.replace(/'/g,"\\'")}')">Delete</button>
+      </div>
+      ${subs.map(s => `
+        <div class="flex items-center justify-between px-4 py-1.5 border-t text-sm text-gray-600">
+          <span>└ ${s.name}</span>
+          <button class="text-red-400 text-xs hover:text-red-600" onclick="deleteCategory('${s.id}','${s.name.replace(/'/g,"\\'")}')">Delete</button>
+        </div>`).join('')}
     </div>`;
+  }).join('');
+
+  // Populate parent select in add form
+  const parentSel = document.getElementById('catParentSelect');
+  if (parentSel) {
+    parentSel.innerHTML = '<option value="">Top-level category</option>' +
+      top.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  }
+}
+
+async function addCategory(e) {
+  e.preventDefault();
+  const name = e.target.catName.value.trim();
+  const parent_id = document.getElementById('catParentSelect').value || null;
+  const errEl = document.getElementById('addCatErr');
+  errEl.classList.add('hidden');
+  if (!name) return;
+  const { error } = await sb.from('product_categories').insert({ name, parent_id });
+  if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+  e.target.catName.value = '';
+  toast('Category added');
+  loadManageCategories();
+  // Refresh pills
+  const pills = document.getElementById('prodCatPills');
+  if (pills) {
+    pills.innerHTML = `
+      <button class="prod-cat-btn active-filter px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-[var(--green)] text-[var(--green)]" onclick="setProdCatFilter(this,'all')">All</button>
+      <button class="prod-cat-btn px-4 py-1.5 rounded-full text-sm font-semibold border-2 border-gray-200 text-gray-500" onclick="setProdCatFilter(this,'uncategorized')">Uncategorized</button>`;
+    await loadCategoryPills();
+  }
+}
+
+async function deleteCategory(catId, name) {
+  if (!confirm(`Delete category "${name}"? Products in this category will become uncategorized.`)) return;
+  const { error } = await sb.from('product_categories').delete().eq('id', catId);
+  if (error) { toast(error.message, false); return; }
+  toast('Category deleted');
+  loadManageCategories();
 }
 
 // ═══════════════════════════════════════════════════════════════
