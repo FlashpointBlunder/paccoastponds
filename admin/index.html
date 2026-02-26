@@ -295,7 +295,7 @@ async function renderCustomers(el) {
 
 async function loadCustomerTable() {
   const { data, error } = await sb.from('service_accounts')
-    .select('id, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
+    .select('id, active, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
     .order('created_at', { ascending: false });
 
   const el = document.getElementById('customerTableWrap');
@@ -313,7 +313,8 @@ async function loadCustomerTable() {
         const email = c.contact_email || '—';
         const phone = c.contact_phone || '—';
         let badge, statusLabel;
-        if (c.customer_id)         { badge = 'badge-green';  statusLabel = 'Active'; }
+        if (!c.active)             { badge = 'badge-gray';   statusLabel = 'Inactive'; }
+        else if (c.customer_id)    { badge = 'badge-green';  statusLabel = 'Active'; }
         else if (c.invite_sent_at) { badge = 'badge-yellow'; statusLabel = 'Invited'; }
         else                       { badge = 'badge-gray';   statusLabel = 'Not Invited'; }
         return `<tr class="cursor-pointer" onclick="openCustomerDetail('${c.id}')">
@@ -346,7 +347,7 @@ async function openCustomerDetail(accountId) {
   el.innerHTML = '<p class="text-gray-400">Loading...</p>';
 
   const { data: c, error } = await sb.from('service_accounts')
-    .select('id, contact_name, contact_email, contact_phone, address, monthly_service_fee, pond_notes, invite_sent_at, customer_id, created_at, profiles(full_name, email, phone)')
+    .select('id, active, contact_name, contact_email, contact_phone, address, monthly_service_fee, pond_notes, invite_sent_at, customer_id, created_at, profiles(full_name, email, phone)')
     .eq('id', accountId)
     .single();
 
@@ -364,9 +365,13 @@ async function openCustomerDetail(accountId) {
   const canInvite = !c.invite_sent_at && c.contact_email;
 
   let statusBadge;
-  if (c.customer_id)         statusBadge = '<span class="badge badge-green">Active</span>';
+  if (!c.active)             statusBadge = '<span class="badge badge-gray">Inactive</span>';
+  else if (c.customer_id)    statusBadge = '<span class="badge badge-green">Active</span>';
   else if (c.invite_sent_at) statusBadge = '<span class="badge badge-yellow">Invited</span>';
   else                       statusBadge = '<span class="badge badge-gray">Not Invited</span>';
+
+  const toggleLabel = c.active ? 'Mark Inactive' : 'Reactivate';
+  const toggleClass = c.active ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-600 hover:bg-green-700';
 
   el.innerHTML = `
     <!-- Back + actions -->
@@ -377,6 +382,7 @@ async function openCustomerDetail(accountId) {
       <div class="flex gap-2">
         ${canInvite ? `<button class="btn-blue" onclick="sendCustomerInvite('${c.id}','${c.contact_email}','${(c.contact_name||'').replace(/'/g,"\\'")}','${(c.contact_phone||'')}')">Send Invite</button>` : ''}
         <button class="btn-green" onclick="openEditCustomer('${c.id}')">Edit</button>
+        <button class="px-4 py-2 ${toggleClass} text-white rounded-lg font-bold text-sm uppercase" onclick="toggleCustomerActive('${c.id}', ${c.active})">${toggleLabel}</button>
         <button class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm uppercase hover:bg-red-700" onclick="deleteCustomer('${c.id}','${c.customer_id||''}')">Delete</button>
       </div>
     </div>
@@ -498,6 +504,14 @@ async function deleteCustomer(accountId, userId) {
   }
 }
 
+async function toggleCustomerActive(accountId, currentActive) {
+  const newState = !currentActive;
+  const { error } = await sb.from('service_accounts').update({ active: newState }).eq('id', accountId);
+  if (error) { toast(error.message, false); return; }
+  toast(newState ? 'Customer reactivated' : 'Customer marked inactive');
+  openCustomerDetail(accountId);
+}
+
 // ═══════════════════════════════════════════════════════════════
 // TECHNICIANS
 // ═══════════════════════════════════════════════════════════════
@@ -557,7 +571,7 @@ async function renderTechs(el) {
 
 async function loadTechTable() {
   const { data, error } = await sb.from('technicians')
-    .select('id, created_at, profiles(full_name, email, phone)')
+    .select('id, active, created_at, profiles(full_name, email, phone)')
     .order('created_at', { ascending: false });
 
   const el = document.getElementById('techTableWrap');
@@ -566,16 +580,150 @@ async function loadTechTable() {
     el.innerHTML = '<p class="text-gray-400 p-2">No technicians yet.</p>'; return;
   }
   el.innerHTML = `<table>
-    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Added</th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Added</th></tr></thead>
     <tbody>
-      ${data.map(t => `<tr>
+      ${data.map(t => `<tr class="cursor-pointer" onclick="openTechDetail('${t.id}')">
         <td class="font-semibold">${t.profiles?.full_name || '—'}</td>
         <td class="text-gray-500">${t.profiles?.email || '—'}</td>
         <td class="text-gray-500">${t.profiles?.phone || '—'}</td>
+        <td><span class="badge ${t.active !== false ? 'badge-green' : 'badge-gray'}">${t.active !== false ? 'Active' : 'Inactive'}</span></td>
         <td class="text-gray-400">${fmtDate(t.created_at)}</td>
       </tr>`).join('')}
     </tbody>
   </table>`;
+}
+
+// ─── TECH DETAIL ──────────────────────────────────────────────────────────────
+async function openTechDetail(techId) {
+  const el = document.getElementById('pageContent');
+  el.innerHTML = '<p class="text-gray-400">Loading...</p>';
+
+  const { data: t, error } = await sb.from('technicians')
+    .select('id, active, created_at, user_id, profiles(full_name, email, phone)')
+    .eq('id', techId)
+    .single();
+
+  if (error || !t) { el.innerHTML = `<p class="text-red-500">Error: ${error?.message}</p>`; return; }
+
+  const { data: visits } = await sb.from('service_visits')
+    .select('id, scheduled_date, status, service_accounts(contact_name, profiles(full_name))')
+    .eq('tech_id', techId)
+    .order('scheduled_date', { ascending: false })
+    .limit(10);
+
+  const name  = t.profiles?.full_name || '—';
+  const email = t.profiles?.email     || '—';
+  const phone = t.profiles?.phone     || '—';
+  const isActive = t.active !== false;
+  const toggleLabel = isActive ? 'Mark Inactive' : 'Reactivate';
+  const toggleClass = isActive ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-600 hover:bg-green-700';
+
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <button onclick="loadPage('techs')" class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 font-semibold">
+        ← Back to Technicians
+      </button>
+      <div class="flex gap-2">
+        <button class="btn-green" onclick="openModal('editTechModal')">Edit</button>
+        <button class="px-4 py-2 ${toggleClass} text-white rounded-lg font-bold text-sm uppercase" onclick="toggleTechActive('${t.id}', ${isActive})">${toggleLabel}</button>
+        <button class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm uppercase hover:bg-red-700" onclick="deleteTech('${t.id}','${t.user_id||''}')">Delete</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border p-6 mb-5">
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-3xl font-extrabold">${name}</h1>
+          <p class="text-gray-500 mt-1">${email}</p>
+        </div>
+        <span class="badge ${isActive ? 'badge-green' : 'badge-gray'}">${isActive ? 'Active' : 'Inactive'}</span>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border p-5 mb-5">
+      <h3 class="text-xs font-bold uppercase text-gray-400 mb-3">Contact</h3>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-gray-500">Phone</span><span class="font-medium">${phone}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Email</span><span class="font-medium">${email}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Added</span><span class="font-medium">${fmtDate(t.created_at)}</span></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border p-5">
+      <h3 class="text-xs font-bold uppercase text-gray-400 mb-4">Job History</h3>
+      ${!visits?.length ? '<p class="text-gray-400 text-sm">No jobs yet.</p>' : `
+      <table>
+        <thead><tr><th>Date</th><th>Customer</th><th>Status</th></tr></thead>
+        <tbody>
+          ${visits.map(v => {
+            const cust = v.service_accounts?.profiles?.full_name || v.service_accounts?.contact_name || '—';
+            return `<tr>
+              <td class="font-medium">${fmtDate(v.scheduled_date)}</td>
+              <td>${cust}</td>
+              <td><span class="badge ${v.status==='completed'?'badge-green':v.status==='cancelled'?'badge-gray':'badge-blue'}">${v.status}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`}
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editTechModal" class="modal-bg hidden">
+      <div class="modal">
+        <h2 class="text-2xl font-bold mb-5">Edit Technician</h2>
+        <form id="editTechForm" class="space-y-3">
+          <input name="full_name" class="field" placeholder="Full Name" value="${name !== '—' ? name : ''}" />
+          <input name="phone" type="tel" class="field" placeholder="Phone" value="${phone !== '—' ? phone : ''}" />
+          <p class="text-xs text-gray-400">Email cannot be changed here — contact Supabase to update auth email.</p>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" class="btn-green flex-1 py-2.5">Save Changes</button>
+            <button type="button" class="btn-outline flex-1" onclick="closeModal('editTechModal')">Cancel</button>
+          </div>
+          <p id="editTechErr" class="text-red-600 text-sm hidden"></p>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('editTechForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const errEl = document.getElementById('editTechErr');
+    errEl.classList.add('hidden');
+    const { error } = await sb.from('profiles').update({
+      full_name: fd.get('full_name'),
+      phone:     fd.get('phone'),
+    }).eq('id', t.user_id);
+    if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+    closeModal('editTechModal');
+    toast('Technician updated');
+    openTechDetail(techId);
+  });
+}
+
+async function toggleTechActive(techId, currentActive) {
+  const { error } = await sb.from('technicians').update({ active: !currentActive }).eq('id', techId);
+  if (error) { toast(error.message, false); return; }
+  toast(!currentActive ? 'Technician reactivated' : 'Technician marked inactive');
+  openTechDetail(techId);
+}
+
+async function deleteTech(techId, userId) {
+  if (!confirm('Permanently delete this technician? Their past job history will be preserved but future visits will be unassigned.')) return;
+  const { data: { session } } = await sb.auth.getSession();
+  try {
+    const res = await fetch('/.netlify/functions/delete-tech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ tech_id: techId, user_id: userId || null })
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error);
+    toast('Technician deleted');
+    loadPage('techs');
+  } catch(err) {
+    toast(err.message, false);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -667,8 +815,8 @@ async function renderSchedule(el) {
 
 async function populateVisitSelects() {
   const [{ data: accounts }, { data: techs }] = await Promise.all([
-    sb.from('service_accounts').select('id, contact_name, profiles(full_name)').order('contact_name'),
-    sb.from('technicians').select('id, profiles(full_name)').order('created_at'),
+    sb.from('service_accounts').select('id, contact_name, profiles(full_name)').eq('active', true).order('contact_name'),
+    sb.from('technicians').select('id, profiles(full_name)').eq('active', true).order('created_at'),
   ]);
 
   const custSel = document.getElementById('visitCustomerSelect');
