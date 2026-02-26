@@ -11,365 +11,613 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase.js"></script>
   <style>
-    :root{ --green:#1E5E37; --blue:#2CA7DF; --cream:#F8FAF7; --dark:#0F1C12; }
+    :root{ --green:#1E5E37; --blue:#2CA7DF; --dark:#0F1C12; }
     body { font-family: Inter, ui-sans-serif, system-ui; }
     h1,h2,h3 { font-family: Oswald, sans-serif; text-transform: uppercase; letter-spacing: .5px; }
-    .sidebar-link { display:flex; align-items:center; gap:.75rem; padding:.65rem 1rem; border-radius:.5rem; font-weight:600; font-size:.9rem; color:rgba(255,255,255,.75); transition:background .15s; }
+    .sidebar-link { display:flex; align-items:center; gap:.75rem; padding:.65rem 1rem; border-radius:.5rem; font-weight:600; font-size:.9rem; color:rgba(255,255,255,.75); transition:background .15s; cursor:pointer; }
     .sidebar-link:hover, .sidebar-link.active { background:rgba(255,255,255,.12); color:#fff; }
     .stat-card { background:#fff; border:1px solid #e5e7eb; border-radius:.75rem; padding:1.5rem; }
+    .btn-green { background:var(--green); color:#fff; padding:.6rem 1.25rem; border-radius:.5rem; font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.4px; cursor:pointer; transition:background .15s; }
+    .btn-green:hover { background:var(--dark); }
+    .btn-blue { background:var(--blue); color:#fff; padding:.6rem 1.25rem; border-radius:.5rem; font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.4px; cursor:pointer; }
+    .btn-outline { border:2px solid #e5e7eb; background:#fff; padding:.5rem 1rem; border-radius:.5rem; font-weight:600; font-size:.85rem; cursor:pointer; }
+    .btn-outline:hover { border-color:#9ca3af; }
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:50; display:flex; align-items:center; justify-content:center; padding:1rem; }
+    .modal { background:#fff; border-radius:.75rem; box-shadow:0 25px 50px rgba(0,0,0,.25); width:100%; max-width:32rem; max-height:90vh; overflow-y:auto; padding:1.5rem; }
+    .field { width:100%; padding:.65rem .75rem; border:2px solid #e5e7eb; border-radius:.5rem; font-size:.9rem; outline:none; }
+    .field:focus { border-color:var(--green); }
+    .badge { display:inline-block; padding:.2rem .65rem; border-radius:9999px; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+    .badge-green  { background:#dcfce7; color:#166534; }
+    .badge-blue   { background:#dbeafe; color:#1e40af; }
+    .badge-gray   { background:#f3f4f6; color:#6b7280; }
+    .badge-yellow { background:#fef9c3; color:#854d0e; }
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:#9ca3af; padding:.6rem .75rem; border-bottom:1px solid #e5e7eb; }
+    td { padding:.75rem; border-bottom:1px solid #f3f4f6; font-size:.875rem; vertical-align:middle; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#f9fafb; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900">
 
-  <!-- LOGIN SCREEN (shown when not authenticated) -->
-  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-[var(--dark)]">
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
-      <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-12 mx-auto mb-6">
-      <h1 class="text-2xl text-center mb-6">Admin Login</h1>
-      <form id="loginForm" class="space-y-4">
-        <input id="loginEmail" type="email" placeholder="Email" required
-          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-        <input id="loginPassword" type="password" placeholder="Password" required
-          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-        <button type="submit"
-          class="w-full py-3 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition">
-          Sign In
-        </button>
-      </form>
-      <p id="loginError" class="mt-3 text-red-600 text-sm text-center hidden"></p>
+<!-- ─── LOGIN ─────────────────────────────────────────────── -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center bg-[var(--dark)]">
+  <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+    <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-12 mx-auto mb-6">
+    <h1 class="text-2xl text-center mb-6">Admin Login</h1>
+    <form id="loginForm" class="space-y-4">
+      <input id="loginEmail"    type="email"    placeholder="Email"    required class="field" />
+      <input id="loginPassword" type="password" placeholder="Password" required class="field" />
+      <button type="submit" class="btn-green w-full py-3 text-base">Sign In</button>
+    </form>
+    <p id="loginError" class="mt-3 text-red-600 text-sm text-center hidden"></p>
+  </div>
+</div>
+
+<!-- ─── APP SHELL ──────────────────────────────────────────── -->
+<div id="appShell" class="hidden min-h-screen flex">
+
+  <!-- Sidebar -->
+  <aside class="w-56 bg-[var(--dark)] flex flex-col fixed inset-y-0 left-0 z-30">
+    <div class="p-5 border-b border-white/10">
+      <p class="text-white font-bold uppercase text-sm">Pacific Coast Ponds</p>
+      <p class="text-white/40 text-xs mt-0.5">Admin</p>
     </div>
-  </div>
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+      <div class="sidebar-link active" data-page="dashboard">⊞ &nbsp;Dashboard</div>
+      <div class="sidebar-link" data-page="customers">👤 &nbsp;Customers</div>
+      <div class="sidebar-link" data-page="schedule">📅 &nbsp;Schedule</div>
+      <div class="sidebar-link" data-page="techs">🔧 &nbsp;Technicians</div>
+      <div class="sidebar-link" data-page="products">📦 &nbsp;Products</div>
+      <div class="sidebar-link" data-page="billing">💳 &nbsp;Billing</div>
+      <div class="sidebar-link" data-page="messages">💬 &nbsp;Messages</div>
+    </nav>
+    <div class="p-3 border-t border-white/10">
+      <div id="logoutBtn" class="sidebar-link">→ &nbsp;Sign Out</div>
+    </div>
+  </aside>
 
-  <!-- MAIN APP (shown when authenticated) -->
-  <div id="appShell" class="hidden min-h-screen flex">
+  <!-- Main -->
+  <main class="ml-56 flex-1 p-8 overflow-y-auto min-h-screen">
+    <div id="pageContent"></div>
+  </main>
+</div>
 
-    <!-- Sidebar -->
-    <aside class="w-60 bg-[var(--dark)] flex flex-col fixed inset-y-0 left-0 z-30">
-      <div class="p-5 border-b border-white/10">
-        <p class="text-white font-bold uppercase text-sm">Pacific Coast Ponds</p>
-        <p class="text-white/50 text-xs mt-0.5">Admin Portal</p>
-      </div>
-      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-        <a href="#" data-page="dashboard" class="sidebar-link active">
-          <span>⊞</span> Dashboard
-        </a>
-        <a href="#" data-page="customers" class="sidebar-link">
-          <span>👤</span> Customers
-        </a>
-        <a href="#" data-page="schedule" class="sidebar-link">
-          <span>📅</span> Schedule
-        </a>
-        <a href="#" data-page="techs" class="sidebar-link">
-          <span>🔧</span> Technicians
-        </a>
-        <a href="#" data-page="products" class="sidebar-link">
-          <span>📦</span> Products
-        </a>
-        <a href="#" data-page="billing" class="sidebar-link">
-          <span>💳</span> Billing
-        </a>
-        <a href="#" data-page="messages" class="sidebar-link">
-          <span>💬</span> Messages
-        </a>
-      </nav>
-      <div class="p-3 border-t border-white/10">
-        <button id="logoutBtn" class="sidebar-link w-full text-left">
-          <span>→</span> Sign Out
-        </button>
-      </div>
-    </aside>
+<script>
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+function fmtMoney(n) { return n != null ? '$' + parseFloat(n).toFixed(2) : '—'; }
+function show(id)  { const el=document.getElementById(id); if(el) el.classList.remove('hidden'); }
+function hide(id)  { const el=document.getElementById(id); if(el) el.classList.add('hidden'); }
+function toast(msg, ok=true) {
+  const t = document.createElement('div');
+  t.className = `fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-lg text-white font-semibold shadow-xl ${ok?'bg-green-600':'bg-red-600'}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
 
-    <!-- Main content area -->
-    <main class="ml-60 flex-1 p-8 overflow-y-auto">
-      <div id="pageContent"></div>
-    </main>
-  </div>
+// ─── AUTH ──────────────────────────────────────────────────────────────────────
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    const { data: p } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+    if (p?.role === 'admin') { showApp(); return; }
+    await sb.auth.signOut();
+  }
+  showLogin();
+}
 
-  <script>
-    // ─── AUTH ────────────────────────────────────────────────────────────────
-    async function checkAuth() {
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) {
-        // Verify admin role
-        const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
-        if (profile?.role === 'admin') {
-          showApp();
-          return;
-        }
-        await sb.auth.signOut();
-      }
-      showLogin();
-    }
+function showLogin() {
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('appShell').classList.add('hidden');
+}
+function showApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
+  loadPage('dashboard');
+}
 
-    function showLogin() {
-      document.getElementById('loginScreen').classList.remove('hidden');
-      document.getElementById('appShell').classList.add('hidden');
-    }
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  const { error } = await sb.auth.signInWithPassword({
+    email: document.getElementById('loginEmail').value,
+    password: document.getElementById('loginPassword').value
+  });
+  if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+  checkAuth();
+});
 
-    function showApp() {
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('appShell').classList.remove('hidden');
-      loadPage('dashboard');
-    }
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await sb.auth.signOut(); showLogin();
+});
 
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email    = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
-      const errEl    = document.getElementById('loginError');
-      errEl.classList.add('hidden');
+// ─── NAV ───────────────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-page]').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('[data-page]').forEach(l => l.classList.remove('active'));
+    el.classList.add('active');
+    loadPage(el.dataset.page);
+  });
+});
 
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) {
-        errEl.textContent = error.message;
-        errEl.classList.remove('hidden');
-        return;
-      }
-      checkAuth();
-    });
+function loadPage(page) {
+  const pages = {
+    dashboard: renderDashboard,
+    customers: renderCustomers,
+    schedule:  renderSchedule,
+    techs:     renderTechs,
+    products:  renderProducts,
+    billing:   renderBilling,
+    messages:  renderMessages,
+  };
+  const el = document.getElementById('pageContent');
+  if (pages[page]) pages[page](el);
+}
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await sb.auth.signOut();
-      showLogin();
-    });
+// ─── INVITE HELPER ─────────────────────────────────────────────────────────────
+async function callInvite(email, full_name, phone, role, service_account_id) {
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch('/.netlify/functions/invite-user', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ email, full_name, phone, role, service_account_id })
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Invite failed');
+  return json;
+}
 
-    // ─── NAVIGATION ──────────────────────────────────────────────────────────
-    document.querySelectorAll('[data-page]').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.querySelectorAll('[data-page]').forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
-        loadPage(link.dataset.page);
-      });
-    });
+// ═══════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+async function renderDashboard(el) {
+  el.innerHTML = `
+    <h1 class="text-3xl font-extrabold mb-8">Dashboard</h1>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Active Customers</p><p class="text-4xl font-bold mt-2" id="sC">—</p></div>
+      <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Visits This Week</p><p class="text-4xl font-bold mt-2" id="sV">—</p></div>
+      <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Technicians</p><p class="text-4xl font-bold mt-2" id="sT">—</p></div>
+      <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Unread Messages</p><p class="text-4xl font-bold mt-2" id="sM">—</p></div>
+    </div>
+    <div class="bg-white rounded-xl border p-6">
+      <h2 class="text-xl font-bold mb-4">Upcoming Visits</h2>
+      <div id="upcomingList" class="text-gray-400 text-sm">Loading...</div>
+    </div>
+  `;
 
-    function loadPage(page) {
-      const el = document.getElementById('pageContent');
-      const pages = {
-        dashboard: renderDashboard,
-        customers: renderCustomers,
-        schedule:  renderSchedule,
-        techs:     renderTechs,
-        products:  renderProducts,
-        billing:   renderBilling,
-        messages:  renderMessages,
-      };
-      if (pages[page]) pages[page](el);
-    }
+  const now = new Date();
+  const week = new Date(now); week.setDate(now.getDate() + 7);
 
-    // ─── PAGES ───────────────────────────────────────────────────────────────
-    async function renderDashboard(el) {
-      el.innerHTML = `
-        <h1 class="text-3xl font-extrabold mb-8">Dashboard</h1>
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10" id="statCards">
-          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Active Customers</p><p class="text-4xl font-bold mt-2" id="statCustomers">—</p></div>
-          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Visits This Week</p><p class="text-4xl font-bold mt-2" id="statVisits">—</p></div>
-          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Open Messages</p><p class="text-4xl font-bold mt-2" id="statMessages">—</p></div>
-          <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Unpaid Invoices</p><p class="text-4xl font-bold mt-2" id="statInvoices">—</p></div>
-        </div>
-        <div class="bg-white rounded-xl border p-6">
-          <h2 class="text-xl font-bold mb-4">Upcoming Visits</h2>
-          <div id="upcomingVisits" class="text-gray-400 text-sm">Loading...</div>
-        </div>
-      `;
-      loadDashboardStats();
-    }
+  const [cRes, vRes, tRes, mRes] = await Promise.all([
+    sb.from('service_accounts').select('id', { count:'exact', head:true }).not('customer_id','is',null),
+    sb.from('service_visits').select('id', { count:'exact', head:true }).gte('scheduled_date', now.toISOString()).lte('scheduled_date', week.toISOString()),
+    sb.from('technicians').select('id', { count:'exact', head:true }),
+    sb.from('messages').select('id', { count:'exact', head:true }).eq('read_by_admin', false),
+  ]);
 
-    async function loadDashboardStats() {
-      const now = new Date();
-      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+  if (document.getElementById('sC')) {
+    document.getElementById('sC').textContent = cRes.count ?? 0;
+    document.getElementById('sV').textContent = vRes.count ?? 0;
+    document.getElementById('sT').textContent = tRes.count ?? 0;
+    document.getElementById('sM').textContent = mRes.count ?? 0;
+  }
 
-      const [customers, visits, messages] = await Promise.all([
-        sb.from('service_accounts').select('id', { count: 'exact', head: true }),
-        sb.from('service_visits').select('id', { count: 'exact', head: true })
-          .gte('scheduled_date', now.toISOString())
-          .lte('scheduled_date', weekEnd.toISOString()),
-        sb.from('messages').select('id', { count: 'exact', head: true }).eq('read_by_admin', false),
-      ]);
+  const { data: upcoming } = await sb.from('service_visits')
+    .select('id, scheduled_date, status, service_accounts(contact_name, profiles(full_name)), technicians(profiles(full_name))')
+    .gte('scheduled_date', now.toISOString())
+    .order('scheduled_date', { ascending: true })
+    .limit(8);
 
-      if (document.getElementById('statCustomers')) {
-        document.getElementById('statCustomers').textContent = customers.count ?? 0;
-        document.getElementById('statVisits').textContent    = visits.count ?? 0;
-        document.getElementById('statMessages').textContent  = messages.count ?? 0;
-        document.getElementById('statInvoices').textContent  = '—';
-      }
+  const uvEl = document.getElementById('upcomingList');
+  if (!uvEl) return;
+  if (!upcoming?.length) { uvEl.innerHTML = '<p class="text-gray-400">No upcoming visits scheduled.</p>'; return; }
+  uvEl.innerHTML = `<table>
+    <thead><tr><th>Date</th><th>Customer</th><th>Tech</th><th>Status</th></tr></thead>
+    <tbody>${upcoming.map(v => `<tr>
+      <td>${fmtDate(v.scheduled_date)}</td>
+      <td class="font-medium">${v.service_accounts?.profiles?.full_name || v.service_accounts?.contact_name || '—'}</td>
+      <td class="text-gray-500">${v.technicians?.profiles?.full_name || '—'}</td>
+      <td><span class="badge ${v.status==='completed'?'badge-green':v.status==='cancelled'?'badge-gray':'badge-blue'}">${v.status}</span></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
 
-      const { data: upcomingData } = await sb.from('service_visits')
-        .select('id, scheduled_date, service_accounts(profiles(full_name)), technicians(profiles(full_name))')
-        .gte('scheduled_date', now.toISOString())
-        .order('scheduled_date', { ascending: true })
-        .limit(5);
+// ═══════════════════════════════════════════════════════════════
+// CUSTOMERS
+// ═══════════════════════════════════════════════════════════════
+async function renderCustomers(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-extrabold">Customers</h1>
+      <button class="btn-green" onclick="openModal('addCustomerModal')">+ Add Customer</button>
+    </div>
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <div id="customerTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
+    </div>
 
-      const uvEl = document.getElementById('upcomingVisits');
-      if (uvEl) {
-        if (!upcomingData?.length) {
-          uvEl.innerHTML = '<p class="text-gray-400">No visits scheduled yet.</p>';
-        } else {
-          uvEl.innerHTML = `<table class="w-full text-sm">
-            <thead><tr class="text-left text-gray-400 border-b">
-              <th class="pb-2">Date</th><th class="pb-2">Customer</th><th class="pb-2">Tech</th>
-            </tr></thead>
-            <tbody>
-              ${upcomingData.map(v => `<tr class="border-b last:border-0">
-                <td class="py-2">${new Date(v.scheduled_date).toLocaleDateString()}</td>
-                <td class="py-2">${v.service_accounts?.profiles?.full_name ?? '—'}</td>
-                <td class="py-2">${v.technicians?.profiles?.full_name ?? '—'}</td>
-              </tr>`).join('')}
-            </tbody>
-          </table>`;
-        }
-      }
-    }
-
-    async function renderCustomers(el) {
-      el.innerHTML = `
-        <div class="flex items-center justify-between mb-8">
-          <h1 class="text-3xl font-extrabold">Customers</h1>
-          <button id="addCustomerBtn" class="px-5 py-2.5 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition">+ Add Customer</button>
-        </div>
-        <div class="bg-white rounded-xl border overflow-hidden">
-          <div id="customerTable" class="p-6 text-gray-400 text-sm">Loading...</div>
-        </div>
-        <!-- Add Customer Modal -->
-        <div id="addCustomerModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
-            <h2 class="text-2xl font-bold mb-5">New Customer</h2>
-            <form id="addCustomerForm" class="space-y-3">
-              <input name="full_name" placeholder="Full Name" required class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-              <input name="email" type="email" placeholder="Email" required class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-              <input name="phone" type="tel" placeholder="Phone" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-              <input name="address" placeholder="Service Address" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-              <input name="monthly_service_fee" type="number" placeholder="Monthly Service Fee ($)" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none" />
-              <textarea name="pond_notes" rows="2" placeholder="Pond notes (size, fish count, equipment...)" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[var(--green)] outline-none"></textarea>
-              <div class="flex gap-3 pt-2">
-                <button type="submit" class="flex-1 py-2.5 bg-[var(--green)] text-white font-bold uppercase rounded-lg">Save Customer</button>
-                <button type="button" id="cancelAddCustomer" class="flex-1 py-2.5 border-2 font-bold uppercase rounded-lg">Cancel</button>
-              </div>
-              <p id="addCustomerError" class="text-red-600 text-sm hidden"></p>
-            </form>
+    <!-- Add Customer Modal -->
+    <div id="addCustomerModal" class="modal-bg hidden">
+      <div class="modal">
+        <h2 class="text-2xl font-bold mb-5">New Customer</h2>
+        <form id="addCustomerForm" class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <input name="contact_name"  placeholder="Full Name *" required class="field col-span-2" />
+            <input name="contact_email" type="email" placeholder="Email *" required class="field" />
+            <input name="contact_phone" type="tel" placeholder="Phone" class="field" />
           </div>
-        </div>
-      `;
-      loadCustomers();
+          <input name="address" placeholder="Service Address" class="field" />
+          <input name="monthly_service_fee" type="number" step="0.01" placeholder="Monthly Service Fee ($)" class="field" />
+          <textarea name="pond_notes" rows="2" placeholder="Pond notes (size, fish count, equipment...)" class="field"></textarea>
+          <p class="text-xs text-gray-400">No account invite will be sent yet. You control when that happens.</p>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" class="btn-green flex-1 py-2.5">Save Customer</button>
+            <button type="button" class="btn-outline flex-1" onclick="closeModal('addCustomerModal')">Cancel</button>
+          </div>
+          <p id="addCustErr" class="text-red-600 text-sm hidden"></p>
+        </form>
+      </div>
+    </div>
+  `;
 
-      document.getElementById('addCustomerBtn').addEventListener('click', () => {
-        document.getElementById('addCustomerModal').classList.remove('hidden');
-      });
-      document.getElementById('cancelAddCustomer').addEventListener('click', () => {
-        document.getElementById('addCustomerModal').classList.add('hidden');
-      });
-      document.getElementById('addCustomerForm').addEventListener('submit', saveCustomer);
+  loadCustomerTable();
+
+  document.getElementById('addCustomerForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const errEl = document.getElementById('addCustErr');
+    errEl.classList.add('hidden');
+
+    const { error } = await sb.from('service_accounts').insert({
+      contact_name:        fd.get('contact_name'),
+      contact_email:       fd.get('contact_email'),
+      contact_phone:       fd.get('contact_phone'),
+      address:             fd.get('address'),
+      monthly_service_fee: parseFloat(fd.get('monthly_service_fee')) || 0,
+      pond_notes:          fd.get('pond_notes'),
+    });
+
+    if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+    closeModal('addCustomerModal');
+    e.target.reset();
+    toast('Customer added');
+    loadCustomerTable();
+  });
+}
+
+async function loadCustomerTable() {
+  const { data, error } = await sb.from('service_accounts')
+    .select('id, contact_name, contact_email, contact_phone, address, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name, email)')
+    .order('created_at', { ascending: false });
+
+  const el = document.getElementById('customerTableWrap');
+  if (!el) return;
+  if (error || !data?.length) {
+    el.innerHTML = '<p class="text-gray-400 p-2">No customers yet.</p>'; return;
+  }
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Name</th><th>Email</th><th>Phone</th><th>Address</th><th>Monthly Fee</th><th>Status</th><th></th>
+    </tr></thead>
+    <tbody>
+      ${data.map(c => {
+        const name  = c.profiles?.full_name  || c.contact_name  || '—';
+        const email = c.profiles?.email      || c.contact_email || '—';
+        const phone = c.contact_phone || '—';
+        let badge, statusLabel;
+        if (c.customer_id)       { badge = 'badge-green';  statusLabel = 'Active'; }
+        else if (c.invite_sent_at) { badge = 'badge-yellow'; statusLabel = 'Invited'; }
+        else                      { badge = 'badge-gray';   statusLabel = 'Not Invited'; }
+        const canInvite = !c.invite_sent_at && c.contact_email;
+        return `<tr>
+          <td class="font-semibold">${name}</td>
+          <td class="text-gray-500">${email}</td>
+          <td class="text-gray-500">${phone}</td>
+          <td class="text-gray-500">${c.address || '—'}</td>
+          <td>${fmtMoney(c.monthly_service_fee)}</td>
+          <td><span class="badge ${badge}">${statusLabel}</span></td>
+          <td class="text-right">
+            ${canInvite ? `<button class="btn-blue text-xs px-3 py-1.5" onclick="sendCustomerInvite('${c.id}','${c.contact_email}','${(c.contact_name||'').replace(/'/g,"\\'")}','${(c.contact_phone||'')}')">Send Invite</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function sendCustomerInvite(saId, email, name, phone) {
+  if (!confirm(`Send account invite to ${email}?`)) return;
+  try {
+    await callInvite(email, name, phone, 'customer', saId);
+    toast('Invite sent to ' + email);
+    loadCustomerTable();
+  } catch(err) {
+    toast(err.message, false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TECHNICIANS
+// ═══════════════════════════════════════════════════════════════
+async function renderTechs(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-extrabold">Technicians</h1>
+      <button class="btn-green" onclick="openModal('addTechModal')">+ Add Technician</button>
+    </div>
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <div id="techTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
+    </div>
+
+    <!-- Add Tech Modal -->
+    <div id="addTechModal" class="modal-bg hidden">
+      <div class="modal">
+        <h2 class="text-2xl font-bold mb-5">New Technician</h2>
+        <form id="addTechForm" class="space-y-3">
+          <input name="full_name" placeholder="Full Name *" required class="field" />
+          <input name="email" type="email" placeholder="Email *" required class="field" />
+          <input name="phone" type="tel" placeholder="Phone" class="field" />
+          <p class="text-xs text-gray-400">An account invite will be sent immediately to their email.</p>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" class="btn-green flex-1 py-2.5">Add & Send Invite</button>
+            <button type="button" class="btn-outline flex-1" onclick="closeModal('addTechModal')">Cancel</button>
+          </div>
+          <p id="addTechErr" class="text-red-600 text-sm hidden"></p>
+        </form>
+      </div>
+    </div>
+  `;
+
+  loadTechTable();
+
+  document.getElementById('addTechForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const errEl = document.getElementById('addTechErr');
+    errEl.classList.add('hidden');
+
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.textContent = 'Sending...'; btn.disabled = true;
+
+    try {
+      await callInvite(fd.get('email'), fd.get('full_name'), fd.get('phone'), 'tech', null);
+      closeModal('addTechModal');
+      e.target.reset();
+      toast('Technician added and invite sent');
+      loadTechTable();
+    } catch(err) {
+      errEl.textContent = err.message; errEl.classList.remove('hidden');
+    } finally {
+      btn.textContent = 'Add & Send Invite'; btn.disabled = false;
     }
+  });
+}
 
-    async function loadCustomers() {
-      const { data, error } = await sb.from('service_accounts')
-        .select('id, address, monthly_service_fee, pond_notes, profiles(full_name, email, phone)')
-        .order('created_at', { ascending: false });
+async function loadTechTable() {
+  const { data, error } = await sb.from('technicians')
+    .select('id, created_at, profiles(full_name, email, phone)')
+    .order('created_at', { ascending: false });
 
-      const el = document.getElementById('customerTable');
-      if (!el) return;
-      if (error || !data?.length) {
-        el.innerHTML = '<p class="text-gray-400">No customers yet. Add your first one.</p>';
-        return;
-      }
-      el.innerHTML = `<table class="w-full text-sm">
-        <thead><tr class="text-left text-gray-400 border-b text-xs uppercase">
-          <th class="pb-3">Name</th><th class="pb-3">Email</th><th class="pb-3">Phone</th>
-          <th class="pb-3">Address</th><th class="pb-3">Monthly Fee</th>
-        </tr></thead>
-        <tbody>
-          ${data.map(c => `<tr class="border-b last:border-0 hover:bg-gray-50 cursor-pointer">
-            <td class="py-3 font-semibold">${c.profiles?.full_name ?? '—'}</td>
-            <td class="py-3 text-gray-500">${c.profiles?.email ?? '—'}</td>
-            <td class="py-3 text-gray-500">${c.profiles?.phone ?? '—'}</td>
-            <td class="py-3 text-gray-500">${c.address ?? '—'}</td>
-            <td class="py-3">$${c.monthly_service_fee ?? 0}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-    }
+  const el = document.getElementById('techTableWrap');
+  if (!el) return;
+  if (error || !data?.length) {
+    el.innerHTML = '<p class="text-gray-400 p-2">No technicians yet.</p>'; return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Added</th></tr></thead>
+    <tbody>
+      ${data.map(t => `<tr>
+        <td class="font-semibold">${t.profiles?.full_name || '—'}</td>
+        <td class="text-gray-500">${t.profiles?.email || '—'}</td>
+        <td class="text-gray-500">${t.profiles?.phone || '—'}</td>
+        <td class="text-gray-400">${fmtDate(t.created_at)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
 
-    async function saveCustomer(e) {
-      e.preventDefault();
-      const form = e.target;
-      const fd   = new FormData(form);
-      const errEl = document.getElementById('addCustomerError');
-      errEl.classList.add('hidden');
+// ═══════════════════════════════════════════════════════════════
+// SCHEDULE
+// ═══════════════════════════════════════════════════════════════
+async function renderSchedule(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-extrabold">Schedule</h1>
+      <button class="btn-green" onclick="openModal('addVisitModal')">+ Schedule Visit</button>
+    </div>
 
-      // 1. Create auth user (invite flow — they'll get a magic link)
-      const { data: inviteData, error: inviteErr } = await sb.auth.admin.inviteUserByEmail(fd.get('email'));
-      if (inviteErr) {
-        // Fall back to creating profile record only (no auth invite from client side)
-        // Full invite flow requires a Netlify Function with service role key — placeholder for now
-        errEl.textContent = 'Customer saved locally. Auth invite requires backend function (coming soon).';
-        errEl.classList.remove('hidden');
-      }
+    <!-- Filters -->
+    <div class="flex gap-3 mb-5">
+      <select id="schedFilter" class="field" style="width:auto">
+        <option value="upcoming">Upcoming</option>
+        <option value="all">All</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+    </div>
 
-      // 2. Insert profile + service account (will be linked properly once auth is wired)
-      const { error: saErr } = await sb.from('service_accounts').insert({
-        address:             fd.get('address'),
-        monthly_service_fee: parseFloat(fd.get('monthly_service_fee')) || 0,
-        pond_notes:          fd.get('pond_notes'),
-      });
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <div id="visitTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
+    </div>
 
-      if (saErr) {
-        errEl.textContent = saErr.message;
-        errEl.classList.remove('hidden');
-        return;
-      }
+    <!-- Add Visit Modal -->
+    <div id="addVisitModal" class="modal-bg hidden">
+      <div class="modal">
+        <h2 class="text-2xl font-bold mb-5">Schedule a Visit</h2>
+        <form id="addVisitForm" class="space-y-3">
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Customer *</label>
+            <select name="service_account_id" required class="field mt-1" id="visitCustomerSelect">
+              <option value="">Loading customers...</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Technician *</label>
+            <select name="tech_id" required class="field mt-1" id="visitTechSelect">
+              <option value="">Loading techs...</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Date & Time *</label>
+            <input name="scheduled_date" type="datetime-local" required class="field mt-1" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Notes (visible to customer)</label>
+            <textarea name="notes" rows="2" placeholder="Optional notes..." class="field mt-1"></textarea>
+          </div>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" class="btn-green flex-1 py-2.5">Schedule Visit</button>
+            <button type="button" class="btn-outline flex-1" onclick="closeModal('addVisitModal')">Cancel</button>
+          </div>
+          <p id="addVisitErr" class="text-red-600 text-sm hidden"></p>
+        </form>
+      </div>
+    </div>
+  `;
 
-      document.getElementById('addCustomerModal').classList.add('hidden');
-      form.reset();
-      loadCustomers();
-    }
+  loadVisitTable('upcoming');
+  populateVisitSelects();
 
-    async function renderSchedule(el) {
-      el.innerHTML = `
-        <h1 class="text-3xl font-extrabold mb-8">Schedule</h1>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Schedule builder coming in next build. Customers and techs must be added first.
-        </div>
-      `;
-    }
+  document.getElementById('schedFilter').addEventListener('change', e => {
+    loadVisitTable(e.target.value);
+  });
 
-    async function renderTechs(el) {
-      el.innerHTML = `
-        <h1 class="text-3xl font-extrabold mb-8">Technicians</h1>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Tech management coming in next build.
-        </div>
-      `;
-    }
+  document.getElementById('addVisitForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const errEl = document.getElementById('addVisitErr');
+    errEl.classList.add('hidden');
 
-    async function renderProducts(el) {
-      el.innerHTML = `
-        <h1 class="text-3xl font-extrabold mb-8">Products</h1>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Product catalog coming in next build.
-        </div>
-      `;
-    }
+    const { error } = await sb.from('service_visits').insert({
+      service_account_id: fd.get('service_account_id'),
+      tech_id:            fd.get('tech_id') || null,
+      scheduled_date:     new Date(fd.get('scheduled_date')).toISOString(),
+      notes:              fd.get('notes') || null,
+    });
 
-    async function renderBilling(el) {
-      el.innerHTML = `
-        <h1 class="text-3xl font-extrabold mb-8">Billing</h1>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Billing & Stripe invoicing coming in next build.
-        </div>
-      `;
-    }
+    if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+    closeModal('addVisitModal');
+    e.target.reset();
+    toast('Visit scheduled');
+    loadVisitTable(document.getElementById('schedFilter').value);
+  });
+}
 
-    async function renderMessages(el) {
-      el.innerHTML = `
-        <h1 class="text-3xl font-extrabold mb-8">Messages</h1>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Messaging coming in next build.
-        </div>
-      `;
-    }
+async function populateVisitSelects() {
+  const [{ data: accounts }, { data: techs }] = await Promise.all([
+    sb.from('service_accounts').select('id, contact_name, profiles(full_name)').order('contact_name'),
+    sb.from('technicians').select('id, profiles(full_name)').order('created_at'),
+  ]);
 
-    // ─── BOOT ────────────────────────────────────────────────────────────────
-    checkAuth();
-  </script>
+  const custSel = document.getElementById('visitCustomerSelect');
+  const techSel = document.getElementById('visitTechSelect');
+  if (!custSel || !techSel) return;
+
+  custSel.innerHTML = '<option value="">Select customer...</option>' +
+    (accounts||[]).map(a => `<option value="${a.id}">${a.profiles?.full_name || a.contact_name || 'Unknown'}</option>`).join('');
+
+  techSel.innerHTML = '<option value="">Select tech (optional)...</option>' +
+    (techs||[]).map(t => `<option value="${t.id}">${t.profiles?.full_name || 'Unknown'}</option>`).join('');
+}
+
+async function loadVisitTable(filter) {
+  let query = sb.from('service_visits')
+    .select('id, scheduled_date, status, notes, service_accounts(contact_name, profiles(full_name)), technicians(profiles(full_name))')
+    .order('scheduled_date', { ascending: filter !== 'completed' });
+
+  const now = new Date().toISOString();
+  if (filter === 'upcoming')   query = query.gte('scheduled_date', now).not('status','eq','cancelled');
+  if (filter === 'completed')  query = query.eq('status', 'completed');
+  if (filter === 'cancelled')  query = query.eq('status', 'cancelled');
+
+  const { data, error } = await query.limit(50);
+
+  const el = document.getElementById('visitTableWrap');
+  if (!el) return;
+  if (error || !data?.length) { el.innerHTML = '<p class="text-gray-400 p-2">No visits found.</p>'; return; }
+
+  el.innerHTML = `<table>
+    <thead><tr><th>Date</th><th>Customer</th><th>Tech</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      ${data.map(v => {
+        const customer = v.service_accounts?.profiles?.full_name || v.service_accounts?.contact_name || '—';
+        return `<tr>
+          <td class="font-medium">${fmtDate(v.scheduled_date)}</td>
+          <td>${customer}</td>
+          <td class="text-gray-500">${v.technicians?.profiles?.full_name || '—'}</td>
+          <td class="text-gray-400 text-xs max-w-xs truncate">${v.notes || ''}</td>
+          <td><span class="badge ${v.status==='completed'?'badge-green':v.status==='cancelled'?'badge-gray':'badge-blue'}">${v.status}</span></td>
+          <td class="text-right">
+            ${v.status==='scheduled' ? `<button class="btn-outline text-xs px-2 py-1" onclick="cancelVisit('${v.id}')">Cancel</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function cancelVisit(id) {
+  if (!confirm('Cancel this visit?')) return;
+  await sb.from('service_visits').update({ status: 'cancelled' }).eq('id', id);
+  toast('Visit cancelled');
+  loadVisitTable(document.getElementById('schedFilter')?.value || 'upcoming');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRODUCTS (placeholder — next build)
+// ═══════════════════════════════════════════════════════════════
+async function renderProducts(el) {
+  el.innerHTML = `
+    <h1 class="text-3xl font-extrabold mb-6">Products</h1>
+    <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+      Product catalog coming in next build.
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BILLING (placeholder — next build)
+// ═══════════════════════════════════════════════════════════════
+async function renderBilling(el) {
+  el.innerHTML = `
+    <h1 class="text-3xl font-extrabold mb-6">Billing</h1>
+    <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+      Monthly statements and Stripe invoicing coming in next build.
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MESSAGES (placeholder — next build)
+// ═══════════════════════════════════════════════════════════════
+async function renderMessages(el) {
+  el.innerHTML = `
+    <h1 class="text-3xl font-extrabold mb-6">Messages</h1>
+    <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
+      Customer messaging coming in next build.
+    </div>`;
+}
+
+// ─── MODAL HELPERS ────────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
+
+// Close modal on backdrop click
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-bg')) {
+    e.target.classList.add('hidden');
+  }
+});
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+checkAuth();
+</script>
 </body>
 </html>
