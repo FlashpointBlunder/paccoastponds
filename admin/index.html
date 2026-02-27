@@ -1199,9 +1199,37 @@ async function openJobDetail(jobId) {
   if (isParent) {
     const { count } = await sb.from('jobs').select('id',{count:'exact',head:true})
       .eq('recurring_parent_id', job.id).not('status','in','("completed","cancelled")');
-    infoEl.innerHTML = `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800"><strong>Recurring Series</strong> &mdash; ${count||0} future instances. Saving cascades changes to all future jobs.</div>`;
+    infoEl.innerHTML = `
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+        <div class="flex items-start justify-between gap-2 flex-wrap">
+          <span><strong>Recurring Series</strong> &mdash; ${count||0} future instances scheduled. Saving cascades changes to all future jobs.</span>
+          <div class="flex gap-2 flex-wrap shrink-0">
+            <button onclick="cancelAllFuture('${job.id}')"
+                    class="px-2 py-1 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded font-semibold whitespace-nowrap">
+              Cancel All Future
+            </button>
+            <button onclick="deleteEntireSeries('${job.id}')"
+                    class="px-2 py-1 bg-red-100 text-red-700 border border-red-300 rounded font-semibold whitespace-nowrap">
+              Delete Series
+            </button>
+          </div>
+        </div>
+      </div>`;
   } else if (isChild) {
-    infoEl.innerHTML = `<div class="bg-gray-50 border rounded-lg p-3 text-xs text-gray-600"><strong>Part of a recurring series.</strong> <button onclick="closeModal('jobModal');openJobDetail('${job.recurring_parent_id}')" class="text-[var(--green)] underline font-semibold">Edit parent job</button> to update all future instances.</div>`;
+    infoEl.innerHTML = `
+      <div class="bg-gray-50 border rounded-lg p-3 text-xs text-gray-600">
+        <div class="flex items-start justify-between gap-2 flex-wrap">
+          <span><strong>Part of a recurring series.</strong></span>
+          <div class="flex gap-2 flex-wrap shrink-0">
+            <button onclick="closeModal('jobModal');openJobDetail('${job.recurring_parent_id}')"
+                    class="text-[var(--green)] underline font-semibold">Edit parent</button>
+            <button onclick="cancelJobAndFuture('${job.id}','${job.recurring_parent_id}','${job.scheduled_date}')"
+                    class="px-2 py-1 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded font-semibold whitespace-nowrap">
+              Cancel This &amp; Future
+            </button>
+          </div>
+        </div>
+      </div>`;
   } else { infoEl.innerHTML = ''; }
   openModal('jobModal');
   setTimeout(() => {
@@ -1271,6 +1299,45 @@ async function cancelJob(jobId) {
   toast('Job cancelled'); closeModal('jobModal'); await loadJobsView();
 }
 function cancelJobFromModal() { const id = document.getElementById('jobId').value; if (id) cancelJob(id); }
+
+async function cancelAllFuture(parentJobId) {
+  if (!confirm('Cancel all future (non-completed) instances of this recurring series?')) return;
+  await sb.from('jobs')
+    .update({ status:'cancelled', updated_at:new Date().toISOString() })
+    .eq('recurring_parent_id', parentJobId)
+    .in('status', ['scheduled','on_the_way','in_progress']);
+  toast('All future instances cancelled');
+  closeModal('jobModal'); await loadJobsView();
+}
+
+async function cancelJobAndFuture(jobId, parentJobId, scheduledDate) {
+  if (!confirm('Cancel this job and all future instances on or after this date?')) return;
+  await sb.from('jobs')
+    .update({ status:'cancelled', updated_at:new Date().toISOString() })
+    .eq('id', jobId);
+  await sb.from('jobs')
+    .update({ status:'cancelled', updated_at:new Date().toISOString() })
+    .eq('recurring_parent_id', parentJobId)
+    .gte('scheduled_date', scheduledDate)
+    .in('status', ['scheduled','on_the_way','in_progress']);
+  toast('This job and all future instances cancelled');
+  closeModal('jobModal'); await loadJobsView();
+}
+
+async function deleteEntireSeries(parentJobId) {
+  if (!confirm('PERMANENTLY DELETE this entire recurring series?\n\nCompleted jobs will be kept as historical records. All scheduled and cancelled instances will be removed. This cannot be undone.')) return;
+  // Gather all non-completed jobs in the series (parent + children)
+  const { data: toDelete } = await sb.from('jobs').select('id')
+    .or(`id.eq.${parentJobId},recurring_parent_id.eq.${parentJobId}`)
+    .neq('status', 'completed');
+  const ids = (toDelete||[]).map(j => j.id);
+  if (!ids.length) { toast('No jobs to delete (all completed)'); closeModal('jobModal'); return; }
+  // Null out basket_items references to avoid FK constraint failure
+  await sb.from('basket_items').update({ job_id:null }).in('job_id', ids);
+  await sb.from('jobs').delete().in('id', ids);
+  toast(`Series deleted — ${ids.length} job${ids.length!==1?'s':''} removed`);
+  closeModal('jobModal'); await loadJobsView();
+}
 
 // ═══════════════════════════════════════════════════════════════
 // PROPOSALS
