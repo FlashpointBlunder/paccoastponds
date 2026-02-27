@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://js.stripe.com/v3/"></script>
   <script src="./supabase.js"></script>
   <style>
     :root{ --green:#1E5E37; --blue:#2CA7DF; --cream:#F8FAF7; --dark:#0F1C12; }
@@ -662,6 +663,7 @@
     async function renderBilling(el) {
       el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
       const { data: { user } } = await sb.auth.getUser();
+      const { data: { session } } = await sb.auth.getSession();
       const { data: account } = await sb.from('service_accounts').select('id, stripe_customer_id').eq('customer_id', user.id).single();
       if (!account) { el.innerHTML = '<p class="text-gray-400">No service account found.</p>'; return; }
 
@@ -671,29 +673,64 @@
         .eq('service_account_id', account.id)
         .order('created_at', { ascending: false });
 
+      let cardInfo = null, clientSecret = null;
+      if (account.stripe_customer_id) {
+        try {
+          const res = await fetch('/.netlify/functions/stripe-setup-intent', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
+          });
+          if (res.ok) { const j = await res.json(); clientSecret = j.clientSecret; cardInfo = j.card; }
+        } catch {}
+      }
+
       const fmt = n => '$' + Number(n).toFixed(2);
       const fmtPeriod = start => new Date(start + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       const statusBadge = s => {
         const map = { paid: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-700', pending_charge: 'bg-yellow-100 text-yellow-800', open: 'bg-blue-100 text-blue-700' };
         return `<span class="text-xs px-2 py-0.5 rounded-full font-bold uppercase ${map[s] || 'bg-gray-100 text-gray-600'}">${s.replace('_',' ')}</span>`;
       };
+      const brandLabel = b => ({ visa:'Visa', mastercard:'Mastercard', amex:'Amex', discover:'Discover' }[b] || (b || 'Card'));
+
+      let pmSection;
+      if (!account.stripe_customer_id) {
+        pmSection = `<p class="text-sm text-gray-500">No billing account set up yet — contact Pacific Coast Ponds to get started.</p>`;
+      } else {
+        const cardFormInner = `
+          <div id="card-element" class="border rounded-lg px-3 py-3 bg-gray-50"></div>
+          <p id="cardErrors" class="text-red-600 text-xs mt-1.5 hidden"></p>
+          <div class="flex gap-2 mt-3">
+            ${cardInfo ? `<button type="button" onclick="portalToggleCardForm()" class="flex-1 py-2.5 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">Cancel</button>` : ''}
+            <button type="button" id="saveCardBtn" onclick="portalSaveCard()"
+                    class="flex-1 py-2.5 bg-[var(--green)] text-white font-bold text-sm uppercase rounded-lg hover:bg-[var(--dark)] transition">
+              Save Card
+            </button>
+          </div>`;
+        if (cardInfo) {
+          pmSection = `
+            <div id="cardDisplay" class="flex items-center justify-between mb-1">
+              <div>
+                <p class="font-semibold text-sm">${brandLabel(cardInfo.brand)} &bull;&bull;&bull;&bull; ${cardInfo.last4}</p>
+                <p class="text-xs text-gray-400 mt-0.5">Charged automatically on the 1st</p>
+              </div>
+              <button type="button" onclick="portalToggleCardForm()" id="toggleCardBtn"
+                      class="text-sm font-semibold text-[var(--green)] hover:underline">Update</button>
+            </div>
+            <div id="cardFormWrap" class="hidden pt-3">${cardFormInner}</div>`;
+        } else {
+          pmSection = `
+            <p class="text-xs text-gray-400 mb-3">No card on file — add one to enable automatic billing.</p>
+            <div id="cardFormWrap">${cardFormInner}</div>`;
+        }
+      }
 
       el.innerHTML = `
         <h2 class="text-2xl font-extrabold mb-2">Billing</h2>
         <p class="text-gray-500 text-sm mb-6">Your monthly statements from Pacific Coast Ponds.</p>
 
-        <div class="bg-white rounded-xl border p-4 mb-6 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <p class="font-semibold text-sm">Payment Method</p>
-            <p class="text-xs text-gray-400 mt-0.5">${account.stripe_customer_id
-              ? 'Update or change your card on file'
-              : 'No payment method on file — contact us to get set up'}</p>
-          </div>
-          ${account.stripe_customer_id ? `
-          <button onclick="portalManageCard()"
-                  class="px-4 py-2 bg-[var(--green)] text-white font-bold text-sm uppercase rounded-lg hover:bg-[var(--dark)] transition">
-            Manage Card
-          </button>` : ''}
+        <div class="bg-white rounded-xl border p-4 mb-6">
+          <p class="font-semibold text-sm mb-3">Payment Method</p>
+          ${pmSection}
         </div>
 
         ${!invoices?.length
@@ -719,21 +756,66 @@
             </div>`
         }
       `;
+
+      if (clientSecret) {
+        window._billingClientSecret = clientSecret;
+        const stripe = Stripe('pk_test_51T5LDt2FcIjayQS7xfHkkNaACF95tBNYtcYpDCFs0KMSTJtPZpE0hssTU6tERABayJGkubweuQHOWOHEIc51rFpI006igi4dxJ');
+        const elements = stripe.elements();
+        const card = elements.create('card', {
+          style: {
+            base: {
+              fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+              fontSize: '15px',
+              color: '#111827',
+              '::placeholder': { color: '#9ca3af' },
+            },
+            invalid: { color: '#dc2626' },
+          },
+        });
+        card.mount('#card-element');
+        window._stripeInst = stripe;
+        window._stripeCard = card;
+      }
     }
 
-    async function portalManageCard() {
-      const { data: { session } } = await sb.auth.getSession();
-      try {
-        const res  = await fetch('/.netlify/functions/stripe-portal', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${session.access_token}` },
-        });
-        const json = await res.json();
-        if (!res.ok) { alert(json.error || 'Could not open payment portal. Please try again.'); return; }
-        window.location.href = json.url;
-      } catch {
-        alert('Could not open payment portal. Please try again.');
+    function portalToggleCardForm() {
+      const wrap = document.getElementById('cardFormWrap');
+      const btn  = document.getElementById('toggleCardBtn');
+      const opening = wrap.classList.toggle('hidden');
+      if (btn) btn.textContent = opening ? 'Update' : 'Cancel';
+    }
+
+    async function portalSaveCard() {
+      const btn   = document.getElementById('saveCardBtn');
+      const errEl = document.getElementById('cardErrors');
+      btn.disabled = true; btn.textContent = 'Saving\u2026';
+      errEl.classList.add('hidden'); errEl.textContent = '';
+
+      const { error, setupIntent } = await window._stripeInst.confirmCardSetup(
+        window._billingClientSecret,
+        { payment_method: { card: window._stripeCard } }
+      );
+      if (error) {
+        errEl.textContent = error.message;
+        errEl.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Save Card';
+        return;
       }
+
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch('/.netlify/functions/stripe-save-card', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_method_id: setupIntent.payment_method }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        errEl.textContent = json.error || 'Failed to save card.';
+        errEl.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Save Card';
+        return;
+      }
+      renderBilling(document.getElementById('tabContent'));
     }
 
     init();
