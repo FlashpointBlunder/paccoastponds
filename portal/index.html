@@ -448,12 +448,215 @@
       textEl.value = '';
     }
 
+    // ── Shop state ──────────────────────────────────────────
+    let _shopAccountId = null;
+    let _shopCart      = {};   // { product_id: quantity } — in-memory until Submit
+    let _shopProducts  = [];
+    let _shopCats      = [];
+    let _shopBasket    = [];   // basket_items from DB (billed=false)
+
     async function renderShop(el) {
+      _shopCart = {};
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const { data: { user } } = await sb.auth.getUser();
+      const { data: account } = await sb.from('service_accounts').select('id').eq('customer_id', user.id).single();
+      if (!account) { el.innerHTML = '<p class="text-gray-400">No service account found.</p>'; return; }
+      _shopAccountId = account.id;
+
+      const [{ data: cats }, { data: prods }, { data: basket }] = await Promise.all([
+        sb.from('product_categories').select('*').order('sort_order'),
+        sb.from('products').select('id, name, description, price, sku, category_id').eq('active', true).order('name'),
+        sb.from('basket_items')
+          .select('id, product_id, quantity, requested_by, products(name, price)')
+          .eq('service_account_id', account.id)
+          .eq('billed', false)
+      ]);
+      _shopCats     = cats    || [];
+      _shopProducts = prods   || [];
+      _shopBasket   = basket  || [];
+      _shopRender(el);
+    }
+
+    function _shopRender(el) {
+      const fmt = n => '$' + Number(n).toFixed(2);
+
+      // Build category tree
+      const parents  = _shopCats.filter(c => !c.parent_id).sort((a,b) => a.sort_order - b.sort_order);
+      const children = {};
+      _shopCats.filter(c => c.parent_id).forEach(c => {
+        if (!children[c.parent_id]) children[c.parent_id] = [];
+        children[c.parent_id].push(c);
+      });
+      Object.values(children).forEach(a => a.sort((a,b) => a.sort_order - b.sort_order));
+
+      // Products by category
+      const byCategory = {};
+      _shopProducts.forEach(p => {
+        const key = p.category_id || '__none__';
+        if (!byCategory[key]) byCategory[key] = [];
+        byCategory[key].push(p);
+      });
+
+      // Cart summary
+      const cartEntries = Object.entries(_shopCart).filter(([,q]) => q > 0);
+      const cartTotal   = cartEntries.reduce((s, [pid, q]) => {
+        const p = _shopProducts.find(x => x.id === pid);
+        return s + (p ? p.price * q : 0);
+      }, 0);
+
+      // Basket split: tech-queued vs customer requests
+      const techItems = _shopBasket.filter(b => b.requested_by === 'tech');
+      const custItems = _shopBasket.filter(b => b.requested_by === 'customer');
+
       el.innerHTML = `
-        <h2 class="text-2xl font-extrabold mb-5">Request Products</h2>
-        <p class="text-gray-500 text-sm mb-4">Add items to your basket and we'll bring them on your next visit.</p>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">Product catalog coming soon.</div>
+        <h2 class="text-2xl font-extrabold mb-2">Shop</h2>
+        <p class="text-gray-500 text-sm mb-6">Browse products — we'll bring them on your next visit.</p>
+
+        ${_shopBasket.length ? `
+        <div class="mb-6">
+          <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Coming Next Visit</p>
+          <div class="bg-white rounded-xl border divide-y">
+            ${techItems.map(b => `
+              <div class="flex items-center px-4 py-3 gap-3">
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-sm">${pEsc(b.products?.name)}</p>
+                  <p class="text-xs text-gray-400">Added by your tech · ${fmt(b.products?.price || 0)} each</p>
+                </div>
+                <span class="text-sm font-bold text-gray-700">× ${b.quantity}</span>
+              </div>`).join('')}
+            ${custItems.map(b => `
+              <div class="flex items-center px-4 py-3 gap-3">
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-sm">${pEsc(b.products?.name)}</p>
+                  <p class="text-xs text-[var(--green)]">Your request · ${fmt(b.products?.price || 0)} each</p>
+                </div>
+                <span class="text-sm font-bold text-gray-700 mr-1">× ${b.quantity}</span>
+                <button onclick="shopRemoveItem('${b.id}')" title="Cancel request"
+                        class="text-gray-300 hover:text-red-500 transition font-bold text-xl leading-none">×</button>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${cartEntries.length ? `
+        <div class="mb-6">
+          <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Your Cart</p>
+          <div class="bg-white rounded-xl border divide-y">
+            ${cartEntries.map(([pid, qty]) => {
+              const p = _shopProducts.find(x => x.id === pid);
+              if (!p) return '';
+              return `
+                <div class="flex items-center px-4 py-3 gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-sm">${pEsc(p.name)}</p>
+                    <p class="text-xs text-gray-400">${fmt(p.price)} each</p>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <button onclick="shopAdjust('${pid}',-1)"
+                            class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-red-400 transition">−</button>
+                    <span class="w-6 text-center text-sm font-bold">${qty}</span>
+                    <button onclick="shopAdjust('${pid}',1)"
+                            class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-[var(--green)] transition">+</button>
+                  </div>
+                  <span class="text-sm font-bold w-16 text-right">${fmt(p.price * qty)}</span>
+                </div>`;
+            }).join('')}
+            <div class="px-4 py-3 flex items-center justify-between">
+              <span class="text-sm font-semibold text-gray-500">Total</span>
+              <span class="font-extrabold text-[var(--green)]">${fmt(cartTotal)}</span>
+            </div>
+            <div class="px-4 py-4">
+              <button onclick="shopSubmit()"
+                      class="w-full py-3 bg-[var(--green)] text-white font-bold uppercase rounded-lg hover:bg-[var(--dark)] transition text-sm">
+                Submit Request
+              </button>
+            </div>
+          </div>
+        </div>` : ''}
+
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Product Catalog</p>
+          ${parents.length === 0 && !byCategory['__none__']
+            ? '<div class="bg-white rounded-xl border p-6 text-gray-400 text-sm text-center">No products available yet.</div>'
+            : parents.map(parent => {
+                const subs        = children[parent.id] || [];
+                const directProds = byCategory[parent.id] || [];
+                const hasContent  = subs.some(s => (byCategory[s.id] || []).length > 0) || directProds.length > 0;
+                if (!hasContent) return '';
+                return `
+                  <div class="mb-7">
+                    <p class="text-sm font-bold uppercase tracking-wide text-[var(--green)] mb-3">${pEsc(parent.name)}</p>
+                    ${subs.map(sub => {
+                      const prods = byCategory[sub.id] || [];
+                      if (!prods.length) return '';
+                      return `
+                        <div class="mb-4">
+                          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">${pEsc(sub.name)}</p>
+                          <div class="space-y-2">${prods.map(_shopProductCard).join('')}</div>
+                        </div>`;
+                    }).join('')}
+                    ${directProds.length ? `<div class="space-y-2 mb-4">${directProds.map(_shopProductCard).join('')}</div>` : ''}
+                  </div>`;
+              }).join('') +
+              (byCategory['__none__'] ? `<div class="space-y-2">${byCategory['__none__'].map(_shopProductCard).join('')}</div>` : '')
+          }
+        </div>
       `;
+    }
+
+    function _shopProductCard(p) {
+      const fmt = n => '$' + Number(n).toFixed(2);
+      const qty = _shopCart[p.id] || 0;
+      return `
+        <div class="bg-white rounded-xl border px-4 py-3 flex items-center gap-3">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-sm">${pEsc(p.name)}</p>
+            ${p.description ? `<p class="text-xs text-gray-400 mt-0.5">${pEsc(p.description)}</p>` : ''}
+            <p class="text-sm font-bold text-[var(--green)] mt-1">${fmt(p.price)}</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            ${qty > 0 ? `
+              <button onclick="shopAdjust('${p.id}',-1)"
+                      class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-red-400 transition">−</button>
+              <span class="w-6 text-center text-sm font-bold">${qty}</span>
+            ` : ''}
+            <button onclick="shopAdjust('${p.id}',1)"
+                    class="w-7 h-7 rounded-full font-bold text-base flex items-center justify-center transition
+                           ${qty > 0 ? 'border-2 border-gray-300 hover:border-[var(--green)]' : 'bg-[var(--green)] text-white hover:bg-[var(--dark)]'}">+</button>
+          </div>
+        </div>`;
+    }
+
+    function shopAdjust(productId, delta) {
+      const qty = (_shopCart[productId] || 0) + delta;
+      if (qty <= 0) delete _shopCart[productId];
+      else _shopCart[productId] = qty;
+      _shopRender(document.getElementById('tabContent'));
+    }
+
+    async function shopRemoveItem(itemId) {
+      const { error } = await sb.from('basket_items').delete().eq('id', itemId);
+      if (error) { alert(error.message); return; }
+      _shopBasket = _shopBasket.filter(b => b.id !== itemId);
+      _shopRender(document.getElementById('tabContent'));
+    }
+
+    async function shopSubmit() {
+      const cartEntries = Object.entries(_shopCart).filter(([,q]) => q > 0);
+      if (!cartEntries.length) return;
+      const inserts = cartEntries.map(([product_id, quantity]) => ({
+        service_account_id: _shopAccountId,
+        product_id,
+        quantity,
+        requested_by: 'customer',
+        billed: false
+      }));
+      const { data, error } = await sb.from('basket_items')
+        .insert(inserts)
+        .select('id, product_id, quantity, requested_by, products(name, price)');
+      if (error) { alert(error.message); return; }
+      _shopBasket = [..._shopBasket, ...(data || [])];
+      _shopCart   = {};
+      _shopRender(document.getElementById('tabContent'));
     }
 
     async function renderBilling(el) {
