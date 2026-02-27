@@ -65,8 +65,8 @@
     <!-- Bottom nav -->
     <div class="bottom-nav fixed inset-x-0 bottom-0 bg-white border-t z-40">
       <div class="grid grid-cols-3 divide-x">
-        <button data-page="today" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-[var(--green)]">
-          <span class="text-xl">📋</span> Today
+        <button data-page="jobs" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-[var(--green)]">
+          <span class="text-xl">📋</span> Jobs
         </button>
         <button data-page="route" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-gray-400">
           <span class="text-xl">🗺</span> Route
@@ -105,7 +105,7 @@
     function showApp() {
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appShell').classList.remove('hidden');
-      loadPage('today');
+      loadPage('jobs');
     }
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -136,63 +136,189 @@
 
     function loadPage(page) {
       const el = document.getElementById('pageContent');
-      const pages = { today: renderToday, route: renderRoute, messages: renderMessages };
+      const pages = { jobs: renderJobs, route: renderRoute, messages: renderMessages };
       if (pages[page]) pages[page](el);
     }
 
-    async function renderToday(el) {
-      el.innerHTML = '<p class="text-gray-400">Loading today\'s jobs...</p>';
-      if (!currentTechId) { el.innerHTML = '<p class="text-gray-400">No tech profile found. Contact admin.</p>'; return; }
+    let _techJobsFilter = 'day';
 
+    async function renderJobs(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      if (!currentTechId) { el.innerHTML = '<p class="text-gray-400 text-sm">No tech profile found. Contact admin.</p>'; return; }
       const today = new Date(); today.setHours(0,0,0,0);
-      const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-
-      const { data: visits } = await sb.from('service_visits')
-        .select('id, scheduled_date, status, notes, service_accounts(address, pond_notes, profiles(full_name, phone))')
-        .eq('tech_id', currentTechId)
-        .gte('scheduled_date', today.toISOString())
-        .lt('scheduled_date', tomorrow.toISOString())
-        .order('scheduled_date', { ascending: true });
-
-      if (!visits?.length) {
-        el.innerHTML = `
-          <h2 class="text-xl font-extrabold mb-4">Today — ${today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</h2>
-          <div class="bg-white rounded-xl border p-6 text-center text-gray-400">No jobs scheduled for today.</div>
-        `;
-        return;
+      let startDate, endDate;
+      if (_techJobsFilter === 'day') {
+        startDate = today; endDate = new Date(today); endDate.setDate(today.getDate()+1);
+      } else {
+        const dow = today.getDay();
+        startDate = new Date(today); startDate.setDate(today.getDate() - (dow===0?6:dow-1));
+        endDate = new Date(startDate); endDate.setDate(startDate.getDate()+7);
       }
-
+      const { data: jobs } = await sb.from('jobs')
+        .select('id,status,scheduled_date,scheduled_time,address,notes,is_recurring,recurrence_pattern,recurring_parent_id,service_accounts(id,contact_name,address,phone,sms_opted_in,equipment_notes),job_types(id,name,color)')
+        .eq('tech_id', currentTechId)
+        .gte('scheduled_date', startDate.toISOString().split('T')[0])
+        .lt('scheduled_date', endDate.toISOString().split('T')[0])
+        .not('status','eq','cancelled')
+        .order('scheduled_date').order('scheduled_time',{ascending:true,nullsFirst:false});
+      const label = _techJobsFilter==='day'
+        ? today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
+        : 'This Week';
       el.innerHTML = `
-        <h2 class="text-xl font-extrabold mb-4">Today — ${today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</h2>
-        <div class="space-y-3">
-          ${visits.map((v, i) => `
-            <div class="bg-white rounded-xl border p-4" data-visit-id="${v.id}">
-              <div class="flex items-start justify-between mb-2">
-                <div>
-                  <p class="font-bold">${i + 1}. ${v.service_accounts?.profiles?.full_name ?? 'Unknown'}</p>
-                  <p class="text-sm text-gray-500">${v.service_accounts?.address ?? ''}</p>
-                </div>
-                <span class="px-2 py-0.5 rounded text-xs font-bold uppercase ${v.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${v.status ?? 'scheduled'}</span>
-              </div>
-              ${v.service_accounts?.pond_notes ? `<p class="text-xs text-gray-400 mb-3">Pond: ${v.service_accounts.pond_notes}</p>` : ''}
-              <div class="flex gap-2">
-                <a href="https://maps.google.com/?q=${encodeURIComponent(v.service_accounts?.address ?? '')}"
-                   target="_blank"
-                   class="flex-1 py-3 bg-[var(--blue)] text-white text-sm font-bold text-center rounded-lg">Navigate</a>
-                <button onclick="markComplete('${v.id}')"
-                   class="flex-1 py-3 bg-[var(--green)] text-white text-sm font-bold rounded-lg ${v.status === 'completed' ? 'opacity-50' : ''}">
-                   ${v.status === 'completed' ? 'Done' : 'Mark Complete'}
-                </button>
-              </div>
-            </div>
-          `).join('')}
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-extrabold">Jobs</h2>
+          <div class="flex rounded-lg border overflow-hidden">
+            <button onclick="_techJobsFilter='day';renderJobs(document.getElementById('pageContent'))"
+                    class="px-3 py-1.5 text-xs font-bold ${_techJobsFilter==='day'?'bg-[var(--green)] text-white':'bg-white text-gray-500'}">Day</button>
+            <button onclick="_techJobsFilter='week';renderJobs(document.getElementById('pageContent'))"
+                    class="px-3 py-1.5 text-xs font-bold ${_techJobsFilter==='week'?'bg-[var(--green)] text-white':'bg-white text-gray-500'}">Week</button>
+          </div>
         </div>
+        <p class="text-xs text-gray-400 mb-3">${label}</p>
+        ${!jobs?.length
+          ? '<div class="bg-white rounded-xl border p-6 text-center text-gray-400 text-sm">No jobs scheduled.</div>'
+          : `<div class="space-y-3">${jobs.map(j => _techJobCard(j)).join('')}</div>`}
       `;
     }
 
-    async function markComplete(visitId) {
-      await sb.from('service_visits').update({ status: 'completed' }).eq('id', visitId);
-      loadPage('today');
+    function _techJobCard(job) {
+      const statusCls = {scheduled:'bg-blue-100 text-blue-700',on_the_way:'bg-yellow-100 text-yellow-800',in_progress:'bg-green-100 text-green-700',completed:'bg-gray-100 text-gray-500'};
+      const statusLbl = {scheduled:'Scheduled',on_the_way:'On the Way',in_progress:'In Progress',completed:'Completed'};
+      const color = job.job_types?.color||'#1E5E37';
+      const fmtT = t => { if(!t) return ''; const [h,m]=t.split(':'); const hr=parseInt(h); return ` \u00b7 ${hr%12||12}:${m} ${hr>=12?'PM':'AM'}`; };
+      return `
+        <div class="bg-white rounded-xl border overflow-hidden active:bg-gray-50" onclick="openTechJobDetail('${job.id}')">
+          <div class="h-1" style="background:${color}"></div>
+          <div class="p-4">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="font-bold truncate">${tEsc(job.service_accounts?.contact_name||'—')}</p>
+                <p class="text-xs text-gray-500 mt-0.5 truncate">${tEsc(job.address||job.service_accounts?.address||'')}</p>
+                <p class="text-xs text-gray-400 mt-0.5">${tEsc(job.job_types?.name||'')}${fmtT(job.scheduled_time)}</p>
+              </div>
+              <span class="shrink-0 text-xs px-2 py-0.5 rounded-full font-bold ${statusCls[job.status]||'bg-gray-100 text-gray-500'}">${statusLbl[job.status]||job.status}</span>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function openTechJobDetail(jobId) {
+      const el = document.getElementById('pageContent');
+      el.innerHTML = '<p class="text-gray-400 text-sm p-4">Loading...</p>';
+      const { data: job } = await sb.from('jobs')
+        .select('*,service_accounts(id,contact_name,address,phone,sms_opted_in,equipment_notes),job_types(id,name,color)')
+        .eq('id', jobId).single();
+      if (!job) { el.innerHTML = '<p class="text-red-500 text-sm p-4">Job not found.</p>'; return; }
+      const nextStatus = {scheduled:'on_the_way',on_the_way:'in_progress',in_progress:'completed'};
+      const actionLbl  = {scheduled:'On the Way',on_the_way:'Start Job',in_progress:'Mark Complete'};
+      const actionCls  = {scheduled:'bg-yellow-500 hover:bg-yellow-600',on_the_way:'bg-[var(--blue)] hover:bg-blue-700',in_progress:'bg-[var(--green)] hover:bg-green-800'};
+      const next  = nextStatus[job.status];
+      const color = job.job_types?.color||'#1E5E37';
+      const addr  = encodeURIComponent(job.address||job.service_accounts?.address||'');
+      el.innerHTML = `
+        <button onclick="renderJobs(document.getElementById('pageContent'))" class="text-[var(--green)] text-sm font-semibold mb-4 block">&#8592; Jobs</button>
+        <div class="bg-white rounded-xl border overflow-hidden mb-4">
+          <div class="h-1.5" style="background:${color}"></div>
+          <div class="p-4">
+            <div class="flex items-start justify-between gap-2 mb-3">
+              <div>
+                <p class="font-extrabold text-lg">${tEsc(job.service_accounts?.contact_name||'—')}</p>
+                <p class="text-sm text-gray-500 mt-0.5">${tEsc(job.address||job.service_accounts?.address||'')}</p>
+              </div>
+              <span class="text-xs px-2 py-1 rounded font-semibold" style="background:${color}20;color:${color}">${tEsc(job.job_types?.name||'')}</span>
+            </div>
+            ${job.service_accounts?.equipment_notes?`<div class="bg-blue-50 rounded-lg p-2.5 text-xs text-blue-800 mb-3"><strong>Equipment:</strong> ${tEsc(job.service_accounts.equipment_notes)}</div>`:''}
+            ${job.notes?`<div class="bg-gray-50 rounded-lg p-2.5 text-xs text-gray-600 mb-3"><strong>Notes:</strong> ${tEsc(job.notes)}</div>`:''}
+            <div class="flex gap-3 text-xs text-gray-400 mb-4 flex-wrap">
+              ${job.on_the_way_at?`<span>On the way: ${tTimeAgo(job.on_the_way_at)}</span>`:''}
+              ${job.started_at?`<span>Started: ${tTimeAgo(job.started_at)}</span>`:''}
+              ${job.completed_at?`<span>Completed: ${tTimeAgo(job.completed_at)}</span>`:''}
+            </div>
+            <div class="flex gap-2">
+              <a href="https://maps.google.com/?q=${addr}" target="_blank"
+                 class="flex-1 py-3 bg-[var(--blue)] text-white text-sm font-bold text-center rounded-lg">Navigate</a>
+              ${next
+                ? `<button onclick="techAdvanceJob('${jobId}','${next}','${tEsc(job.service_accounts?.phone||'')}',${job.service_accounts?.sms_opted_in?'true':'false'})"
+                           class="flex-1 py-3 text-white text-sm font-bold rounded-lg ${actionCls[job.status]}">${actionLbl[job.status]}</button>`
+                : `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">Completed &#10003;</div>`}
+            </div>
+          </div>
+        </div>
+        ${job.status!=='completed'?`
+        <div class="bg-white rounded-xl border p-4 mb-4">
+          <p class="font-bold text-sm mb-3">Bill to this Job</p>
+          <div class="flex gap-2">
+            <input id="billDesc" type="text" placeholder="Product or service"
+                   class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]" />
+            <input id="billQty" type="number" min="1" value="1"
+                   class="w-16 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            <button onclick="techBillItem('${jobId}','${job.service_account_id}')"
+                    class="px-3 py-2 bg-[var(--green)] text-white font-bold text-sm rounded-lg">Add</button>
+          </div>
+        </div>`:''}
+      `;
+    }
+
+    async function techAdvanceJob(jobId, newStatus, customerPhone, smsOptedIn) {
+      const now = new Date().toISOString();
+      const updates = {status:newStatus, updated_at:now};
+      if (newStatus==='on_the_way') updates.on_the_way_at = now;
+      if (newStatus==='in_progress') updates.started_at = now;
+      if (newStatus==='completed')   updates.completed_at = now;
+      const { error } = await sb.from('jobs').update(updates).eq('id', jobId);
+      if (error) { alert(error.message); return; }
+
+      if (newStatus==='on_the_way' && smsOptedIn && customerPhone) {
+        try {
+          const { data:{ session } } = await sb.auth.getSession();
+          await fetch('/.netlify/functions/send-sms', {
+            method:'POST',
+            headers:{'Authorization':`Bearer ${session.access_token}`,'Content-Type':'application/json'},
+            body: JSON.stringify({to:customerPhone, message:'Your Pacific Coast Ponds technician is on the way and will arrive shortly!'}),
+          });
+        } catch(e) { console.warn('SMS failed:', e); }
+      }
+
+      if (newStatus==='completed') {
+        const { data: job } = await sb.from('jobs')
+          .select('is_recurring,recurring_parent_id,recurrence_pattern,service_account_id,tech_id,job_type_id,address,notes,scheduled_time')
+          .eq('id', jobId).single();
+        const parentId = job?.recurring_parent_id || (job?.is_recurring ? jobId : null);
+        if (parentId && job?.recurrence_pattern) {
+          const { data: futures } = await sb.from('jobs').select('scheduled_date')
+            .eq('recurring_parent_id', parentId).not('status','in','("completed","cancelled")')
+            .order('scheduled_date',{ascending:false}).limit(1);
+          let latest = futures?.[0]?.scheduled_date;
+          if (!latest) { const { data: par } = await sb.from('jobs').select('scheduled_date').eq('id',parentId).single(); latest = par?.scheduled_date; }
+          if (latest) {
+            const next = new Date(latest+'T12:00:00');
+            if      (job.recurrence_pattern==='weekly')   next.setDate(next.getDate()+7);
+            else if (job.recurrence_pattern==='biweekly') next.setDate(next.getDate()+14);
+            else if (job.recurrence_pattern==='monthly')  next.setMonth(next.getMonth()+1);
+            await sb.from('jobs').insert({
+              service_account_id:job.service_account_id, tech_id:job.tech_id, job_type_id:job.job_type_id,
+              address:job.address, notes:job.notes, scheduled_time:job.scheduled_time,
+              status:'scheduled', is_recurring:true, recurrence_pattern:job.recurrence_pattern,
+              recurring_parent_id:parentId, scheduled_date:next.toISOString().split('T')[0],
+            });
+          }
+        }
+      }
+      await openTechJobDetail(jobId);
+    }
+
+    async function techBillItem(jobId, serviceAccountId) {
+      const desc = document.getElementById('billDesc').value.trim();
+      const qty  = parseInt(document.getElementById('billQty').value)||1;
+      if (!desc) { alert('Enter a description'); return; }
+      await sb.from('basket_items').insert({
+        service_account_id:serviceAccountId, job_id:jobId,
+        product_id:null, notes:desc, quantity:qty,
+        requested_by:'tech', billed:false,
+      });
+      document.getElementById('billDesc').value = '';
+      document.getElementById('billQty').value  = '1';
+      alert('Item added to invoice');
     }
 
     // ── Google Maps ───────────────────────────────────────────────
@@ -224,12 +350,13 @@
       const today = new Date(); today.setHours(0,0,0,0);
       const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
-      const { data: visits } = await sb.from('service_visits')
-        .select('id, status, service_accounts(id, address, contact_name, profiles(full_name))')
+      const { data: visits } = await sb.from('jobs')
+        .select('id, status, address, service_accounts(id, address, contact_name, profiles(full_name))')
         .eq('tech_id', currentTechId)
-        .gte('scheduled_date', today.toISOString())
-        .lt('scheduled_date', tomorrow.toISOString())
-        .order('scheduled_date');
+        .gte('scheduled_date', today.toISOString().split('T')[0])
+        .lt('scheduled_date', tomorrow.toISOString().split('T')[0])
+        .not('status','in','("cancelled","completed")')
+        .order('scheduled_time',{ascending:true,nullsFirst:false});
 
       const statusEl = document.getElementById('routeStatus');
       const stopsEl  = document.getElementById('routeStops');
@@ -259,7 +386,7 @@
       const stopsEl  = document.getElementById('routeStops');
       if (!mapEl) return;
 
-      const addresses = visits.map(v => v.service_accounts?.address).filter(Boolean);
+      const addresses = visits.map(v => v.address || v.service_accounts?.address).filter(Boolean);
 
       if (!addresses.length) {
         if (statusEl) statusEl.textContent = 'No addresses on record for today\'s stops.';
@@ -347,8 +474,8 @@
     }
 
     function techStopCard(visit, num, dist, dur) {
-      const name    = visit.service_accounts?.profiles?.full_name || visit.service_accounts?.contact_name || 'Unknown';
-      const address = visit.service_accounts?.address || '';
+      const name    = visit.service_accounts?.contact_name || visit.service_accounts?.profiles?.full_name || 'Unknown';
+      const address = visit.address || visit.service_accounts?.address || '';
       const done    = visit.status === 'completed';
       return `
         <div class="bg-white rounded-xl border p-4 flex items-center gap-3 ${done ? 'opacity-60' : ''}">

@@ -76,10 +76,11 @@
     <!-- Nav tabs -->
     <div class="bg-white border-b sticky top-[76px] z-30">
       <div class="max-w-3xl mx-auto flex">
-        <button data-tab="schedule" class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-[var(--green)] text-[var(--green)]">Schedule</button>
-        <button data-tab="messages" class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Messages</button>
-        <button data-tab="shop"     class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Shop</button>
-        <button data-tab="billing"  class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Billing</button>
+        <button data-tab="schedule"  class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-[var(--green)] text-[var(--green)]">Schedule</button>
+        <button data-tab="proposals" class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Proposals</button>
+        <button data-tab="messages"  class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Messages</button>
+        <button data-tab="shop"      class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Shop</button>
+        <button data-tab="billing"   class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Billing</button>
       </div>
     </div>
 
@@ -193,45 +194,173 @@
 
     function loadTab(tab) {
       const el = document.getElementById('tabContent');
-      const tabs = { schedule: renderSchedule, messages: renderMessages, shop: renderShop, billing: renderBilling };
+      const tabs = { schedule: renderSchedule, proposals: renderProposals, messages: renderMessages, shop: renderShop, billing: renderBilling };
       if (tabs[tab]) tabs[tab](el);
     }
 
     async function renderSchedule(el) {
-      el.innerHTML = '<p class="text-gray-400">Loading your schedule...</p>';
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
       const { data: { user } } = await sb.auth.getUser();
       const { data: account } = await sb.from('service_accounts').select('id').eq('customer_id', user.id).single();
       if (!account) { el.innerHTML = '<p class="text-gray-400">No service account found. Contact us to get set up.</p>'; return; }
-
-      const { data: visits } = await sb.from('service_visits')
-        .select('id, scheduled_date, status, notes, technicians(profiles(full_name))')
+      const { data: jobs } = await sb.from('jobs')
+        .select('id,status,scheduled_date,scheduled_time,address,job_types(name,color),technicians(profiles(full_name))')
         .eq('service_account_id', account.id)
-        .gte('scheduled_date', new Date().toISOString())
-        .order('scheduled_date', { ascending: true })
-        .limit(10);
-
-      if (!visits?.length) {
-        el.innerHTML = '<p class="text-gray-400">No upcoming visits scheduled. Your tech will reach out soon.</p>';
-        return;
-      }
-
-      el.innerHTML = `
-        <h2 class="text-2xl font-extrabold mb-5">Upcoming Visits</h2>
-        <div class="space-y-4">
-          ${visits.map(v => `
-            <div class="bg-white rounded-xl border p-5">
-              <div class="flex items-start justify-between">
-                <div>
-                  <p class="font-semibold text-lg">${new Date(v.scheduled_date).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
-                  <p class="text-gray-500 text-sm mt-1">Tech: ${v.technicians?.profiles?.full_name ?? 'TBD'}</p>
-                  ${v.notes ? `<p class="text-gray-600 text-sm mt-2">${v.notes}</p>` : ''}
-                </div>
-                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase ${v.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${v.status ?? 'scheduled'}</span>
-              </div>
+        .not('status','eq','cancelled')
+        .order('scheduled_date',{ascending:false});
+      const upcoming = (jobs||[]).filter(j => !['completed'].includes(j.status));
+      const past     = (jobs||[]).filter(j =>  j.status === 'completed');
+      const fmtT = t => { if(!t) return ''; const [h,m]=t.split(':'); const hr=parseInt(h); return ` at ${hr%12||12}:${m} ${hr>=12?'PM':'AM'}`; };
+      const sBadge = s => {
+        const cls = {scheduled:'bg-blue-100 text-blue-700',on_the_way:'bg-yellow-100 text-yellow-800',in_progress:'bg-green-100 text-green-700',completed:'bg-gray-100 text-gray-500'};
+        const lbl = {scheduled:'Scheduled',on_the_way:'On the Way',in_progress:'In Progress',completed:'Completed'};
+        return `<span class="text-xs px-2 py-0.5 rounded-full font-bold ${cls[s]||'bg-gray-100 text-gray-500'}">${lbl[s]||s}</span>`;
+      };
+      const jobCard = j => {
+        const color = j.job_types?.color||'#1E5E37';
+        return `<div class="bg-white rounded-xl border overflow-hidden">
+          <div class="h-1" style="background:${color}"></div>
+          <div class="p-4 flex items-start justify-between gap-3">
+            <div>
+              <p class="font-semibold text-sm">${new Date(j.scheduled_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</p>
+              <p class="text-xs text-gray-500 mt-0.5">${pEsc(j.job_types?.name||'')}${fmtT(j.scheduled_time)}</p>
+              ${j.technicians?.profiles?.full_name?`<p class="text-xs text-gray-400 mt-0.5">Tech: ${pEsc(j.technicians.profiles.full_name)}</p>`:''}
             </div>
-          `).join('')}
+            ${sBadge(j.status)}
+          </div>
+        </div>`;
+      };
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-2">Schedule</h2>
+        <p class="text-gray-500 text-sm mb-6">Your upcoming and past service appointments.</p>
+        ${!upcoming.length&&!past.length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No appointments on record yet.</div>'
+          : `${upcoming.length?`<h3 class="text-xs font-bold uppercase text-gray-400 mb-3">Upcoming</h3><div class="space-y-3 mb-6">${upcoming.map(jobCard).join('')}</div>`:''}
+             ${past.length?`<h3 class="text-xs font-bold uppercase text-gray-400 mb-3">Past Visits</h3><div class="space-y-2">${past.slice(0,10).map(jobCard).join('')}</div>`:''}`}
+      `;
+    }
+
+    let _portalProposalChannel = null;
+
+    async function renderProposals(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const { data: { user } } = await sb.auth.getUser();
+      const { data: account } = await sb.from('service_accounts').select('id').eq('customer_id', user.id).single();
+      if (!account) { el.innerHTML = '<p class="text-gray-400">No service account found.</p>'; return; }
+      const { data: proposals } = await sb.from('proposals')
+        .select('id,title,status,updated_at')
+        .eq('service_account_id', account.id)
+        .not('status','eq','draft')
+        .order('updated_at',{ascending:false});
+      const sBadge = s => {
+        const cls = {sent:'bg-blue-100 text-blue-700',accepted:'bg-green-100 text-green-700',changes_requested:'bg-yellow-100 text-yellow-800',declined:'bg-gray-100 text-gray-500'};
+        const lbl = {sent:'Review Needed',accepted:'Accepted',changes_requested:'Changes Requested',declined:'Declined'};
+        return `<span class="text-xs px-2 py-0.5 rounded-full font-bold ${cls[s]||'bg-gray-100 text-gray-500'}">${lbl[s]||s}</span>`;
+      };
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-2">Proposals</h2>
+        <p class="text-gray-500 text-sm mb-6">Quotes and proposals from Pacific Coast Ponds.</p>
+        ${!proposals?.length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No proposals yet.</div>'
+          : `<div class="space-y-3">
+              ${proposals.map(p => `
+                <div onclick="openPortalProposal('${p.id}')"
+                     class="bg-white rounded-xl border p-4 cursor-pointer hover:bg-gray-50 transition active:bg-gray-100 ${p.status==='sent'?'border-l-4 border-l-[var(--blue)]':''}">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <p class="font-bold text-sm">${pEsc(p.title)}</p>
+                      <p class="text-xs text-gray-400 mt-0.5">${new Date(p.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
+                    </div>
+                    ${sBadge(p.status)}
+                  </div>
+                  ${p.status==='sent'?'<p class="text-xs text-[var(--blue)] font-semibold mt-2">Tap to review \u2192</p>':''}
+                </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function openPortalProposal(proposalId) {
+      if (_portalProposalChannel) { sb.removeChannel(_portalProposalChannel); _portalProposalChannel = null; }
+      const el = document.getElementById('tabContent');
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const { data: { user } } = await sb.auth.getUser();
+      const [{ data:prop },{ data:items },{ data:msgs }] = await Promise.all([
+        sb.from('proposals').select('*').eq('id',proposalId).single(),
+        sb.from('proposal_line_items').select('*').eq('proposal_id',proposalId).order('sort_order'),
+        sb.from('proposal_messages').select('id,body,created_at,profiles(full_name,role)').eq('proposal_id',proposalId).order('created_at'),
+      ]);
+      const total = (items||[]).reduce((s,i) => s+parseFloat(i.quantity)*parseFloat(i.unit_price), 0);
+      const buildBubble = m => {
+        const isMe = m.profiles?.role==='customer';
+        return `<div class="flex ${isMe?'justify-end':'justify-start'}">
+          <div class="max-w-xs rounded-2xl px-4 py-2.5 ${isMe?'bg-[var(--green)] text-white':'bg-white border text-gray-900'}">
+            <p class="text-xs font-semibold mb-1 ${isMe?'text-white/70':'text-gray-400'}">${pEsc(m.profiles?.full_name||(isMe?'You':'Pacific Coast Ponds'))}</p>
+            <p class="text-sm leading-relaxed">${pEsc(m.body)}</p>
+            <p class="text-xs mt-1.5 ${isMe?'text-white/50':'text-gray-400'}">${pTimeAgo(m.created_at)}</p>
+          </div></div>`;
+      };
+      const canRespond = prop.status==='sent'||prop.status==='changes_requested';
+      el.innerHTML = `
+        <button onclick="renderProposals(document.getElementById('tabContent'))" class="text-[var(--green)] text-sm font-semibold mb-4 block">\u2190 Proposals</button>
+        <div class="bg-white rounded-xl border p-4 mb-4">
+          <div class="flex items-start justify-between gap-2 mb-4">
+            <h2 class="text-xl font-extrabold">${pEsc(prop.title)}</h2>
+            <span class="text-xs px-2 py-1 rounded-full font-bold shrink-0 ${prop.status==='accepted'?'bg-green-100 text-green-700':prop.status==='sent'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}">${prop.status.replace('_',' ')}</span>
+          </div>
+          <div class="rounded-xl border overflow-hidden mb-4">
+            <table class="w-full text-sm">
+              <thead><tr class="bg-gray-50"><th class="text-left p-3 text-xs text-gray-500 font-semibold">Description</th><th class="p-3 text-xs text-gray-500 font-semibold text-center">Qty</th><th class="p-3 text-xs text-gray-500 font-semibold text-right">Total</th></tr></thead>
+              <tbody>
+                ${(items||[]).map(i => `<tr class="border-t"><td class="p-3">${pEsc(i.description)}</td><td class="p-3 text-center">${i.quantity}</td><td class="p-3 text-right font-semibold">$${(parseFloat(i.quantity)*parseFloat(i.unit_price)).toFixed(2)}</td></tr>`).join('')}
+              </tbody>
+              <tfoot><tr class="border-t bg-gray-50"><td colspan="2" class="p-3 text-right font-bold">Total</td><td class="p-3 text-right font-bold text-lg">$${total.toFixed(2)}</td></tr></tfoot>
+            </table>
+          </div>
+          ${prop.notes?`<p class="text-sm text-gray-600 mb-4">${pEsc(prop.notes)}</p>`:''}
+          ${canRespond?`
+            <div class="flex gap-2">
+              <button onclick="portalRespondProposal('${proposalId}','accepted')"
+                      class="flex-1 py-2.5 bg-[var(--green)] text-white font-bold text-sm uppercase rounded-lg hover:bg-[var(--dark)] transition">Accept</button>
+              <button onclick="portalRespondProposal('${proposalId}','changes_requested')"
+                      class="flex-1 py-2.5 border-2 border-gray-300 text-gray-700 font-bold text-sm uppercase rounded-lg hover:bg-gray-50 transition">Request Changes</button>
+            </div>`:''}
+        </div>
+        <div class="bg-white rounded-xl border">
+          <div class="p-4 border-b"><p class="font-bold text-sm">Messages</p><p class="text-xs text-gray-400 mt-0.5">Chat with Pacific Coast Ponds</p></div>
+          <div id="proposalThread" class="p-3 space-y-3 max-h-72 overflow-y-auto">
+            ${(msgs||[]).map(buildBubble).join('')||'<p class="text-xs text-gray-400 text-center py-4">No messages yet.</p>'}
+          </div>
+          <div class="p-3 border-t flex gap-2">
+            <textarea id="proposalReplyText" rows="2" placeholder="Send a message..."
+                      class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] resize-none"></textarea>
+            <button onclick="portalSendProposalMsg('${proposalId}','${user.id}')"
+                    class="px-3 py-2 bg-[var(--green)] text-white font-bold text-sm rounded-lg self-end">Send</button>
+          </div>
         </div>
       `;
+      const thread = document.getElementById('proposalThread');
+      if (thread) thread.scrollTop = thread.scrollHeight;
+      _portalProposalChannel = sb.channel(`portal-prop-${proposalId}`)
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'proposal_messages',filter:`proposal_id=eq.${proposalId}`}, async payload => {
+          const { data: m } = await sb.from('proposal_messages').select('id,body,created_at,profiles(full_name,role)').eq('id',payload.new.id).single();
+          if (!m) return;
+          const thread = document.getElementById('proposalThread'); if (!thread) return;
+          const div = document.createElement('div'); div.innerHTML = buildBubble(m);
+          thread.appendChild(div.firstElementChild); thread.scrollTop = thread.scrollHeight;
+        }).subscribe();
+    }
+
+    async function portalRespondProposal(proposalId, status) {
+      const { error } = await sb.from('proposals').update({status,updated_at:new Date().toISOString()}).eq('id',proposalId);
+      if (error) { alert(error.message); return; }
+      openPortalProposal(proposalId);
+    }
+
+    async function portalSendProposalMsg(proposalId, userId) {
+      const textEl = document.getElementById('proposalReplyText');
+      const body = textEl?.value?.trim(); if (!body) return;
+      await sb.from('proposal_messages').insert({proposal_id:proposalId, sender_id:userId, body});
+      textEl.value = '';
     }
 
     // ── Portal messaging state ────────────────────────────────────

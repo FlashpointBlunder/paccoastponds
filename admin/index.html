@@ -67,7 +67,8 @@
     <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
       <div class="sidebar-link active" data-page="dashboard">⊞ &nbsp;Dashboard</div>
       <div class="sidebar-link" data-page="customers">👤 &nbsp;Customers</div>
-      <div class="sidebar-link" data-page="schedule">📅 &nbsp;Schedule</div>
+      <div class="sidebar-link" data-page="jobs">🔨 &nbsp;Jobs</div>
+      <div class="sidebar-link" data-page="proposals">📋 &nbsp;Proposals</div>
       <div class="sidebar-link" data-page="techs">🔧 &nbsp;Technicians</div>
       <div class="sidebar-link" data-page="products">📦 &nbsp;Products</div>
       <div class="sidebar-link" data-page="billing">💳 &nbsp;Billing</div>
@@ -161,10 +162,11 @@ document.querySelectorAll('[data-page]').forEach(el => {
 
 function loadPage(page) {
   const pages = {
-    dashboard: renderDashboard,
-    customers: renderCustomers,
-    schedule:  renderSchedule,
-    techs:     renderTechs,
+    dashboard:  renderDashboard,
+    customers:  renderCustomers,
+    jobs:       renderJobs,
+    proposals:  renderProposals,
+    techs:      renderTechs,
     products:  renderProducts,
     billing:   renderBilling,
     messages:  renderMessages,
@@ -198,7 +200,7 @@ async function renderDashboard(el) {
     <h1 class="text-3xl font-extrabold mb-8">Dashboard</h1>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
       <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Active Customers</p><p class="text-4xl font-bold mt-2" id="sC">—</p></div>
-      <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Visits This Week</p><p class="text-4xl font-bold mt-2" id="sV">—</p></div>
+      <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Jobs This Week</p><p class="text-4xl font-bold mt-2" id="sV">—</p></div>
       <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Technicians</p><p class="text-4xl font-bold mt-2" id="sT">—</p></div>
       <div class="stat-card"><p class="text-xs uppercase text-gray-400 font-semibold">Open Tickets</p><p class="text-4xl font-bold mt-2" id="sM">—</p></div>
     </div>
@@ -213,7 +215,7 @@ async function renderDashboard(el) {
 
   const [cRes, vRes, tRes, mRes] = await Promise.all([
     sb.from('service_accounts').select('id', { count:'exact', head:true }).not('customer_id','is',null),
-    sb.from('service_visits').select('id', { count:'exact', head:true }).gte('scheduled_date', now.toISOString()).lte('scheduled_date', week.toISOString()),
+    sb.from('jobs').select('id', { count:'exact', head:true }).gte('scheduled_date', now.toISOString().split('T')[0]).lte('scheduled_date', week.toISOString().split('T')[0]).not('status','in','("cancelled","completed")'),
     sb.from('technicians').select('id', { count:'exact', head:true }),
     sb.from('tickets').select('id', { count:'exact', head:true }).eq('status', 'open'),
   ]);
@@ -931,8 +933,563 @@ async function deleteTech(techId, userId) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SCHEDULE
+// JOBS
 // ═══════════════════════════════════════════════════════════════
+let _jobsWeekStart = null;
+let _jobsView = 'calendar';
+let _jobsTechFilter = 'all';
+let _jobTypes = [];
+let _jobsTechs = [];
+let _jobsAccounts = [];
+
+function startOfWeek(d) {
+  const date = new Date(d); const day = date.getDay();
+  date.setDate(date.getDate() - day); date.setHours(0,0,0,0); return date;
+}
+function addDays(d, n) { const date = new Date(d); date.setDate(date.getDate() + n); return date; }
+function isoDate(d) { return d.toISOString().split('T')[0]; }
+function fmtWeekRange(s) {
+  const e = addDays(s, 6);
+  return s.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' \u2013 ' +
+         e.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function fmtJobTime(t) {
+  if (!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h);
+  return `${hr%12||12}:${m} ${hr>=12?'PM':'AM'}`;
+}
+function techDisplayName(t) { return t?.profiles?.full_name || 'Unknown'; }
+
+async function renderJobs(el) {
+  if (!_jobsWeekStart) _jobsWeekStart = startOfWeek(new Date());
+  if (!_jobTypes.length) {
+    const [jtR, tR, aR] = await Promise.all([
+      sb.from('job_types').select('id,name,color').eq('active',true).order('name'),
+      sb.from('technicians').select('id,profiles(full_name)').eq('active',true).order('created_at'),
+      sb.from('service_accounts').select('id,contact_name,address,phone,sms_opted_in').order('contact_name'),
+    ]);
+    _jobTypes = jtR.data||[]; _jobsTechs = tR.data||[]; _jobsAccounts = aR.data||[];
+  }
+  const techOpts = `<option value="all">All Techs</option>` +
+    _jobsTechs.map(t => `<option value="${t.id}">${escHtml(techDisplayName(t))}</option>`).join('');
+  el.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <h1 class="text-3xl font-extrabold">Jobs</h1>
+      <div class="flex items-center gap-2 flex-wrap">
+        <select id="jobTechFilterSel" onchange="_jobsTechFilter=this.value;loadJobsView()"
+                class="field text-sm py-1.5" style="width:auto">${techOpts}</select>
+        <button onclick="_jobsWeekStart=startOfWeek(new Date());loadJobsView()"
+                class="btn-outline text-sm py-1.5 px-3">Today</button>
+        <button id="jobViewToggle" onclick="_jobsView=_jobsView==='calendar'?'list':'calendar';loadJobsView()"
+                class="btn-outline text-sm py-1.5 px-3">📋 List</button>
+        <button onclick="openCreateJob(null)" class="btn-green text-sm py-1.5">+ New Job</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mb-5">
+      <button onclick="_jobsWeekStart=addDays(_jobsWeekStart,-7);loadJobsView()" class="btn-outline py-1 px-3 text-xl">&#8249;</button>
+      <span id="jobWeekLabel" class="font-semibold text-sm min-w-max"></span>
+      <button onclick="_jobsWeekStart=addDays(_jobsWeekStart,7);loadJobsView()"  class="btn-outline py-1 px-3 text-xl">&#8250;</button>
+    </div>
+    <div id="jobsViewContent"></div>
+
+    <!-- Job Modal -->
+    <div id="jobModal" class="modal-bg hidden">
+      <div class="modal max-w-lg">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold" id="jobModalTitle">Create Job</h2>
+          <button onclick="closeModal('jobModal')" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <input type="hidden" id="jobId" /><input type="hidden" id="jobProposalId" />
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Customer</label>
+            <select id="jobAccountId" class="field mt-1"></select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Address</label>
+            <input id="jobAddress" type="text" class="field mt-1" placeholder="Auto-filled from customer" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-semibold text-gray-500 uppercase">Job Type</label><select id="jobTypeId" class="field mt-1"></select></div>
+            <div><label class="text-xs font-semibold text-gray-500 uppercase">Technician</label><select id="jobTechId" class="field mt-1"></select></div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-semibold text-gray-500 uppercase">Date</label><input id="jobDate" type="date" class="field mt-1" /></div>
+            <div><label class="text-xs font-semibold text-gray-500 uppercase">Time (optional)</label><input id="jobTime" type="time" class="field mt-1" /></div>
+          </div>
+          <div><label class="text-xs font-semibold text-gray-500 uppercase">Notes</label><textarea id="jobNotes" rows="2" class="field mt-1" placeholder="Optional"></textarea></div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="jobRecurring" class="w-4 h-4 accent-[var(--green)]"
+                   onchange="document.getElementById('jobRecurrenceWrap').classList.toggle('hidden',!this.checked)" />
+            <span class="text-sm font-semibold">Recurring Job</span>
+          </label>
+          <div id="jobRecurrenceWrap" class="hidden">
+            <select id="jobPattern" class="field text-sm">
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Bi-weekly (every 2 weeks)</option>
+              <option value="monthly">Monthly</option>
+            </select>
+            <p class="text-xs text-gray-400 mt-1">Creates 1 year of instances. A new one auto-generates each time one completes.</p>
+          </div>
+          <div id="jobRecurringInfo"></div>
+        </div>
+        <div class="mt-5 flex gap-2">
+          <button onclick="saveJob()" class="btn-green flex-1">Save Job</button>
+          <button id="jobCancelBtn" onclick="cancelJobFromModal()"
+                  class="btn-outline flex-1 hidden text-red-600 border-red-200 hover:border-red-400">Cancel Job</button>
+          <button onclick="closeModal('jobModal')" class="btn-outline">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('jobTechFilterSel').value = _jobsTechFilter;
+  await loadJobsView();
+}
+
+async function loadJobsView() {
+  const el = document.getElementById('jobsViewContent');
+  if (!el) return;
+  el.innerHTML = '<p class="text-gray-400 text-sm py-4">Loading...</p>';
+  document.getElementById('jobWeekLabel').textContent = fmtWeekRange(_jobsWeekStart);
+  document.getElementById('jobViewToggle').textContent = _jobsView === 'calendar' ? '📋 List' : '📅 Calendar';
+  const weekEnd = addDays(_jobsWeekStart, 7);
+  let query = sb.from('jobs')
+    .select('id,status,scheduled_date,scheduled_time,is_recurring,recurring_parent_id,service_accounts(id,contact_name),technicians(id,profiles(full_name)),job_types(id,name,color)')
+    .gte('scheduled_date', isoDate(_jobsWeekStart))
+    .lt('scheduled_date', isoDate(weekEnd))
+    .not('status','eq','cancelled')
+    .order('scheduled_time',{ascending:true,nullsFirst:false});
+  if (_jobsTechFilter !== 'all') query = query.eq('tech_id', _jobsTechFilter);
+  const { data: jobs } = await query;
+  const today = isoDate(new Date());
+  const weekDays = Array.from({length:7},(_,i) => addDays(_jobsWeekStart,i));
+  if (_jobsView === 'calendar') renderJobCalendar(el, jobs||[], weekDays, today);
+  else renderJobList(el, jobs||[]);
+}
+
+function renderJobCalendar(el, jobs, weekDays, today) {
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const byDate = {};
+  jobs.forEach(j => { if (!byDate[j.scheduled_date]) byDate[j.scheduled_date]=[]; byDate[j.scheduled_date].push(j); });
+  el.innerHTML = `
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <div class="grid grid-cols-7 border-b">
+        ${weekDays.map(d => {
+          const ds = isoDate(d); const isT = ds===today;
+          return `<div class="p-2 text-center border-r last:border-r-0 ${isT?'bg-green-50':''}">
+            <p class="text-xs text-gray-400 font-semibold">${dayNames[d.getDay()]}</p>
+            <p class="text-sm font-bold mt-0.5 w-7 h-7 flex items-center justify-center mx-auto rounded-full ${isT?'bg-[var(--green)] text-white':''}">${d.getDate()}</p>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="grid grid-cols-7 divide-x min-h-96">
+        ${weekDays.map(d => {
+          const ds = isoDate(d); const dayJobs = byDate[ds]||[];
+          return `<div class="p-1 hover:bg-gray-50 cursor-pointer" onclick="openCreateJob('${ds}')">
+            ${dayJobs.map(j => {
+              const color = j.job_types?.color||'#1E5E37';
+              const dot = {on_the_way:'&#128663; ',in_progress:'&#128295; ',completed:'&#10003; '}[j.status]||'';
+              return `<div onclick="event.stopPropagation();openJobDetail('${j.id}')"
+                          class="rounded p-1.5 mb-1 text-xs cursor-pointer hover:opacity-75"
+                          style="border-left:3px solid ${color};background:${color}18">
+                <div class="font-bold truncate">${dot}${escHtml(j.service_accounts?.contact_name||'—')}</div>
+                <div class="text-gray-500 truncate" style="font-size:10px">${escHtml(j.job_types?.name||'')}</div>
+                <div class="text-gray-400" style="font-size:10px">${escHtml(techDisplayName(j.technicians))}${j.scheduled_time?' &middot; '+fmtJobTime(j.scheduled_time):''}</div>
+              </div>`;
+            }).join('')}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function renderJobList(el, jobs) {
+  if (!jobs.length) { el.innerHTML = '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No jobs this week.</div>'; return; }
+  const sb2 = s => {
+    const m = {scheduled:'badge-blue',on_the_way:'badge-yellow',in_progress:'badge-green',completed:'badge-gray',cancelled:'badge-red'};
+    return `<span class="badge ${m[s]||'badge-gray'}">${s.replace('_',' ')}</span>`;
+  };
+  el.innerHTML = `
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Customer</th><th>Type</th><th>Tech</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${jobs.map(j => `
+            <tr class="cursor-pointer" onclick="openJobDetail('${j.id}')">
+              <td>${fmtDate(j.scheduled_date)}</td>
+              <td class="text-gray-500">${j.scheduled_time?fmtJobTime(j.scheduled_time):'—'}</td>
+              <td class="font-semibold">${escHtml(j.service_accounts?.contact_name||'—')}</td>
+              <td>${j.job_types?`<span class="text-xs font-semibold px-2 py-0.5 rounded" style="background:${j.job_types.color}20;color:${j.job_types.color}">${escHtml(j.job_types.name)}</span>`:'—'}</td>
+              <td class="text-gray-500">${escHtml(techDisplayName(j.technicians))}</td>
+              <td>${sb2(j.status)}</td>
+              <td class="text-right"><button class="text-xs text-[var(--green)] font-semibold hover:underline">View</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function _populateJobModal() {
+  document.getElementById('jobAccountId').innerHTML = `<option value="">Select Customer</option>` +
+    _jobsAccounts.map(a => `<option value="${a.id}" data-address="${escHtml(a.address||'')}">${escHtml(a.contact_name||'—')}</option>`).join('');
+  document.getElementById('jobTypeId').innerHTML = `<option value="">Select Job Type</option>` +
+    _jobTypes.map(t => `<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
+  document.getElementById('jobTechId').innerHTML = `<option value="">Unassigned</option>` +
+    _jobsTechs.map(t => `<option value="${t.id}">${escHtml(techDisplayName(t))}</option>`).join('');
+  document.getElementById('jobAccountId').onchange = function() {
+    document.getElementById('jobAddress').value = this.options[this.selectedIndex].dataset.address||'';
+  };
+}
+
+function openCreateJob(prefillDate) {
+  document.getElementById('jobModalTitle').textContent = 'Create Job';
+  document.getElementById('jobId').value = ''; document.getElementById('jobProposalId').value = '';
+  _populateJobModal();
+  document.getElementById('jobAddress').value = '';
+  document.getElementById('jobDate').value = prefillDate||''; document.getElementById('jobTime').value = '';
+  document.getElementById('jobNotes').value = '';
+  document.getElementById('jobRecurring').checked = false;
+  document.getElementById('jobRecurrenceWrap').classList.add('hidden');
+  document.getElementById('jobPattern').value = 'weekly';
+  document.getElementById('jobRecurringInfo').innerHTML = '';
+  document.getElementById('jobCancelBtn').classList.add('hidden');
+  openModal('jobModal');
+}
+
+async function openJobDetail(jobId) {
+  const { data: job } = await sb.from('jobs')
+    .select('*,service_accounts(id,contact_name,address,phone,sms_opted_in),technicians(id,profiles(full_name)),job_types(id,name,color)')
+    .eq('id', jobId).single();
+  if (!job) { toast('Job not found', false); return; }
+  document.getElementById('jobModalTitle').textContent = 'Edit Job';
+  document.getElementById('jobId').value = job.id;
+  document.getElementById('jobProposalId').value = job.proposal_id||'';
+  _populateJobModal();
+  document.getElementById('jobAccountId').value = job.service_account_id||'';
+  document.getElementById('jobAddress').value = job.address||'';
+  document.getElementById('jobTypeId').value = job.job_type_id||'';
+  document.getElementById('jobTechId').value = job.tech_id||'';
+  document.getElementById('jobDate').value = job.scheduled_date||'';
+  document.getElementById('jobTime').value = job.scheduled_time ? job.scheduled_time.slice(0,5) : '';
+  document.getElementById('jobNotes').value = job.notes||'';
+  document.getElementById('jobRecurring').checked = job.is_recurring;
+  document.getElementById('jobRecurrenceWrap').classList.toggle('hidden', !job.is_recurring);
+  document.getElementById('jobPattern').value = job.recurrence_pattern||'weekly';
+  document.getElementById('jobCancelBtn').classList.remove('hidden');
+  const isParent = job.is_recurring && !job.recurring_parent_id;
+  const isChild  = !!job.recurring_parent_id;
+  const infoEl   = document.getElementById('jobRecurringInfo');
+  if (isParent) {
+    const { count } = await sb.from('jobs').select('id',{count:'exact',head:true})
+      .eq('recurring_parent_id', job.id).not('status','in','("completed","cancelled")');
+    infoEl.innerHTML = `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800"><strong>Recurring Series</strong> &mdash; ${count||0} future instances. Saving cascades changes to all future jobs.</div>`;
+  } else if (isChild) {
+    infoEl.innerHTML = `<div class="bg-gray-50 border rounded-lg p-3 text-xs text-gray-600"><strong>Part of a recurring series.</strong> <button onclick="closeModal('jobModal');openJobDetail('${job.recurring_parent_id}')" class="text-[var(--green)] underline font-semibold">Edit parent job</button> to update all future instances.</div>`;
+  } else { infoEl.innerHTML = ''; }
+  openModal('jobModal');
+}
+
+function generateRecurringDates(startDate, pattern, count) {
+  const dates = [];
+  for (let i = 1; i <= count; i++) {
+    const d = new Date(startDate + 'T12:00:00');
+    if      (pattern==='weekly')   d.setDate(d.getDate() + i*7);
+    else if (pattern==='biweekly') d.setDate(d.getDate() + i*14);
+    else if (pattern==='monthly')  d.setMonth(d.getMonth() + i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
+}
+
+async function saveJob() {
+  const jobId      = document.getElementById('jobId').value;
+  const proposalId = document.getElementById('jobProposalId').value||null;
+  const accountId  = document.getElementById('jobAccountId').value;
+  const address    = document.getElementById('jobAddress').value.trim();
+  const jobTypeId  = document.getElementById('jobTypeId').value||null;
+  const techId     = document.getElementById('jobTechId').value||null;
+  const date       = document.getElementById('jobDate').value;
+  const time       = document.getElementById('jobTime').value||null;
+  const notes      = document.getElementById('jobNotes').value.trim();
+  const isRecurring = document.getElementById('jobRecurring').checked;
+  const pattern    = document.getElementById('jobPattern').value;
+  if (!accountId) { toast('Select a customer', false); return; }
+  if (!date)      { toast('Select a date', false); return; }
+  const payload = { service_account_id:accountId, address, job_type_id:jobTypeId, tech_id:techId,
+    scheduled_date:date, scheduled_time:time, notes, is_recurring:isRecurring,
+    recurrence_pattern:isRecurring?pattern:null, proposal_id:proposalId };
+  if (jobId) {
+    const { data: ex } = await sb.from('jobs').select('is_recurring,recurring_parent_id').eq('id',jobId).single();
+    const isParent = ex?.is_recurring && !ex?.recurring_parent_id;
+    await sb.from('jobs').update({...payload,updated_at:new Date().toISOString()}).eq('id',jobId);
+    if (isParent) {
+      const { data: futures } = await sb.from('jobs').select('id').eq('recurring_parent_id',jobId).not('status','in','("completed","cancelled")');
+      const cascade = {job_type_id:jobTypeId,tech_id:techId,address,notes,scheduled_time:time};
+      for (const f of (futures||[])) await sb.from('jobs').update({...cascade,updated_at:new Date().toISOString()}).eq('id',f.id);
+      toast(`Job updated — cascaded to ${futures?.length||0} future instances`);
+    } else { toast('Job updated'); }
+  } else {
+    const { data: newJob, error } = await sb.from('jobs').insert({...payload,status:'scheduled'}).select().single();
+    if (error) { toast(error.message, false); return; }
+    if (isRecurring) {
+      const count = pattern==='weekly'?51:pattern==='biweekly'?25:11;
+      await sb.from('jobs').insert(generateRecurringDates(date,pattern,count).map(d => ({
+        service_account_id:accountId, address, job_type_id:jobTypeId, tech_id:techId,
+        scheduled_date:d, scheduled_time:time, notes, status:'scheduled',
+        is_recurring:true, recurrence_pattern:pattern, recurring_parent_id:newJob.id,
+      })));
+      toast(`Recurring job created — ${count+1} total instances`);
+    } else { toast('Job created'); }
+  }
+  closeModal('jobModal'); await loadJobsView();
+}
+
+async function cancelJob(jobId) {
+  if (!confirm('Cancel this job?')) return;
+  await sb.from('jobs').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',jobId);
+  toast('Job cancelled'); closeModal('jobModal'); await loadJobsView();
+}
+function cancelJobFromModal() { const id = document.getElementById('jobId').value; if (id) cancelJob(id); }
+
+// ═══════════════════════════════════════════════════════════════
+// PROPOSALS
+// ═══════════════════════════════════════════════════════════════
+let _editingProposalId = null;
+let _proposalLineItems = [];
+
+async function renderProposals(el) {
+  if (!_jobsAccounts.length) {
+    const { data } = await sb.from('service_accounts').select('id,contact_name,address').order('contact_name');
+    _jobsAccounts = data||[];
+  }
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-extrabold">Proposals</h1>
+      <button onclick="openCreateProposal()" class="btn-green">+ New Proposal</button>
+    </div>
+    <div id="proposalsList" class="text-gray-400 text-sm">Loading...</div>
+
+    <!-- Proposal Create/Edit Modal -->
+    <div id="proposalModal" class="modal-bg hidden">
+      <div class="modal" style="max-width:42rem">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold" id="propModalTitle">New Proposal</h2>
+          <button onclick="closeModal('proposalModal')" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-semibold text-gray-500 uppercase">Customer</label><select id="propAccountId" class="field mt-1"></select></div>
+            <div><label class="text-xs font-semibold text-gray-500 uppercase">Title</label><input id="propTitle" type="text" class="field mt-1" placeholder="e.g. Custom Pond Build" /></div>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Line Items</label>
+            <div class="text-xs text-gray-400 mb-1 mt-1">Description &middot; Qty &middot; Unit Price</div>
+            <div id="propLineItems"></div>
+          </div>
+          <div><label class="text-xs font-semibold text-gray-500 uppercase">Notes for Customer</label><textarea id="propNotes" rows="2" class="field mt-1" placeholder="Optional notes visible to customer"></textarea></div>
+        </div>
+        <div class="mt-5 flex gap-2">
+          <button onclick="saveProposal(false)" class="btn-outline flex-1">Save Draft</button>
+          <button onclick="saveProposal(true)" class="btn-green flex-1">Send to Customer</button>
+          <button onclick="closeModal('proposalModal')" class="btn-outline">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proposal Detail Modal -->
+    <div id="proposalDetailModal" class="modal-bg hidden">
+      <div class="modal" style="max-width:42rem">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold">Proposal</h2>
+          <button onclick="closeModal('proposalDetailModal')" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <div id="proposalDetailBody"></div>
+      </div>
+    </div>
+  `;
+  await loadProposalsList();
+}
+
+async function loadProposalsList() {
+  const el = document.getElementById('proposalsList'); if (!el) return;
+  const { data: proposals } = await sb.from('proposals')
+    .select('id,title,status,updated_at,service_accounts(contact_name)').order('updated_at',{ascending:false});
+  const sb2 = s => {
+    const m = {draft:'badge-gray',sent:'badge-blue',accepted:'badge-green',changes_requested:'badge-yellow',declined:'badge-red'};
+    return `<span class="badge ${m[s]||'badge-gray'}">${s.replace('_',' ')}</span>`;
+  };
+  if (!proposals?.length) { el.innerHTML = '<div class="bg-white rounded-xl border p-8 text-center text-gray-400">No proposals yet.</div>'; return; }
+  el.innerHTML = `
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <table>
+        <thead><tr><th>Customer</th><th>Title</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+        <tbody>
+          ${proposals.map(p => `
+            <tr class="cursor-pointer" onclick="openProposalDetail('${p.id}')">
+              <td class="font-semibold">${escHtml(p.service_accounts?.contact_name||'—')}</td>
+              <td>${escHtml(p.title)}</td><td>${sb2(p.status)}</td>
+              <td class="text-gray-400 text-xs">${fmtDate(p.updated_at)}</td>
+              <td class="text-right"><button class="text-xs text-[var(--green)] font-semibold hover:underline">Open</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function openCreateProposal() {
+  _editingProposalId = null; _proposalLineItems = [];
+  document.getElementById('propModalTitle').textContent = 'New Proposal';
+  document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
+    _jobsAccounts.map(a => `<option value="${a.id}">${escHtml(a.contact_name||'—')}</option>`).join('');
+  document.getElementById('propTitle').value = ''; document.getElementById('propNotes').value = '';
+  _renderProposalLineItems(); openModal('proposalModal');
+}
+
+async function openEditProposal(proposalId) {
+  closeModal('proposalDetailModal'); _editingProposalId = proposalId;
+  const { data: prop  } = await sb.from('proposals').select('*').eq('id',proposalId).single();
+  const { data: items } = await sb.from('proposal_line_items').select('*').eq('proposal_id',proposalId).order('sort_order');
+  _proposalLineItems = (items||[]).map(i => ({id:i.id,description:i.description,quantity:i.quantity,unit_price:i.unit_price}));
+  document.getElementById('propModalTitle').textContent = 'Edit Proposal';
+  document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
+    _jobsAccounts.map(a => `<option value="${a.id}" ${a.id===prop.service_account_id?'selected':''}>${escHtml(a.contact_name||'—')}</option>`).join('');
+  document.getElementById('propTitle').value = prop.title||''; document.getElementById('propNotes').value = prop.notes||'';
+  _renderProposalLineItems(); openModal('proposalModal');
+}
+
+function _renderProposalLineItems() {
+  const el = document.getElementById('propLineItems'); if (!el) return;
+  const total = _proposalLineItems.reduce((s,i) => s+(parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0), 0);
+  el.innerHTML = `
+    ${_proposalLineItems.map((item,idx) => `
+      <div class="flex gap-2 items-center mb-2">
+        <input type="text" value="${escHtml(String(item.description||''))}" placeholder="Description"
+               oninput="_proposalLineItems[${idx}].description=this.value"
+               class="field flex-[3] py-2 text-sm" />
+        <input type="number" value="${item.quantity}" min="0.01" step="any"
+               oninput="_proposalLineItems[${idx}].quantity=parseFloat(this.value)||1;_updatePropTotal()"
+               class="field w-16 py-2 text-sm text-center" placeholder="Qty" />
+        <input type="number" value="${item.unit_price}" min="0" step="0.01"
+               oninput="_proposalLineItems[${idx}].unit_price=parseFloat(this.value)||0;_updatePropTotal()"
+               class="field w-24 py-2 text-sm" placeholder="$" />
+        <button onclick="_proposalLineItems.splice(${idx},1);_renderProposalLineItems()"
+                class="text-red-400 hover:text-red-600 text-xl font-bold px-1">&times;</button>
+      </div>`).join('')}
+    <button onclick="_proposalLineItems.push({id:null,description:'',quantity:1,unit_price:0});_renderProposalLineItems()"
+            class="btn-outline text-sm py-1.5 w-full mt-1">+ Add Line Item</button>
+    <div id="propTotal" class="text-right mt-2 font-bold">Total: ${fmtMoney(total)}</div>`;
+}
+
+function _updatePropTotal() {
+  const el = document.getElementById('propTotal'); if (!el) return;
+  el.textContent = `Total: ${fmtMoney(_proposalLineItems.reduce((s,i) => s+(parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0),0))}`;
+}
+
+async function saveProposal(sendNow) {
+  const accountId = document.getElementById('propAccountId').value;
+  const title     = document.getElementById('propTitle').value.trim();
+  const notes     = document.getElementById('propNotes').value.trim();
+  if (!accountId) { toast('Select a customer', false); return; }
+  if (!title)     { toast('Enter a title', false); return; }
+  if (!_proposalLineItems.length) { toast('Add at least one line item', false); return; }
+  const { data:{ user } } = await sb.auth.getUser();
+  const status = sendNow ? 'sent' : 'draft';
+  let proposalId = _editingProposalId;
+  if (proposalId) {
+    await sb.from('proposals').update({service_account_id:accountId,title,notes,status,updated_at:new Date().toISOString()}).eq('id',proposalId);
+    await sb.from('proposal_line_items').delete().eq('proposal_id',proposalId);
+  } else {
+    const { data: newP } = await sb.from('proposals').insert({service_account_id:accountId,title,notes,status,created_by:user.id}).select().single();
+    proposalId = newP.id;
+  }
+  await sb.from('proposal_line_items').insert(_proposalLineItems.map((item,i) => ({
+    proposal_id:proposalId, description:item.description, quantity:item.quantity, unit_price:item.unit_price, sort_order:i,
+  })));
+  toast(sendNow ? 'Proposal sent to customer' : 'Proposal saved as draft');
+  closeModal('proposalModal'); await loadProposalsList();
+}
+
+async function openProposalDetail(proposalId) {
+  const [{ data:prop },{ data:items },{ data:msgs }] = await Promise.all([
+    sb.from('proposals').select('*,service_accounts(contact_name)').eq('id',proposalId).single(),
+    sb.from('proposal_line_items').select('*').eq('proposal_id',proposalId).order('sort_order'),
+    sb.from('proposal_messages').select('id,body,created_at,profiles(full_name,role)').eq('proposal_id',proposalId).order('created_at'),
+  ]);
+  const total = (items||[]).reduce((s,i) => s+parseFloat(i.quantity)*parseFloat(i.unit_price), 0);
+  const sb2 = s => { const m={draft:'badge-gray',sent:'badge-blue',accepted:'badge-green',changes_requested:'badge-yellow',declined:'badge-red'}; return `<span class="badge ${m[s]||'badge-gray'}">${s.replace('_',' ')}</span>`; };
+  const { data:{ user } } = await sb.auth.getUser();
+  const buildBubble = m => {
+    const isA = m.profiles?.role==='admin';
+    return `<div class="flex ${isA?'justify-end':'justify-start'}">
+      <div class="max-w-xs rounded-2xl px-4 py-2.5 ${isA?'bg-[var(--green)] text-white':'bg-gray-100 text-gray-900'}">
+        <p class="text-xs font-semibold mb-1 ${isA?'text-white/70':'text-gray-500'}">${escHtml(m.profiles?.full_name||(isA?'Admin':'Customer'))}</p>
+        <p class="text-sm leading-relaxed">${escHtml(m.body)}</p>
+        <p class="text-xs mt-1 ${isA?'text-white/50':'text-gray-400'}">${timeAgo(m.created_at)}</p>
+      </div></div>`;
+  };
+  document.getElementById('proposalDetailBody').innerHTML = `
+    <div class="flex items-start justify-between mb-4 gap-3">
+      <div>
+        <p class="text-lg font-extrabold">${escHtml(prop.title)}</p>
+        <p class="text-sm text-gray-500 mt-0.5">${escHtml(prop.service_accounts?.contact_name||'—')}</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        ${sb2(prop.status)}
+        ${prop.status!=='accepted'&&prop.status!=='declined'?`<button onclick="openEditProposal('${prop.id}')" class="btn-outline text-xs py-1">Edit</button>`:''}
+        ${prop.status==='accepted'?`<button onclick="openCreateJobFromProposal('${prop.id}')" class="btn-green text-xs py-1">+ Create Job</button>`:''}
+      </div>
+    </div>
+    <div class="bg-gray-50 rounded-xl border overflow-hidden mb-4">
+      <table>
+        <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+        <tbody>
+          ${(items||[]).map(i => `<tr><td>${escHtml(i.description)}</td><td>${i.quantity}</td><td>${fmtMoney(i.unit_price)}</td><td class="font-semibold">${fmtMoney(parseFloat(i.quantity)*parseFloat(i.unit_price))}</td></tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="3" class="text-right font-bold">Total</td><td class="font-bold text-lg">${fmtMoney(total)}</td></tr></tfoot>
+      </table>
+    </div>
+    ${prop.notes?`<div class="bg-white border rounded-xl p-3 mb-4 text-sm text-gray-600"><strong>Notes:</strong> ${escHtml(prop.notes)}</div>`:''}
+    ${prop.status==='changes_requested'?`<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 font-semibold">Customer has requested changes — see thread below.</div>`:''}
+    <div class="bg-white rounded-xl border">
+      <div class="p-3 border-b font-semibold text-sm">Message Thread</div>
+      <div id="propThread" class="p-3 space-y-3 max-h-56 overflow-y-auto">
+        ${(msgs||[]).map(buildBubble).join('')||'<p class="text-xs text-gray-400 text-center py-2">No messages yet.</p>'}
+      </div>
+      <div class="p-3 border-t flex gap-2">
+        <input id="propReplyText" type="text" placeholder="Reply to customer..."
+               class="field flex-1 py-2 text-sm" onkeydown="if(event.key==='Enter')proposalAdminReply('${prop.id}')" />
+        <button onclick="proposalAdminReply('${prop.id}')" class="btn-green text-sm py-2">Send</button>
+      </div>
+    </div>`;
+  openModal('proposalDetailModal');
+  const thread = document.getElementById('propThread'); if (thread) thread.scrollTop = thread.scrollHeight;
+}
+
+async function proposalAdminReply(proposalId) {
+  const textEl = document.getElementById('propReplyText');
+  const body = textEl?.value?.trim(); if (!body) return;
+  const { data:{ user } } = await sb.auth.getUser();
+  await sb.from('proposal_messages').insert({proposal_id:proposalId, sender_id:user.id, body});
+  textEl.value = ''; openProposalDetail(proposalId);
+}
+
+function openCreateJobFromProposal(proposalId) {
+  closeModal('proposalDetailModal');
+  document.querySelectorAll('[data-page]').forEach(l => l.classList.remove('active'));
+  document.querySelector('[data-page="jobs"]')?.classList.add('active');
+  loadPage('jobs');
+  setTimeout(async () => {
+    const { data: prop } = await sb.from('proposals').select('service_account_id,title,service_accounts(address)').eq('id',proposalId).single();
+    openCreateJob(null);
+    if (prop) {
+      document.getElementById('jobProposalId').value = proposalId;
+      document.getElementById('jobAccountId').value  = prop.service_account_id||'';
+      document.getElementById('jobAddress').value    = prop.service_accounts?.address||'';
+      document.getElementById('jobRecurringInfo').innerHTML = `<div class="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800"><strong>From proposal:</strong> ${escHtml(prop.title)}</div>`;
+    }
+  }, 250);
+}
+
+// DEAD CODE kept for reference: renderSchedule
 async function renderSchedule(el) {
   el.innerHTML = `
     <div class="flex items-center justify-between mb-6">
