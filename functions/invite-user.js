@@ -37,9 +37,11 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'email and role are required' }) };
   }
 
-  // Send Supabase invite email
+  // Send Supabase invite email — redirect to the correct portal based on role
+  const redirectTo = role === 'tech' ? 'https://tech.paccoastponds.com' : 'https://my.paccoastponds.com';
   const { data: invited, error: inviteErr } = await sb.auth.admin.inviteUserByEmail(email, {
-    data: { role, full_name: full_name || email }
+    data: { role, full_name: full_name || email },
+    redirectTo,
   });
 
   if (inviteErr) {

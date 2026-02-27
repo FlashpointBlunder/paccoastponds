@@ -92,21 +92,21 @@
 
   <script>
     // ── Init: handle invite / password-reset hash before anything else ──────────
-    function getHashParam(key) {
-      return new URLSearchParams(window.location.hash.substring(1)).get(key);
-    }
-
     async function init() {
-      const type = getHashParam('type');
+      // Check both hash (legacy) and query params (PKCE) for invite/recovery type
+      const hash  = new URLSearchParams(window.location.hash.substring(1));
+      const query = new URLSearchParams(window.location.search);
+      const type  = hash.get('type') || query.get('type');
+
       if (type === 'invite' || type === 'recovery') {
-        // Supabase has already parsed the hash and created a session
+        // Give Supabase a moment to exchange the token from the URL
+        await new Promise(r => setTimeout(r, 250));
         const { data: { session } } = await sb.auth.getSession();
         if (session) {
           if (type === 'recovery') {
             document.getElementById('setupTitle').textContent    = 'Reset Your Password';
             document.getElementById('setupSubtitle').textContent = 'Enter a new password for your account.';
           }
-          // Clear the hash so a refresh doesn't re-trigger this
           window.history.replaceState(null, '', window.location.pathname);
           showSetup();
           return;
