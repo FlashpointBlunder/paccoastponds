@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>My Account — Pacific Coast Ponds</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,8 +19,8 @@
 <body class="bg-[var(--cream)] text-gray-900 min-h-screen">
 
   <!-- SET PASSWORD (invite / password-reset flow) -->
-  <div id="setupScreen" class="hidden min-h-screen flex items-center justify-center bg-[var(--dark)]">
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+  <div id="setupScreen" class="hidden min-h-screen flex items-center justify-center bg-[var(--dark)] px-4">
+    <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm">
       <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-12 mx-auto mb-6">
       <h1 class="text-2xl text-center mb-2" id="setupTitle">Create Your Password</h1>
       <p class="text-center text-gray-500 text-sm mb-6" id="setupSubtitle">Welcome! Choose a password to access your account.</p>
@@ -39,8 +39,8 @@
   </div>
 
   <!-- LOGIN -->
-  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-[var(--dark)]">
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-[var(--dark)] px-4">
+    <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm">
       <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-12 mx-auto mb-6">
       <h1 class="text-2xl text-center mb-2">My Account</h1>
       <p class="text-center text-gray-500 text-sm mb-6">Sign in to view your service schedule</p>
@@ -63,7 +63,7 @@
   <div id="appShell" class="hidden">
     <!-- Header -->
     <header class="bg-white border-b-4 border-[var(--green)] sticky top-0 z-40">
-      <div class="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-10">
           <span class="font-bold uppercase">My Account</span>
@@ -74,16 +74,16 @@
 
     <!-- Nav tabs -->
     <div class="bg-white border-b sticky top-[76px] z-30">
-      <div class="max-w-3xl mx-auto px-6 flex gap-6">
-        <button data-tab="schedule" class="tab-btn py-3 text-sm font-semibold border-b-2 border-[var(--green)] text-[var(--green)]">Schedule</button>
-        <button data-tab="messages" class="tab-btn py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500">Messages</button>
-        <button data-tab="shop"     class="tab-btn py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500">Shop</button>
-        <button data-tab="billing"  class="tab-btn py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500">Billing</button>
+      <div class="max-w-3xl mx-auto flex">
+        <button data-tab="schedule" class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-[var(--green)] text-[var(--green)]">Schedule</button>
+        <button data-tab="messages" class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Messages</button>
+        <button data-tab="shop"     class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Shop</button>
+        <button data-tab="billing"  class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Billing</button>
       </div>
     </div>
 
     <!-- Content -->
-    <main class="max-w-3xl mx-auto px-6 py-8">
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div id="tabContent"></div>
     </main>
   </div>

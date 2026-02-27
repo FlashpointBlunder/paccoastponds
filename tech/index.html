@@ -59,7 +59,7 @@
 
     <!-- Content -->
     <main class="flex-1 overflow-y-auto pb-20">
-      <div id="pageContent" class="p-4"></div>
+      <div id="pageContent" class="p-4 max-w-lg mx-auto"></div>
     </main>
 
     <!-- Bottom nav -->
@@ -178,9 +178,9 @@
               <div class="flex gap-2">
                 <a href="https://maps.google.com/?q=${encodeURIComponent(v.service_accounts?.address ?? '')}"
                    target="_blank"
-                   class="flex-1 py-2 bg-[var(--blue)] text-white text-sm font-bold text-center rounded-lg">Navigate</a>
+                   class="flex-1 py-3 bg-[var(--blue)] text-white text-sm font-bold text-center rounded-lg">Navigate</a>
                 <button onclick="markComplete('${v.id}')"
-                   class="flex-1 py-2 bg-[var(--green)] text-white text-sm font-bold rounded-lg ${v.status === 'completed' ? 'opacity-50' : ''}">
+                   class="flex-1 py-3 bg-[var(--green)] text-white text-sm font-bold rounded-lg ${v.status === 'completed' ? 'opacity-50' : ''}">
                    ${v.status === 'completed' ? 'Done' : 'Mark Complete'}
                 </button>
               </div>
