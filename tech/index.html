@@ -99,7 +99,8 @@
   </div>
 
   <script>
-    let currentTechId = null;
+    let currentTechId  = null;
+    let _techProducts  = [];
 
     async function init() {
       // Check both hash and query params — Supabase uses hash for legacy, query for PKCE
@@ -276,6 +277,10 @@
         .select('*,service_accounts(id,contact_name,address,phone,sms_opted_in,equipment_notes),job_types(id,name,color)')
         .eq('id', jobId).single();
       if (!job) { el.innerHTML = '<p class="text-red-500 text-sm p-4">Job not found.</p>'; return; }
+      if (!_techProducts.length) {
+        const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).order('name');
+        _techProducts = prods||[];
+      }
       const nextStatus = {scheduled:'on_the_way',on_the_way:'in_progress',in_progress:'completed'};
       const actionLbl  = {scheduled:'On the Way',on_the_way:'Start Job',in_progress:'Mark Complete'};
       const actionCls  = {scheduled:'bg-yellow-500 hover:bg-yellow-600',on_the_way:'bg-[var(--blue)] hover:bg-blue-700',in_progress:'bg-[var(--green)] hover:bg-green-800'};
@@ -314,8 +319,13 @@
         ${job.status!=='completed'?`
         <div class="bg-white rounded-xl border p-4 mb-4">
           <p class="font-bold text-sm mb-3">Bill to this Job</p>
+          <select id="catalogSelect" onchange="techFillFromCatalog()"
+                  class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] mb-2 bg-white">
+            <option value="">— Pick from catalog —</option>
+            ${_techProducts.map(p => `<option value="${p.id}" data-name="${tEsc(p.name)}" data-price="${parseFloat(p.price||0).toFixed(2)}">${tEsc(p.name)} — $${parseFloat(p.price||0).toFixed(2)}</option>`).join('')}
+          </select>
           <div class="flex gap-2">
-            <input id="billDesc" type="text" placeholder="Product or service"
+            <input id="billDesc" type="text" placeholder="Description"
                    class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]" />
             <input id="billQty" type="number" min="1" value="1"
                    class="w-16 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
@@ -374,6 +384,15 @@
         }
       }
       await openTechJobDetail(jobId);
+    }
+
+    function techFillFromCatalog() {
+      const sel = document.getElementById('catalogSelect');
+      const opt = sel?.options[sel.selectedIndex];
+      if (!opt?.value) return;
+      document.getElementById('billDesc').value  = opt.dataset.name  || '';
+      document.getElementById('billPrice').value = opt.dataset.price || '';
+      sel.value = '';
     }
 
     async function techBillItem(jobId, serviceAccountId) {
