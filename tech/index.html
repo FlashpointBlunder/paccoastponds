@@ -252,6 +252,8 @@
                    class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]" />
             <input id="billQty" type="number" min="1" value="1"
                    class="w-16 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            <input id="billPrice" type="number" min="0" step="0.01" placeholder="$"
+                   class="w-20 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]" />
             <button onclick="techBillItem('${jobId}','${job.service_account_id}')"
                     class="px-3 py-2 bg-[var(--green)] text-white font-bold text-sm rounded-lg">Add</button>
           </div>
@@ -308,16 +310,18 @@
     }
 
     async function techBillItem(jobId, serviceAccountId) {
-      const desc = document.getElementById('billDesc').value.trim();
-      const qty  = parseInt(document.getElementById('billQty').value)||1;
+      const desc  = document.getElementById('billDesc').value.trim();
+      const qty   = parseInt(document.getElementById('billQty').value)||1;
+      const price = parseFloat(document.getElementById('billPrice').value)||0;
       if (!desc) { alert('Enter a description'); return; }
       await sb.from('basket_items').insert({
         service_account_id:serviceAccountId, job_id:jobId,
-        product_id:null, notes:desc, quantity:qty,
+        product_id:null, notes:desc, quantity:qty, unit_price:price,
         requested_by:'tech', billed:false,
       });
-      document.getElementById('billDesc').value = '';
-      document.getElementById('billQty').value  = '1';
+      document.getElementById('billDesc').value  = '';
+      document.getElementById('billQty').value   = '1';
+      document.getElementById('billPrice').value = '';
       alert('Item added to invoice');
     }
 

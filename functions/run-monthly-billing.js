@@ -62,7 +62,7 @@ async function billAccount(stripe, sb, account, periodStart, periodEnd, periodLa
   // Unbilled basket items
   const { data: basket } = await sb
     .from('basket_items')
-    .select('id, product_id, quantity, products(name, price)')
+    .select('id, product_id, quantity, notes, unit_price, products(name, price)')
     .eq('service_account_id', account.id)
     .eq('billed', false);
 
@@ -90,19 +90,28 @@ async function billAccount(stripe, sb, account, periodStart, periodEnd, periodLa
     lineItemsForDb.push({ description: `Monthly Pond Service — ${periodLabel}`, amount: Number(account.monthly_service_fee), type: 'service' });
   }
 
-  // Product line items
+  // Product + custom line items
   for (const item of (basket || [])) {
-    if (!item.products) continue;
-    const lineAmount = Number(item.products.price) * item.quantity;
+    let description, unitPrice;
+    if (item.product_id) {
+      if (!item.products) continue; // orphaned product_id (product deleted), skip
+      description = item.products.name;
+      unitPrice   = Number(item.products.price);
+    } else {
+      if (!item.notes) continue; // no description, skip
+      description = item.notes;
+      unitPrice   = Number(item.unit_price) || 0;
+    }
+    const lineAmount = unitPrice * item.quantity;
     await stripe.invoiceItems.create({
       customer:    account.stripe_customer_id,
       invoice:     stripeInvoice.id,
       amount:      Math.round(lineAmount * 100),
       currency:    'usd',
-      description: `${item.products.name} × ${item.quantity}`,
+      description: `${description} × ${item.quantity}`,
     });
     totalAmount += lineAmount;
-    lineItemsForDb.push({ description: `${item.products.name} × ${item.quantity}`, amount: lineAmount, type: 'product', product_id: item.product_id, quantity: item.quantity });
+    lineItemsForDb.push({ description: `${description} × ${item.quantity}`, amount: lineAmount, type: item.product_id ? 'product' : 'custom', product_id: item.product_id || null, quantity: item.quantity });
   }
 
   // Finalize, then charge immediately

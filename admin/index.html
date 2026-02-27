@@ -243,15 +243,16 @@ async function renderDashboard(el) {
     document.getElementById('sM').textContent = mRes.count ?? 0;
   }
 
-  const { data: upcoming } = await sb.from('service_visits')
-    .select('id, scheduled_date, status, service_accounts(contact_name, profiles(full_name)), technicians(profiles(full_name))')
-    .gte('scheduled_date', now.toISOString())
+  const { data: upcoming } = await sb.from('jobs')
+    .select('id, scheduled_date, status, service_accounts(contact_name), technicians(profiles(full_name))')
+    .gte('scheduled_date', now.toISOString().split('T')[0])
+    .not('status', 'in', '("completed","cancelled")')
     .order('scheduled_date', { ascending: true })
     .limit(8);
 
   const uvEl = document.getElementById('upcomingList');
   if (!uvEl) return;
-  if (!upcoming?.length) { uvEl.innerHTML = '<p class="text-gray-400">No upcoming visits scheduled.</p>'; return; }
+  if (!upcoming?.length) { uvEl.innerHTML = '<p class="text-gray-400">No upcoming jobs scheduled.</p>'; return; }
   uvEl.innerHTML = `<table>
     <thead><tr><th>Date</th><th>Customer</th><th>Tech</th><th>Status</th></tr></thead>
     <tbody>${upcoming.map(v => `<tr>
@@ -432,7 +433,7 @@ async function openCustomerDetail(accountId) {
 
   if (error || !c) { el.innerHTML = `<p class="text-red-500">Error: ${error?.message}</p>`; return; }
 
-  const { data: visits } = await sb.from('service_visits')
+  const { data: visits } = await sb.from('jobs')
     .select('id, scheduled_date, status, notes, technicians(profiles(full_name))')
     .eq('service_account_id', accountId)
     .order('scheduled_date', { ascending: false })
@@ -827,8 +828,8 @@ async function openTechDetail(techId) {
 
   if (error || !t) { el.innerHTML = `<p class="text-red-500">Error: ${error?.message}</p>`; return; }
 
-  const { data: visits } = await sb.from('service_visits')
-    .select('id, scheduled_date, status, service_accounts(contact_name, profiles(full_name))')
+  const { data: visits } = await sb.from('jobs')
+    .select('id, scheduled_date, status, service_accounts(contact_name)')
     .eq('tech_id', techId)
     .order('scheduled_date', { ascending: false })
     .limit(10);
@@ -2040,11 +2041,11 @@ async function renderMap(el) {
   const today    = new Date(); today.setHours(0,0,0,0);
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
-  const { data: visits } = await sb.from('service_visits')
-    .select('id, status, scheduled_date, service_accounts(contact_name, address, profiles(full_name)), technicians(id, profiles(full_name))')
-    .gte('scheduled_date', today.toISOString())
-    .lt('scheduled_date', tomorrow.toISOString())
-    .order('scheduled_date');
+  const { data: visits } = await sb.from('jobs')
+    .select('id, status, scheduled_date, scheduled_time, address, service_accounts(contact_name, address), technicians(id, profiles(full_name))')
+    .eq('scheduled_date', today.toISOString().split('T')[0])
+    .not('status', 'in', '("cancelled")')
+    .order('scheduled_time', { ascending: true, nullsFirst: false });
 
   const mapEl    = document.getElementById('adminMap');
   const legendEl = document.getElementById('mapLegend');
@@ -2061,7 +2062,7 @@ async function renderMap(el) {
   });
 
   if (!visits?.length) {
-    if (legendEl) legendEl.innerHTML = '<p class="text-gray-400 text-sm">No visits scheduled today.</p>';
+    if (legendEl) legendEl.innerHTML = '<p class="text-gray-400 text-sm">No jobs scheduled today.</p>';
     return;
   }
 
@@ -2078,7 +2079,7 @@ async function renderMap(el) {
   const bounds     = new google.maps.LatLngBounds();
 
   await Promise.all(visits.map(visit => new Promise(resolve => {
-    const address = visit.service_accounts?.address;
+    const address = visit.address || visit.service_accounts?.address;
     if (!address) { resolve(); return; }
 
     geocoder.geocode({ address }, (results, status) => {
@@ -2088,9 +2089,9 @@ async function renderMap(el) {
       const techId   = visit.technicians?.id;
       const color    = techColor[techId] || '#6b7280';
       const done     = visit.status === 'completed';
-      const custName = visit.service_accounts?.profiles?.full_name || visit.service_accounts?.contact_name || 'Unknown';
+      const custName = visit.service_accounts?.contact_name || 'Unknown';
       const techName = visit.technicians?.profiles?.full_name || 'Unassigned';
-      const time     = new Date(visit.scheduled_date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      const time     = visit.scheduled_time ? fmtJobTime(visit.scheduled_time) : '—';
 
       const marker = new google.maps.Marker({
         position: pos, map,
