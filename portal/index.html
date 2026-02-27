@@ -465,7 +465,7 @@
 
       const [{ data: cats }, { data: prods }, { data: basket }] = await Promise.all([
         sb.from('product_categories').select('*').order('sort_order'),
-        sb.from('products').select('id, name, description, price, sku, category_id').eq('active', true).order('name'),
+        sb.from('products').select('id, name, description, price, sku, category_id').eq('active', true).eq('customer_visible', true).order('name'),
         sb.from('basket_items')
           .select('id, product_id, quantity, requested_by, products(name, price)')
           .eq('service_account_id', account.id)

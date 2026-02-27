@@ -1137,6 +1137,10 @@ async function renderProducts(el) {
             </div>
           </div>
           <textarea name="description" rows="2" placeholder="Description (optional)" class="field"></textarea>
+          <label class="flex items-center gap-2 text-sm font-medium cursor-pointer select-none pt-1">
+            <input type="checkbox" name="customer_visible" class="w-4 h-4 rounded accent-[var(--green)]" />
+            Show in customer shop
+          </label>
           <div class="flex gap-3 pt-1">
             <button type="submit" class="btn-green flex-1 py-2.5" id="productSubmitBtn">Save Product</button>
             <button type="button" class="btn-outline flex-1" onclick="closeModal('productModal')">Cancel</button>
@@ -1190,7 +1194,7 @@ async function loadCategoryPills() {
 
 async function loadProductTable(filter) {
   let query = sb.from('products')
-    .select('id, name, sku, price, description, active, category_id, product_categories(id, name, parent_id, product_categories(name))')
+    .select('id, name, sku, price, description, active, customer_visible, category_id, product_categories(id, name, parent_id, product_categories(name))')
     .order('name');
 
   if (filter === 'uncategorized') query = query.is('category_id', null);
@@ -1209,7 +1213,7 @@ async function loadProductTable(filter) {
 
   el.innerHTML = `<table>
     <thead><tr>
-      <th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Status</th><th class="text-right">Actions</th>
+      <th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Shop</th><th>Status</th><th class="text-right">Actions</th>
     </tr></thead>
     <tbody>
       ${data.map(p => {
@@ -1223,6 +1227,7 @@ async function loadProductTable(filter) {
           <td class="text-gray-400 text-xs">${p.sku || '—'}</td>
           <td class="text-gray-500 text-sm">${cat}</td>
           <td class="font-semibold">${fmtMoney(p.price)}</td>
+          <td><span class="badge ${p.customer_visible ? 'badge-green' : 'badge-gray'}">${p.customer_visible ? 'Customer' : 'Tech only'}</span></td>
           <td><span class="badge ${p.active ? 'badge-green' : 'badge-gray'}">${p.active ? 'Active' : 'Inactive'}</span></td>
           <td class="text-right">
             <div class="flex justify-end gap-2">
@@ -1257,7 +1262,8 @@ async function openEditProduct(productId) {
   f.querySelector('[name=name]').value       = p.name || '';
   f.querySelector('[name=sku]').value        = p.sku  || '';
   f.querySelector('[name=price]').value      = p.price || '';
-  f.querySelector('[name=description]').value = p.description || '';
+  f.querySelector('[name=description]').value    = p.description || '';
+  f.querySelector('[name=customer_visible]').checked = !!p.customer_visible;
   openModal('productModal');
 }
 
@@ -1292,11 +1298,12 @@ function bindProductModalForm() {
     errEl.classList.add('hidden');
     const productId = fd.get('product_id');
     const payload = {
-      name:        fd.get('name'),
-      sku:         fd.get('sku') || null,
-      price:       parseFloat(fd.get('price')),
-      description: fd.get('description') || null,
-      category_id: fd.get('category_id') || null,
+      name:             fd.get('name'),
+      sku:              fd.get('sku') || null,
+      price:            parseFloat(fd.get('price')),
+      description:      fd.get('description') || null,
+      category_id:      fd.get('category_id') || null,
+      customer_visible: fd.get('customer_visible') === 'on',
     };
     const { error } = productId
       ? await sb.from('products').update(payload).eq('id', productId)
