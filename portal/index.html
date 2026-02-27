@@ -595,7 +595,7 @@
 
       const [{ data: cats }, { data: prods }, { data: basket }] = await Promise.all([
         sb.from('product_categories').select('*').order('sort_order'),
-        sb.from('products').select('id, name, description, price, sku, category_id').eq('active', true).eq('customer_visible', true).order('name'),
+        sb.from('products').select('id, name, description, price, sku, category_id, image_url').eq('active', true).eq('customer_visible', true).order('name'),
         sb.from('basket_items')
           .select('id, product_id, quantity, requested_by, products(name, price)')
           .eq('service_account_id', account.id)
@@ -737,13 +737,14 @@
       const fmt = n => '$' + Number(n).toFixed(2);
       const qty = _shopCart[p.id] || 0;
       return `
-        <div class="bg-white rounded-xl border px-4 py-3 flex items-center gap-3">
-          <div class="flex-1 min-w-0">
+        <div class="bg-white rounded-xl border flex items-center gap-3 overflow-hidden">
+          ${p.image_url ? `<img src="${pEsc(p.image_url)}" alt="${pEsc(p.name)}" class="w-20 h-20 object-cover shrink-0" />` : ''}
+          <div class="flex-1 min-w-0 py-3 ${p.image_url ? '' : 'pl-4'}">
             <p class="font-semibold text-sm">${pEsc(p.name)}</p>
             ${p.description ? `<p class="text-xs text-gray-400 mt-0.5">${pEsc(p.description)}</p>` : ''}
             <p class="text-sm font-bold text-[var(--green)] mt-1">${fmt(p.price)}</p>
           </div>
-          <div class="flex items-center gap-1.5 shrink-0">
+          <div class="flex items-center gap-1.5 shrink-0 pr-4">
             ${qty > 0 ? `
               <button onclick="shopAdjust('${p.id}',-1)"
                       class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-red-400 transition">−</button>
