@@ -9,6 +9,9 @@
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
+[functions."run-monthly-billing"]
+  schedule = "0 8 1 * *"
+
 [[headers]]
   for = "/*"
   [headers.values]
