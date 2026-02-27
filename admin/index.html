@@ -71,6 +71,7 @@
       <div class="sidebar-link" data-page="products">📦 &nbsp;Products</div>
       <div class="sidebar-link" data-page="billing">💳 &nbsp;Billing</div>
       <div class="sidebar-link" data-page="messages">💬 &nbsp;Messages</div>
+      <div class="sidebar-link" data-page="map">🗺 &nbsp;Map</div>
     </nav>
     <div class="p-3 border-t border-white/10">
       <div id="logoutBtn" class="sidebar-link">→ &nbsp;Sign Out</div>
@@ -166,6 +167,7 @@ function loadPage(page) {
     products:  renderProducts,
     billing:   renderBilling,
     messages:  renderMessages,
+    map:       renderMap,
   };
   const el = document.getElementById('pageContent');
   if (pages[page]) pages[page](el);
@@ -1385,6 +1387,138 @@ async function deleteCategory(catId, name) {
 // ═══════════════════════════════════════════════════════════════
 // BILLING (placeholder — next build)
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// MAP — Today's visits overview
+// ═══════════════════════════════════════════════════════════════
+const ADMIN_MAPS_KEY  = 'AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4';
+const TECH_DOT_COLORS = ['#1E5E37','#2CA7DF','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#84cc16','#f97316','#ec4899','#6366f1'];
+
+function loadAdminMaps() {
+  return new Promise(resolve => {
+    if (window.google?.maps) { resolve(); return; }
+    window._adminGmReady = resolve;
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${ADMIN_MAPS_KEY}&callback=_adminGmReady`;
+    s.async = true; s.defer = true;
+    document.head.appendChild(s);
+  });
+}
+
+async function renderMap(el) {
+  el.innerHTML = `
+    <h1 class="text-3xl font-extrabold mb-6">Today's Map</h1>
+    <div id="adminMap" class="rounded-xl overflow-hidden bg-gray-200 border"
+         style="height:calc(100vh - 15rem);min-height:420px;"></div>
+    <div id="mapLegend" class="mt-4 flex flex-wrap gap-3">
+      <p class="text-gray-400 text-sm">Loading...</p>
+    </div>`;
+
+  await loadAdminMaps();
+
+  const today    = new Date(); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+
+  const { data: visits } = await sb.from('service_visits')
+    .select('id, status, scheduled_date, service_accounts(contact_name, address, profiles(full_name)), technicians(id, profiles(full_name))')
+    .gte('scheduled_date', today.toISOString())
+    .lt('scheduled_date', tomorrow.toISOString())
+    .order('scheduled_date');
+
+  const mapEl    = document.getElementById('adminMap');
+  const legendEl = document.getElementById('mapLegend');
+  if (!mapEl) return;
+
+  const map = new google.maps.Map(mapEl, {
+    center: { lat: 34.05, lng: -118.24 },
+    zoom: 10,
+    disableDefaultUI: false,
+    zoomControl: true,
+    fullscreenControl: true,
+    mapTypeControl: true,
+    streetViewControl: false,
+  });
+
+  if (!visits?.length) {
+    if (legendEl) legendEl.innerHTML = '<p class="text-gray-400 text-sm">No visits scheduled today.</p>';
+    return;
+  }
+
+  // Assign a colour per technician
+  const techIds   = [...new Set(visits.map(v => v.technicians?.id).filter(Boolean))];
+  const techColor = Object.fromEntries(techIds.map((id, i) => [id, TECH_DOT_COLORS[i % TECH_DOT_COLORS.length]]));
+  const techNames = Object.fromEntries(
+    visits.filter(v => v.technicians?.id)
+          .map(v => [v.technicians.id, v.technicians.profiles?.full_name || 'Tech'])
+  );
+
+  const geocoder   = new google.maps.Geocoder();
+  const infoWindow = new google.maps.InfoWindow();
+  const bounds     = new google.maps.LatLngBounds();
+
+  await Promise.all(visits.map(visit => new Promise(resolve => {
+    const address = visit.service_accounts?.address;
+    if (!address) { resolve(); return; }
+
+    geocoder.geocode({ address }, (results, status) => {
+      if (status !== 'OK') { resolve(); return; }
+
+      const pos      = results[0].geometry.location;
+      const techId   = visit.technicians?.id;
+      const color    = techColor[techId] || '#6b7280';
+      const done     = visit.status === 'completed';
+      const custName = visit.service_accounts?.profiles?.full_name || visit.service_accounts?.contact_name || 'Unknown';
+      const techName = visit.technicians?.profiles?.full_name || 'Unassigned';
+      const time     = new Date(visit.scheduled_date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+      const marker = new google.maps.Marker({
+        position: pos, map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE, scale: 13,
+          fillColor: done ? '#9ca3af' : color,
+          fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2,
+        },
+        title: custName,
+      });
+
+      bounds.extend(pos);
+
+      marker.addListener('click', () => {
+        infoWindow.setContent(`
+          <div style="font-family:Inter,sans-serif;font-size:13px;line-height:1.6;min-width:170px;padding:2px 0;">
+            <p style="font-weight:700;margin:0 0 2px;font-size:14px;">${custName}</p>
+            <p style="color:#6b7280;margin:0 0 6px;font-size:12px;">${address}</p>
+            <p style="margin:0;">Tech: <strong>${techName}</strong></p>
+            <p style="margin:2px 0;">Time: <strong>${time}</strong></p>
+            <p style="margin:4px 0 0;">
+              <span style="background:${done?'#dcfce7':'#dbeafe'};color:${done?'#166534':'#1e40af'};
+                           padding:2px 10px;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;">
+                ${visit.status}
+              </span>
+            </p>
+          </div>`);
+        infoWindow.open(map, marker);
+      });
+
+      resolve();
+    });
+  })));
+
+  if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 60 });
+
+  // Legend
+  if (legendEl) {
+    legendEl.innerHTML = techIds.map(id => `
+      <div class="flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm">
+        <span style="background:${techColor[id]}" class="w-3 h-3 rounded-full shrink-0"></span>
+        <span class="text-sm font-medium">${techNames[id]}</span>
+      </div>`).join('') + `
+      <div class="flex items-center gap-2 bg-white border rounded-lg px-3 py-1.5 shadow-sm">
+        <span style="background:#9ca3af" class="w-3 h-3 rounded-full shrink-0"></span>
+        <span class="text-sm font-medium text-gray-500">Completed</span>
+      </div>`;
+  }
+}
+
 async function renderBilling(el) {
   el.innerHTML = `
     <h1 class="text-3xl font-extrabold mb-6">Billing</h1>

@@ -195,13 +195,178 @@
       loadPage('today');
     }
 
+    // ── Google Maps ───────────────────────────────────────────────
+    const MAPS_KEY = 'AIzaSyD2Gl50HREw3ByeNsnnkBeh9xvNUKsrOl8';
+    function loadGoogleMaps() {
+      return new Promise(resolve => {
+        if (window.google?.maps) { resolve(); return; }
+        window._gmReady = resolve;
+        const s = document.createElement('script');
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&callback=_gmReady`;
+        s.async = true; s.defer = true;
+        document.head.appendChild(s);
+      });
+    }
+
     async function renderRoute(el) {
       el.innerHTML = `
-        <h2 class="text-xl font-extrabold mb-4">Route</h2>
-        <div class="bg-white rounded-xl border p-6 text-gray-400 text-sm">
-          Route map and optimized stop order coming in next build.
-        </div>
+        <h2 class="text-xl font-extrabold mb-3">Today's Route</h2>
+        <div id="routeMap" class="rounded-xl overflow-hidden bg-gray-200" style="height:320px;"></div>
+        <p id="routeStatus" class="text-xs text-center text-gray-400 mt-2 min-h-[1.25rem]">Getting your location...</p>
+        <div id="routeStops" class="mt-3 space-y-2 pb-4"></div>
       `;
+
+      if (!currentTechId) {
+        document.getElementById('routeStatus').textContent = 'No tech profile. Contact admin.';
+        return;
+      }
+
+      const today = new Date(); today.setHours(0,0,0,0);
+      const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+
+      const { data: visits } = await sb.from('service_visits')
+        .select('id, status, service_accounts(id, address, contact_name, profiles(full_name))')
+        .eq('tech_id', currentTechId)
+        .gte('scheduled_date', today.toISOString())
+        .lt('scheduled_date', tomorrow.toISOString())
+        .order('scheduled_date');
+
+      const statusEl = document.getElementById('routeStatus');
+      const stopsEl  = document.getElementById('routeStops');
+
+      if (!visits?.length) {
+        statusEl.textContent = '';
+        stopsEl.innerHTML = '<div class="bg-white rounded-xl border p-6 text-center text-gray-400 text-sm">No stops today.</div>';
+        return;
+      }
+
+      await loadGoogleMaps();
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          p  => buildTechRoute(visits, { lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => buildTechRoute(visits, null),
+          { timeout: 7000 }
+        );
+      } else {
+        buildTechRoute(visits, null);
+      }
+    }
+
+    function buildTechRoute(visits, currentPos) {
+      const mapEl    = document.getElementById('routeMap');
+      const statusEl = document.getElementById('routeStatus');
+      const stopsEl  = document.getElementById('routeStops');
+      if (!mapEl) return;
+
+      const addresses = visits.map(v => v.service_accounts?.address).filter(Boolean);
+
+      if (!addresses.length) {
+        if (statusEl) statusEl.textContent = 'No addresses on record for today\'s stops.';
+        stopsEl.innerHTML = visits.map((v,i) => techStopCard(v, i+1, null, null)).join('');
+        return;
+      }
+
+      const map = new google.maps.Map(mapEl, {
+        center: currentPos || { lat: 34.05, lng: -118.24 },
+        zoom: 11, disableDefaultUI: true, zoomControl: true, fullscreenControl: true,
+      });
+
+      if (currentPos) {
+        new google.maps.Marker({
+          position: currentPos, map,
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10,
+                  fillColor: '#2CA7DF', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+          title: 'Your Location', zIndex: 100,
+        });
+      }
+
+      if (statusEl) statusEl.textContent = 'Calculating route...';
+
+      // origin = GPS or first address
+      // waypoints = all visits except the destination
+      // destination = last visit's address
+      const origin         = currentPos || addresses[0];
+      const destination    = addresses[addresses.length - 1];
+      const waypointVisits = currentPos ? visits.slice(0, -1) : visits.slice(1, -1);
+      const waypointAddrs  = waypointVisits.map(v => v.service_accounts?.address).filter(Boolean);
+
+      const svc = new google.maps.DirectionsService();
+      const ren = new google.maps.DirectionsRenderer({
+        map, suppressMarkers: true,
+        polylineOptions: { strokeColor: '#1E5E37', strokeWeight: 5, strokeOpacity: 0.85 },
+      });
+
+      svc.route({
+        origin, destination,
+        waypoints: waypointAddrs.map(a => ({ location: a, stopover: true })),
+        optimizeWaypoints: true,
+        travelMode: google.maps.TravelMode.DRIVING,
+      }, (result, status) => {
+        if (status !== 'OK') {
+          if (statusEl) statusEl.textContent = `Route unavailable (${status}). Tap Go to navigate each stop.`;
+          stopsEl.innerHTML = visits.map((v,i) => techStopCard(v, i+1, null, null)).join('');
+          return;
+        }
+
+        ren.setDirections(result);
+        if (statusEl) statusEl.textContent = '';
+
+        const optOrder = result.routes[0].waypoint_order;
+        const legs     = result.routes[0].legs;
+
+        // Reconstruct visit order from optimized waypoint indices
+        const orderedWaypoints = optOrder.map(i => waypointVisits[i]);
+        const orderedVisits    = currentPos
+          ? [...orderedWaypoints, visits[visits.length - 1]]
+          : [visits[0], ...orderedWaypoints, visits[visits.length - 1]];
+
+        // Numbered markers at each leg's end_location
+        legs.forEach((leg, i) => {
+          addTechStopMarker(map, leg.end_location, i + 1, orderedVisits[i]?.status === 'completed');
+        });
+
+        // Stop list with travel times
+        stopsEl.innerHTML = orderedVisits.map((v, i) =>
+          techStopCard(v, i + 1, legs[i]?.distance?.text, legs[i]?.duration?.text)
+        ).join('');
+      });
+    }
+
+    function addTechStopMarker(map, position, num, completed) {
+      new google.maps.Marker({
+        position, map,
+        label: { text: String(num), color: '#fff', fontSize: '12px', fontWeight: '700' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE, scale: 15,
+          fillColor: completed ? '#6b7280' : '#1E5E37',
+          fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2,
+        },
+        zIndex: 10,
+      });
+    }
+
+    function techStopCard(visit, num, dist, dur) {
+      const name    = visit.service_accounts?.profiles?.full_name || visit.service_accounts?.contact_name || 'Unknown';
+      const address = visit.service_accounts?.address || '';
+      const done    = visit.status === 'completed';
+      return `
+        <div class="bg-white rounded-xl border p-4 flex items-center gap-3 ${done ? 'opacity-60' : ''}">
+          <span class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold
+                       ${done ? 'bg-gray-400' : 'bg-[var(--green)]'}">${num}</span>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-sm">${name}</p>
+            <p class="text-xs text-gray-500 truncate">${address}</p>
+            ${dur ? `<p class="text-xs text-gray-400 mt-0.5">${dur} · ${dist}</p>` : ''}
+          </div>
+          <div class="shrink-0">
+            ${done
+              ? '<span class="text-xs font-semibold text-gray-400">Done ✓</span>'
+              : `<a href="https://maps.google.com/?q=${encodeURIComponent(address)}" target="_blank"
+                   class="text-xs px-3 py-1.5 bg-[var(--blue)] text-white font-bold rounded-lg">Go</a>`
+            }
+          </div>
+        </div>`;
     }
 
     // ── Tech messaging state ──────────────────────────────────────
