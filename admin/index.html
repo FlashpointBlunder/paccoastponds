@@ -1255,11 +1255,16 @@ function cancelJobFromModal() { const id = document.getElementById('jobId').valu
 // ═══════════════════════════════════════════════════════════════
 let _editingProposalId = null;
 let _proposalLineItems = [];
+let _proposalProducts = [];
 
 async function renderProposals(el) {
   if (!_jobsAccounts.length) {
     const { data } = await sb.from('service_accounts').select('id,contact_name,address').order('contact_name');
     _jobsAccounts = data||[];
+  }
+  if (!_proposalProducts.length) {
+    const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).order('name');
+    _proposalProducts = prods||[];
   }
   el.innerHTML = `
     <div class="flex items-center justify-between mb-6">
@@ -1374,9 +1379,23 @@ function _renderProposalLineItems() {
         <button onclick="_proposalLineItems.splice(${idx},1);_renderProposalLineItems()"
                 class="text-red-400 hover:text-red-600 text-xl font-bold px-1">&times;</button>
       </div>`).join('')}
-    <button onclick="_proposalLineItems.push({id:null,description:'',quantity:1,unit_price:0});_renderProposalLineItems()"
-            class="btn-outline text-sm py-1.5 w-full mt-1">+ Add Line Item</button>
+    <div class="flex gap-2 mt-1">
+      <select onchange="_addProductLine(this.value);this.value=''" class="field flex-1 text-sm py-1.5">
+        <option value="">+ From Catalog…</option>
+        ${_proposalProducts.map(p => `<option value="${p.id}">${escHtml(p.name)}${p.price!=null?' — '+fmtMoney(p.price):''}</option>`).join('')}
+      </select>
+      <button onclick="_proposalLineItems.push({id:null,description:'',quantity:1,unit_price:0});_renderProposalLineItems()"
+              class="btn-outline text-sm py-1.5 whitespace-nowrap">+ Custom Line</button>
+    </div>
     <div id="propTotal" class="text-right mt-2 font-bold">Total: ${fmtMoney(total)}</div>`;
+}
+
+function _addProductLine(productId) {
+  if (!productId) return;
+  const p = _proposalProducts.find(p => p.id === productId);
+  if (!p) return;
+  _proposalLineItems.push({id:null, description:p.name, quantity:1, unit_price:parseFloat(p.price)||0});
+  _renderProposalLineItems();
 }
 
 function _updatePropTotal() {
