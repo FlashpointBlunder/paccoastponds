@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase.js"></script>
   <style>
@@ -37,6 +39,15 @@
     td { padding:.75rem; border-bottom:1px solid #f3f4f6; font-size:.875rem; vertical-align:middle; }
     tr:last-child td { border-bottom:none; }
     tr:hover td { background:#f9fafb; }
+    /* Tom Select — match .field style */
+    .ts-control { border:2px solid #e5e7eb !important; border-radius:.5rem !important; font-size:.9rem !important; padding:.45rem .75rem !important; box-shadow:none !important; background:#fff !important; min-height:unset !important; }
+    .ts-wrapper.focus .ts-control { border-color:#1E5E37 !important; }
+    .ts-wrapper.single.input-hidden .ts-control { cursor:pointer; }
+    .ts-dropdown { border:1px solid #e5e7eb !important; border-radius:.5rem !important; font-size:.875rem !important; margin-top:2px !important; }
+    .ts-dropdown .option { padding:.5rem .75rem; }
+    .ts-dropdown .option.active { background:#1E5E37 !important; color:#fff !important; }
+    .ts-dropdown .option:hover { background:#1E5E37 !important; color:#fff !important; }
+    .ts-control .placeholder { color:#9ca3af !important; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900">
@@ -103,6 +114,11 @@ function timeAgo(dateStr) {
 }
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _searchable(id, onChange) {
+  const el = document.getElementById(id); if (!el) return null;
+  if (el.tomselect) el.tomselect.destroy();
+  return new TomSelect(el, { create:false, maxOptions:500, closeAfterSelect:true, ...(onChange ? {onChange} : {}) });
 }
 function show(id)  { const el=document.getElementById(id); if(el) el.classList.remove('hidden'); }
 function hide(id)  { const el=document.getElementById(id); if(el) el.classList.add('hidden'); }
@@ -1135,9 +1151,6 @@ function _populateJobModal() {
     _jobTypes.map(t => `<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
   document.getElementById('jobTechId').innerHTML = `<option value="">Unassigned</option>` +
     _jobsTechs.map(t => `<option value="${t.id}">${escHtml(techDisplayName(t))}</option>`).join('');
-  document.getElementById('jobAccountId').onchange = function() {
-    document.getElementById('jobAddress').value = this.options[this.selectedIndex].dataset.address||'';
-  };
 }
 
 function openCreateJob(prefillDate) {
@@ -1153,6 +1166,10 @@ function openCreateJob(prefillDate) {
   document.getElementById('jobRecurringInfo').innerHTML = '';
   document.getElementById('jobCancelBtn').classList.add('hidden');
   openModal('jobModal');
+  setTimeout(() => {
+    _searchable('jobAccountId', v => { const a = _jobsAccounts.find(a => a.id===v); document.getElementById('jobAddress').value = a?.address||''; });
+    _searchable('jobTechId');
+  }, 50);
 }
 
 async function openJobDetail(jobId) {
@@ -1186,6 +1203,10 @@ async function openJobDetail(jobId) {
     infoEl.innerHTML = `<div class="bg-gray-50 border rounded-lg p-3 text-xs text-gray-600"><strong>Part of a recurring series.</strong> <button onclick="closeModal('jobModal');openJobDetail('${job.recurring_parent_id}')" class="text-[var(--green)] underline font-semibold">Edit parent job</button> to update all future instances.</div>`;
   } else { infoEl.innerHTML = ''; }
   openModal('jobModal');
+  setTimeout(() => {
+    _searchable('jobAccountId', v => { const a = _jobsAccounts.find(a => a.id===v); document.getElementById('jobAddress').value = a?.address||''; });
+    _searchable('jobTechId');
+  }, 50);
 }
 
 function generateRecurringDates(startDate, pattern, count) {
@@ -1347,6 +1368,7 @@ function openCreateProposal() {
     _jobsAccounts.map(a => `<option value="${a.id}">${escHtml(a.contact_name||'—')}</option>`).join('');
   document.getElementById('propTitle').value = ''; document.getElementById('propNotes').value = '';
   _renderProposalLineItems(); openModal('proposalModal');
+  setTimeout(() => _searchable('propAccountId'), 50);
 }
 
 async function openEditProposal(proposalId) {
@@ -1359,6 +1381,7 @@ async function openEditProposal(proposalId) {
     _jobsAccounts.map(a => `<option value="${a.id}" ${a.id===prop.service_account_id?'selected':''}>${escHtml(a.contact_name||'—')}</option>`).join('');
   document.getElementById('propTitle').value = prop.title||''; document.getElementById('propNotes').value = prop.notes||'';
   _renderProposalLineItems(); openModal('proposalModal');
+  setTimeout(() => _searchable('propAccountId'), 50);
 }
 
 function _renderProposalLineItems() {
@@ -1380,7 +1403,7 @@ function _renderProposalLineItems() {
                 class="text-red-400 hover:text-red-600 text-xl font-bold px-1">&times;</button>
       </div>`).join('')}
     <div class="flex gap-2 mt-1">
-      <select onchange="_addProductLine(this.value);this.value=''" class="field flex-1 text-sm py-1.5">
+      <select id="propCatalogPicker" class="field flex-1 text-sm py-1.5">
         <option value="">+ From Catalog…</option>
         ${_proposalProducts.map(p => `<option value="${p.id}">${escHtml(p.name)}${p.price!=null?' — '+fmtMoney(p.price):''}</option>`).join('')}
       </select>
@@ -1388,6 +1411,9 @@ function _renderProposalLineItems() {
               class="btn-outline text-sm py-1.5 whitespace-nowrap">+ Custom Line</button>
     </div>
     <div id="propTotal" class="text-right mt-2 font-bold">Total: ${fmtMoney(total)}</div>`;
+  _searchable('propCatalogPicker', function(val) {
+    if (val) { _addProductLine(val); setTimeout(() => this.clear(), 0); }
+  });
 }
 
 function _addProductLine(productId) {
@@ -1501,9 +1527,14 @@ function openCreateJobFromProposal(proposalId) {
     openCreateJob(null);
     if (prop) {
       document.getElementById('jobProposalId').value = proposalId;
-      document.getElementById('jobAccountId').value  = prop.service_account_id||'';
       document.getElementById('jobAddress').value    = prop.service_accounts?.address||'';
       document.getElementById('jobRecurringInfo').innerHTML = `<div class="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800"><strong>From proposal:</strong> ${escHtml(prop.title)}</div>`;
+      // Set account via Tom Select API once it has initialised (50ms delay in openCreateJob)
+      setTimeout(() => {
+        const ts = document.getElementById('jobAccountId')?.tomselect;
+        if (ts) ts.setValue(prop.service_account_id||'');
+        else document.getElementById('jobAccountId').value = prop.service_account_id||'';
+      }, 100);
     }
   }, 250);
 }
