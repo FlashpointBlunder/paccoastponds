@@ -201,6 +201,87 @@
     </div>
   </section>
 
+  <!-- MAINTENANCE SERVICES (Orange County Only) -->
+  <section id="maintenance" class="py-20 bg-[var(--brand-dark)] text-white">
+    <div class="max-w-7xl mx-auto px-6">
+      <h2 class="text-4xl font-extrabold mb-3">Pond Maintenance Services</h2>
+      <p class="text-gray-300 max-w-2xl mb-10">Keep your pond crystal-clear year-round. Our maintenance programs are available exclusively to homeowners in <strong>Orange County, CA</strong>.</p>
+      <div class="grid md:grid-cols-2 gap-8">
+
+        <!-- Routine Maintenance -->
+        <div class="bg-[var(--brand-green)] p-8 shadow-xl flex flex-col">
+          <h3 class="text-2xl font-bold mb-2">Routine Maintenance</h3>
+          <p class="text-green-100 mb-4">Regular scheduled visits to keep your pond healthy — water testing, filter cleaning, algae control, and fish wellness checks.</p>
+          <ul class="text-green-100 space-y-1.5 text-sm mb-8 flex-1">
+            <li>✔ Weekly, biweekly, or monthly plans</li>
+            <li>✔ Water quality & chemistry testing</li>
+            <li>✔ Filter, skimmer & pump service</li>
+            <li>✔ Algae treatment & debris removal</li>
+            <li>✔ Fish health monitoring</li>
+          </ul>
+          <button onclick="openServiceModal('routine_maintenance')" class="btn py-3 px-6 bg-white text-[var(--brand-green)] hover:bg-gray-100 self-start">Request Maintenance →</button>
+        </div>
+
+        <!-- One-Time Cleaning -->
+        <div class="bg-[var(--brand-blue)] p-8 shadow-xl flex flex-col">
+          <h3 class="text-2xl font-bold mb-2">One-Time Cleaning</h3>
+          <p class="text-blue-100 mb-4">Deep pond cleaning service — debris removal, sludge vacuum, filter backwash, and a full health assessment for your fish.</p>
+          <ul class="text-blue-100 space-y-1.5 text-sm mb-8 flex-1">
+            <li>✔ Full debris & sludge removal</li>
+            <li>✔ Filter & pump inspection</li>
+            <li>✔ Water quality reset & treatment</li>
+            <li>✔ Fish health check</li>
+            <li>✔ Post-clean report</li>
+          </ul>
+          <button onclick="openServiceModal('one_time_cleaning')" class="btn py-3 px-6 bg-white text-[var(--brand-blue)] hover:bg-gray-100 self-start">Book a Cleaning →</button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Service Request Modal (Routine Maintenance / One-Time Cleaning) -->
+  <div id="serviceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;overflow-y:auto;padding:2rem 1rem;" onclick="if(event.target===this)closeServiceModal()">
+    <div style="max-width:520px;margin:0 auto;background:#fff;padding:2rem;position:relative;">
+      <button onclick="closeServiceModal()" style="position:absolute;top:1rem;right:1.25rem;font-size:1.75rem;line-height:1;background:none;border:none;cursor:pointer;color:#6b7280;">×</button>
+      <h2 id="serviceModalTitle" style="font-family:Oswald,sans-serif;text-transform:uppercase;font-size:1.5rem;font-weight:700;margin-bottom:.25rem;"></h2>
+      <p style="color:#6b7280;font-size:.875rem;margin-bottom:1.25rem;">Available in <strong>Orange County, CA</strong> only. We'll confirm availability and pricing within one business day.</p>
+
+      <form id="serviceForm" style="display:grid;gap:1rem;" onsubmit="handleServiceSubmit(event)">
+        <input type="hidden" id="serviceType" name="type" />
+        <input required name="full_name" placeholder="Full Name *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
+        <input required name="email" type="email" placeholder="Email *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
+        <input required name="phone" id="servicePhone" type="tel" placeholder="(###) ###-#### *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
+        <input required name="address" placeholder="Street Address *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;">
+          <input name="city" placeholder="City" style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;" />
+          <input name="state" value="CA" readonly style="padding:.75rem;border:2px solid #d1d5db;background:#f9fafb;color:#6b7280;box-sizing:border-box;width:3rem;text-align:center;" />
+          <input required id="serviceZip" name="zip" placeholder="ZIP *" pattern="\d{5}" maxlength="5"
+                 style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;" />
+        </div>
+        <div id="serviceFreqRow" style="display:none;">
+          <select name="service_frequency" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;background:#fff;">
+            <option value="">Preferred Visit Frequency *</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Every Two Weeks</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <textarea name="message" rows="3" placeholder="Tell us about your pond — size, fish count, current condition, any concerns..."
+                  style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+        <p id="serviceErr" style="color:#dc2626;display:none;font-size:.875rem;font-weight:600;"></p>
+        <button id="serviceSubmitBtn" class="btn" style="padding:1rem;font-size:1rem;">Submit Request</button>
+      </form>
+
+      <div id="serviceSuccess" style="display:none;text-align:center;padding:2.5rem 0;">
+        <p style="font-size:2.5rem;margin-bottom:.75rem;">✅</p>
+        <h3 style="font-family:Oswald,sans-serif;text-transform:uppercase;font-size:1.25rem;font-weight:700;margin-bottom:.5rem;">Request Received!</h3>
+        <p style="color:#4b5563;">We'll be in touch within one business day to discuss your service and pricing.</p>
+        <button onclick="closeServiceModal()" class="btn" style="margin-top:1.5rem;padding:.75rem 2rem;">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PROOF / VALUE PROP -->
   <section id="reasons" class="py-16 bg-[var(--brand-cream)] angled-top angled-bottom">
     <div class="max-w-7xl mx-auto px-6">
@@ -618,6 +699,136 @@
       el.textContent = JSON.stringify(jsonld);
     })();
   </script>
+  <!-- Service request modal + OC validation + lead-form DB save -->
+  <script>
+    // Orange County CA zip code ranges
+    function isOrangeCountyZip(zip) {
+      const z = parseInt(zip, 10);
+      return (z >= 90620 && z <= 90631) || (z >= 92602 && z <= 92899);
+    }
+
+    // ── Modal open/close ──────────────────────────────────────────────────────
+    function openServiceModal(type) {
+      const titles = { routine_maintenance: 'Routine Maintenance', one_time_cleaning: 'One-Time Cleaning' };
+      document.getElementById('serviceType').value       = type;
+      document.getElementById('serviceModalTitle').textContent = titles[type] || type;
+      document.getElementById('serviceFreqRow').style.display = type === 'routine_maintenance' ? 'block' : 'none';
+      document.getElementById('serviceForm').style.display    = '';
+      document.getElementById('serviceSuccess').style.display = 'none';
+      document.getElementById('serviceErr').style.display     = 'none';
+      document.getElementById('serviceForm').reset();
+      document.getElementById('serviceType').value = type; // reset clears hidden, restore
+      document.getElementById('serviceModal').style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeServiceModal() {
+      document.getElementById('serviceModal').style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    // ── Phone mask for service modal phone ────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      const sp = document.getElementById('servicePhone');
+      if (!sp) return;
+      function fmtPhone(val) {
+        const d = (val||'').replace(/\D+/g,'').slice(0,10);
+        const a=d.slice(0,3),b=d.slice(3,6),c=d.slice(6,10);
+        if(d.length>6) return `(${a}) ${b}-${c}`;
+        if(d.length>3) return `(${a}) ${b}`;
+        if(d.length>0) return `(${a}`;
+        return '';
+      }
+      sp.addEventListener('input', () => { sp.value = fmtPhone(sp.value); });
+      sp.addEventListener('blur',  () => { sp.value = fmtPhone(sp.value); });
+    });
+
+    // ── Service form submit ───────────────────────────────────────────────────
+    async function handleServiceSubmit(e) {
+      e.preventDefault();
+      const form    = e.target;
+      const errEl   = document.getElementById('serviceErr');
+      const btn     = document.getElementById('serviceSubmitBtn');
+      const fd      = new FormData(form);
+      const type    = fd.get('type');
+      const zip     = (fd.get('zip')||'').trim();
+      const phone   = (fd.get('phone')||'').replace(/\D+/g,'');
+
+      errEl.style.display = 'none';
+
+      if (phone.length !== 10) {
+        errEl.textContent = 'Please enter a valid 10-digit phone number.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      // OC check (also done server-side, but give instant feedback)
+      if (!isOrangeCountyZip(zip)) {
+        errEl.textContent = 'Sorry — this service is currently only available in Orange County, CA. Please call us to discuss options in your area.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled    = true;
+      btn.textContent = 'Submitting…';
+
+      const payload = {
+        type,
+        full_name: fd.get('full_name'),
+        email:     fd.get('email'),
+        phone:     '+1' + phone,
+        address:   fd.get('address'),
+        city:      fd.get('city'),
+        zip,
+        message:           fd.get('message')           || null,
+        service_frequency: fd.get('service_frequency') || null,
+      };
+
+      try {
+        const res = await fetch('/.netlify/functions/submit-service-request', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Submission failed');
+        document.getElementById('serviceForm').style.display    = 'none';
+        document.getElementById('serviceSuccess').style.display = 'block';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Submit Request';
+      }
+    }
+
+    // ── Also save install leads to DB (alongside Netlify form) ───────────────
+    const _origLeadSubmit = window.handleLeadSubmit;
+    window.handleLeadSubmit = async function(e) {
+      // Fire-and-forget — save to DB before Netlify redirect
+      try {
+        const form = e.target || document.getElementById('leadForm');
+        const fd   = new FormData(form);
+        const phone = (fd.get('phone')||'').replace(/\D+/g,'');
+        await fetch('/.netlify/functions/submit-service-request', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type:         'install',
+            full_name:    fd.get('name')         || '',
+            email:        fd.get('email')        || null,
+            phone:        phone.length===10 ? '+1'+phone : fd.get('phone'),
+            address:      fd.get('street')       || null,
+            city:         fd.get('city')         || null,
+            zip:          fd.get('zip')          || null,
+            message:      fd.get('details')      || null,
+            project_type: fd.get('project_type') || null,
+          }),
+        });
+      } catch (_) { /* don't block redirect */ }
+      // Call the original handler
+      return _origLeadSubmit ? _origLeadSubmit(e) : true;
+    };
+  </script>
+
 <!--Start of Tawk.to Script-->
 <script type="text/javascript">
 var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();

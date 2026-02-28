@@ -82,6 +82,7 @@
       <div class="sidebar-link" data-page="proposals">📋 &nbsp;Proposals</div>
       <div class="sidebar-link" data-page="techs">🔧 &nbsp;Technicians</div>
       <div class="sidebar-link" data-page="products">📦 &nbsp;Products</div>
+      <div class="sidebar-link" data-page="requests">📥 &nbsp;Requests</div>
       <div class="sidebar-link" data-page="billing">💳 &nbsp;Billing</div>
       <div class="sidebar-link" data-page="messages">💬 &nbsp;Messages</div>
       <div class="sidebar-link" data-page="map">🗺 &nbsp;Map</div>
@@ -184,6 +185,7 @@ function loadPage(page) {
     proposals:  renderProposals,
     techs:      renderTechs,
     products:  renderProducts,
+    requests:  renderRequests,
     billing:   renderBilling,
     messages:  renderMessages,
     map:       renderMap,
@@ -2287,6 +2289,190 @@ async function renderMap(el) {
         <span class="text-sm font-medium text-gray-500">Completed</span>
       </div>`;
   }
+}
+
+// ─── SERVICE REQUESTS ─────────────────────────────────────────────────────────
+let _reqFilter = 'all';
+
+async function renderRequests(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-3xl font-extrabold">Service Requests</h1>
+    </div>
+
+    <!-- Status filter tabs -->
+    <div class="flex gap-2 mb-5 flex-wrap" id="reqFilterTabs">
+      ${['all','new','contacted','scheduled','declined'].map(s => `
+        <button onclick="setReqFilter('${s}')" data-filter="${s}"
+          class="req-tab px-4 py-1.5 rounded-full text-sm font-semibold border-2 ${s==='all'?'border-[var(--green)] text-[var(--green)]':'border-gray-200 text-gray-500'}">
+          ${s === 'all' ? 'All' : s.charAt(0).toUpperCase()+s.slice(1)}
+        </button>`).join('')}
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl border overflow-hidden">
+      <div id="reqTableWrap" class="p-4 text-gray-400 text-sm">Loading...</div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="reqModal" class="modal-bg hidden">
+      <div class="modal max-w-lg">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <span id="reqModalTypeBadge"></span>
+            <h2 class="text-2xl font-bold mt-1" id="reqModalName"></h2>
+          </div>
+          <button onclick="closeModal('reqModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none ml-4">×</button>
+        </div>
+
+        <!-- Contact info -->
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-4" id="reqModalInfo"></div>
+
+        <!-- Message -->
+        <div id="reqModalMsgWrap" class="mb-4 hidden">
+          <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Message</p>
+          <p id="reqModalMsg" class="text-sm text-gray-700 bg-gray-50 rounded p-3 whitespace-pre-wrap"></p>
+        </div>
+
+        <!-- Status + notes -->
+        <div class="space-y-3 border-t pt-4">
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase block mb-1">Status</label>
+            <select id="reqStatusSel" class="field">
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="declined">Declined</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase block mb-1">Admin Notes</label>
+            <textarea id="reqNotes" rows="3" class="field" placeholder="Internal notes..."></textarea>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button onclick="saveReqChanges()" class="btn-green flex-1 py-2">Save</button>
+            <button onclick="convertReqToCustomer()" class="btn-outline flex-1 py-2">Convert to Customer →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  _reqFilter = 'all';
+  loadReqTable();
+}
+
+function setReqFilter(filter) {
+  _reqFilter = filter;
+  document.querySelectorAll('.req-tab').forEach(b => {
+    const active = b.dataset.filter === filter;
+    b.classList.toggle('border-[var(--green)]', active);
+    b.classList.toggle('text-[var(--green)]', active);
+    b.classList.toggle('border-gray-200', !active);
+    b.classList.toggle('text-gray-500', !active);
+  });
+  loadReqTable();
+}
+
+async function loadReqTable() {
+  const el = document.getElementById('reqTableWrap');
+  if (!el) return;
+  el.innerHTML = '<p class="text-gray-400 text-sm p-2">Loading...</p>';
+
+  let query = sb.from('service_requests').select('*').order('created_at', { ascending: false });
+  if (_reqFilter !== 'all') query = query.eq('status', _reqFilter);
+
+  const { data, error } = await query;
+  if (error) { el.innerHTML = `<p class="text-red-500 p-2">${error.message}</p>`; return; }
+  if (!data?.length) { el.innerHTML = '<p class="text-gray-400 p-4">No requests yet.</p>'; return; }
+
+  const typeLabel = { routine_maintenance:'Routine Maintenance', one_time_cleaning:'One-Time Cleaning', install:'Install / Build', other:'Other' };
+  const typeBadge = { routine_maintenance:'badge-blue', one_time_cleaning:'badge-green', install:'badge-yellow', other:'badge-gray' };
+  const statusBadge = { new:'badge-blue', contacted:'badge-yellow', scheduled:'badge-green', declined:'badge-gray' };
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Type</th><th>Name</th><th>Contact</th><th>Location</th><th>Status</th><th>Received</th>
+    </tr></thead>
+    <tbody>
+      ${data.map(r => `<tr class="cursor-pointer hover:bg-gray-50" onclick="openReqDetail('${r.id}')">
+        <td><span class="badge ${typeBadge[r.type]||'badge-gray'}">${typeLabel[r.type]||r.type}</span></td>
+        <td class="font-semibold">${escHtml(r.full_name)}</td>
+        <td class="text-sm">
+          ${r.email ? `<p>${escHtml(r.email)}</p>` : ''}
+          ${r.phone ? `<p class="text-gray-500">${escHtml(r.phone)}</p>` : ''}
+        </td>
+        <td class="text-sm text-gray-500">${r.city ? escHtml(r.city) + (r.zip ? ', '+escHtml(r.zip) : '') : r.zip ? escHtml(r.zip) : '—'}</td>
+        <td><span class="badge ${statusBadge[r.status]||'badge-gray'}">${r.status}</span></td>
+        <td class="text-xs text-gray-400">${new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+let _currentReqId = null;
+
+async function openReqDetail(id) {
+  const { data: r } = await sb.from('service_requests').select('*').eq('id', id).single();
+  if (!r) return;
+  _currentReqId = r.id;
+
+  const typeLabel = { routine_maintenance:'Routine Maintenance', one_time_cleaning:'One-Time Cleaning', install:'Install / Build', other:'Other' };
+  const typeBadge = { routine_maintenance:'badge-blue', one_time_cleaning:'badge-green', install:'badge-yellow', other:'badge-gray' };
+  const freqLabel = { weekly:'Weekly', biweekly:'Every Two Weeks', monthly:'Monthly' };
+
+  document.getElementById('reqModalTypeBadge').innerHTML = `<span class="badge ${typeBadge[r.type]||'badge-gray'}">${typeLabel[r.type]||r.type}</span>`;
+  document.getElementById('reqModalName').textContent = r.full_name;
+
+  const rows = [
+    r.email    ? ['Email', `<a href="mailto:${escHtml(r.email)}" class="text-[var(--green)] underline">${escHtml(r.email)}</a>`] : null,
+    r.phone    ? ['Phone', `<a href="tel:${escHtml(r.phone)}" class="text-[var(--green)] underline">${escHtml(r.phone)}</a>`] : null,
+    r.address  ? ['Address', escHtml([r.address, r.city, 'CA', r.zip].filter(Boolean).join(', '))] : null,
+    r.project_type     ? ['Project Type', escHtml(r.project_type)] : null,
+    r.service_frequency ? ['Frequency', freqLabel[r.service_frequency]||r.service_frequency] : null,
+    ['Received', new Date(r.created_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'})],
+  ].filter(Boolean);
+
+  document.getElementById('reqModalInfo').innerHTML = rows.map(([label, val]) =>
+    `<div><p class="text-xs font-semibold text-gray-400 uppercase">${label}</p><p class="text-sm">${val}</p></div>`
+  ).join('');
+
+  const msgWrap = document.getElementById('reqModalMsgWrap');
+  if (r.message) {
+    document.getElementById('reqModalMsg').textContent = r.message;
+    msgWrap.classList.remove('hidden');
+  } else {
+    msgWrap.classList.add('hidden');
+  }
+
+  document.getElementById('reqStatusSel').value = r.status || 'new';
+  document.getElementById('reqNotes').value      = r.admin_notes || '';
+
+  openModal('reqModal');
+}
+
+async function saveReqChanges() {
+  if (!_currentReqId) return;
+  const status      = document.getElementById('reqStatusSel').value;
+  const admin_notes = document.getElementById('reqNotes').value;
+  const { error } = await sb.from('service_requests').update({ status, admin_notes }).eq('id', _currentReqId);
+  if (error) { toast(error.message, false); return; }
+  toast('Request updated');
+  closeModal('reqModal');
+  loadReqTable();
+}
+
+function convertReqToCustomer() {
+  if (!_currentReqId) return;
+  // Switch to Customers page and pre-focus the invite form
+  closeModal('reqModal');
+  loadPage('customers');
+  // Wait for customers page to render then click invite
+  setTimeout(() => {
+    const inviteBtn = document.querySelector('[onclick="openInviteModal()"]');
+    if (inviteBtn) inviteBtn.click();
+    // Pre-fill will need to be done manually — a future enhancement
+  }, 400);
 }
 
 async function renderBilling(el) {
