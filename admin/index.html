@@ -322,6 +322,10 @@ async function renderCustomers(el) {
   `;
 
   loadCustomerTable('active');
+  loadAdminMaps().then(() => {
+    attachAddressAC(document.querySelector('#addCustomerForm [name=address]'));
+    attachAddressAC(document.querySelector('#addCustomerForm [name=billing_address]'));
+  });
 
   document.getElementById('addCustomerForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -601,6 +605,10 @@ async function openCustomerDetail(accountId) {
   `;
 
   loadPondPhotos(accountId);
+  loadAdminMaps().then(() => {
+    attachAddressAC(document.querySelector('#editCustomerForm [name=address]'));
+    attachAddressAC(document.querySelector('#editCustomerForm [name=billing_address]'));
+  });
 
   document.getElementById('editCustomerForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -1172,6 +1180,7 @@ function openCreateJob(prefillDate) {
   setTimeout(() => {
     _searchable('jobAccountId', v => { const a = _jobsAccounts.find(a => a.id===v); document.getElementById('jobAddress').value = a?.address||''; });
     _searchable('jobTechId');
+    loadAdminMaps().then(() => attachAddressAC(document.getElementById('jobAddress')));
   }, 50);
 }
 
@@ -1237,6 +1246,7 @@ async function openJobDetail(jobId) {
   setTimeout(() => {
     _searchable('jobAccountId', v => { const a = _jobsAccounts.find(a => a.id===v); document.getElementById('jobAddress').value = a?.address||''; });
     _searchable('jobTechId');
+    loadAdminMaps().then(() => attachAddressAC(document.getElementById('jobAddress')));
   }, 50);
 }
 
@@ -2165,16 +2175,47 @@ async function deleteCategory(catId, name) {
 const ADMIN_MAPS_KEY  = 'AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4';
 const TECH_DOT_COLORS = ['#1E5E37','#2CA7DF','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#84cc16','#f97316','#ec4899','#6366f1'];
 
+let _adminMapsPromise = null;
 function loadAdminMaps() {
-  return new Promise(resolve => {
-    if (window.google?.maps) { resolve(); return; }
+  if (_adminMapsPromise) return _adminMapsPromise;
+  _adminMapsPromise = new Promise(resolve => {
+    if (window.google?.maps?.places) { resolve(); return; }
     window._adminGmReady = resolve;
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${ADMIN_MAPS_KEY}&callback=_adminGmReady`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${ADMIN_MAPS_KEY}&libraries=places&callback=_adminGmReady`;
     s.async = true; s.defer = true;
     document.head.appendChild(s);
   });
+  return _adminMapsPromise;
 }
+
+// Attach Google Places autocomplete to a single-line address field.
+// For split-field forms, pass onFill({street,city,state,zip}).
+function attachAddressAC(inputEl, onFill) {
+  if (!inputEl || !window.google?.maps?.places) return;
+  const ac = new google.maps.places.Autocomplete(inputEl, {
+    componentRestrictions: { country: 'us' },
+    fields: ['formatted_address', 'address_components'],
+    types: ['address'],
+  });
+  ac.addListener('place_changed', () => {
+    const place = ac.getPlace();
+    if (!place.address_components) return;
+    const get = (type, short = false) => {
+      const c = place.address_components.find(c => c.types.includes(type));
+      return c ? (short ? c.short_name : c.long_name) : '';
+    };
+    const street = [get('street_number'), get('route')].filter(Boolean).join(' ');
+    if (onFill) {
+      onFill({ street, city: get('locality') || get('sublocality_level_1') || '', state: get('administrative_area_level_1', true), zip: get('postal_code') });
+    } else {
+      inputEl.value = place.formatted_address || street;
+    }
+  });
+}
+
+// Preload Maps+Places in the background so autocomplete is ready when modals open
+loadAdminMaps();
 
 async function renderMap(el) {
   el.innerHTML = `
