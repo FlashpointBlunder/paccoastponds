@@ -701,55 +701,45 @@
   </script>
   <!-- Google Places autocomplete for address fields -->
   <script>
+    function _addrComp(comps, type, short) {
+      const c = comps.find(c => c.types.includes(type));
+      return c ? (short ? c.short_name : c.long_name) : '';
+    }
+
+    function _attachSplitAC(inputEl) {
+      const ac = new google.maps.places.Autocomplete(inputEl, {
+        componentRestrictions: { country: 'us' }, fields: ['address_components'], types: ['address'],
+      });
+      ac.addListener('place_changed', () => {
+        const comps = ac.getPlace().address_components;
+        if (!comps) return;
+        inputEl.value = [_addrComp(comps,'street_number'), _addrComp(comps,'route')].filter(Boolean).join(' ');
+        const form = inputEl.closest('form');
+        if (!form) return;
+        const city  = form.querySelector('[name=city]');
+        const state = form.querySelector('[name=state]');
+        const zip   = form.querySelector('[name=zip]');
+        if (city)  city.value  = _addrComp(comps,'locality') || _addrComp(comps,'sublocality_level_1') || '';
+        if (state) state.value = _addrComp(comps,'administrative_area_level_1', true) || 'CA';
+        if (zip)   zip.value   = _addrComp(comps,'postal_code') || '';
+      });
+    }
+
+    // Called by Maps API once loaded — only attach to always-visible hero form
     function _initPlacesAC() {
-      const getComp = (comps, type, short = false) => {
-        const c = comps.find(c => c.types.includes(type));
-        return c ? (short ? c.short_name : c.long_name) : '';
-      };
+      const streetEl = document.querySelector('#leadForm [name=street]');
+      if (streetEl) _attachSplitAC(streetEl);
+      // Service modal is hidden at load — autocomplete is attached on first open instead
+    }
 
-      // Hero form — street/city/state/zip split
-      const streetEl = document.getElementById('phone')?.closest('form')?.querySelector('[name=street]') || document.querySelector('#leadForm [name=street]');
-      if (streetEl) {
-        const ac = new google.maps.places.Autocomplete(streetEl, {
-          componentRestrictions: { country: 'us' }, fields: ['address_components'], types: ['address'],
-        });
-        ac.addListener('place_changed', () => {
-          const comps = ac.getPlace().address_components;
-          if (!comps) return;
-          streetEl.value = [getComp(comps,'street_number'), getComp(comps,'route')].filter(Boolean).join(' ');
-          const form = streetEl.closest('form');
-          if (form) {
-            const city  = form.querySelector('[name=city]');
-            const state = form.querySelector('[name=state]');
-            const zip   = form.querySelector('[name=zip]');
-            if (city)  city.value  = getComp(comps, 'locality') || getComp(comps, 'sublocality_level_1') || '';
-            if (state) state.value = getComp(comps, 'administrative_area_level_1', true) || 'CA';
-            if (zip)   zip.value   = getComp(comps, 'postal_code') || '';
-          }
-        });
-      }
-
-      // Service request modal — single address field (city/state/zip in siblings)
-      const svcAddrEl = document.querySelector('#serviceForm [name=address]');
-      if (svcAddrEl) {
-        const ac2 = new google.maps.places.Autocomplete(svcAddrEl, {
-          componentRestrictions: { country: 'us' }, fields: ['address_components'], types: ['address'],
-        });
-        ac2.addListener('place_changed', () => {
-          const comps = ac2.getPlace().address_components;
-          if (!comps) return;
-          svcAddrEl.value = [getComp(comps,'street_number'), getComp(comps,'route')].filter(Boolean).join(' ');
-          const form = svcAddrEl.closest('form');
-          if (form) {
-            const city = form.querySelector('[name=city]');
-            const zip  = form.querySelector('[name=zip]'), zipEl = document.getElementById('serviceZip');
-            if (city) city.value = getComp(comps, 'locality') || getComp(comps, 'sublocality_level_1') || '';
-            const zipVal = getComp(comps, 'postal_code') || '';
-            if (zip) zip.value = zipVal;
-            if (zipEl && zipEl !== zip) zipEl.value = zipVal;
-          }
-        });
-      }
+    // Called the first time the service modal opens (field is visible)
+    let _svcACDone = false;
+    function _initServiceModalAC() {
+      if (_svcACDone || !window.google?.maps?.places) return;
+      const el = document.querySelector('#serviceForm [name=address]');
+      if (!el) return;
+      _svcACDone = true;
+      _attachSplitAC(el);
     }
   </script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4&libraries=places&callback=_initPlacesAC" async defer></script>
@@ -775,6 +765,8 @@
       document.getElementById('serviceType').value = type; // reset clears hidden, restore
       document.getElementById('serviceModal').style.display = 'block';
       document.body.style.overflow = 'hidden';
+      // Initialize autocomplete now that the address field is visible
+      _initServiceModalAC();
     }
 
     function closeServiceModal() {
