@@ -253,11 +253,11 @@
         <input required name="email" type="email" placeholder="Email *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
         <input required name="phone" id="servicePhone" type="tel" placeholder="(###) ###-#### *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
         <input required name="address" placeholder="Street Address *" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;" />
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;">
-          <input name="city" placeholder="City" style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;" />
-          <input name="state" value="CA" readonly style="padding:.75rem;border:2px solid #d1d5db;background:#f9fafb;color:#6b7280;box-sizing:border-box;width:3rem;text-align:center;" />
+        <div style="display:grid;grid-template-columns:1fr 3.5rem 5.5rem;gap:.5rem;">
+          <input name="city" placeholder="City" style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;min-width:0;width:100%;" />
+          <input name="state" value="CA" readonly style="padding:.75rem;border:2px solid #d1d5db;background:#f9fafb;color:#6b7280;box-sizing:border-box;min-width:0;text-align:center;width:100%;" />
           <input required id="serviceZip" name="zip" placeholder="ZIP *" pattern="\d{5}" maxlength="5"
-                 style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;" />
+                 style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;min-width:0;width:100%;" />
         </div>
         <div id="serviceFreqRow" style="display:none;">
           <select name="service_frequency" style="padding:.75rem;border:2px solid var(--brand-green);width:100%;box-sizing:border-box;background:#fff;">
