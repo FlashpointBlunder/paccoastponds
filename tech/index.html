@@ -278,7 +278,7 @@
         .eq('id', jobId).single();
       if (!job) { el.innerHTML = '<p class="text-red-500 text-sm p-4">Job not found.</p>'; return; }
       if (!_techProducts.length) {
-        const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).order('name');
+        const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).eq('tech_visible',true).order('name');
         _techProducts = prods||[];
       }
       const nextStatus = {scheduled:'on_the_way',on_the_way:'in_progress',in_progress:'completed'};
