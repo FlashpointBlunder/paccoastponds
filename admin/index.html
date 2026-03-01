@@ -2575,14 +2575,15 @@ async function uploadScopeFiles(files) {
   for (const file of files) {
     const ext = file.name.split('.').pop();
     const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
-    const { data: up } = await sb.storage.from('build-scope').upload(path, file, { upsert: true });
-    if (!up) continue;
+    const { data: up, error: upErr } = await sb.storage.from('build-scope').upload(path, file, { upsert: true });
+    if (upErr) { console.error('Storage upload error:', upErr); alert('Upload failed: ' + upErr.message); continue; }
     const { data: { publicUrl } } = sb.storage.from('build-scope').getPublicUrl(path);
     const isImg = file.type.startsWith('image/');
-    await sb.from('build_scope_files').insert({
+    const { error: dbErr } = await sb.from('build_scope_files').insert({
       project_id: _currentBuildId, url: publicUrl,
       file_type: isImg ? 'image' : 'pdf', label: file.name
     });
+    if (dbErr) console.error('DB insert error:', dbErr);
   }
   loadBuildSubTab('scope');
 }
