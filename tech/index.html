@@ -84,12 +84,16 @@
 
     <!-- Bottom nav -->
     <div class="bottom-nav fixed inset-x-0 bottom-0 bg-white border-t z-40">
-      <div class="grid grid-cols-3 divide-x">
+      <div class="grid grid-cols-4 divide-x">
         <button data-page="jobs" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-[var(--green)]">
           <span class="text-xl">📋</span> Jobs
         </button>
         <button data-page="route" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-gray-400">
           <span class="text-xl">🗺</span> Route
+        </button>
+        <button data-page="shopping" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-gray-400 relative">
+          <span class="text-xl">🛒</span> List
+          <span id="shoppingBadge" class="hidden absolute top-1.5 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1"></span>
         </button>
         <button data-page="messages" class="nav-btn py-3 flex flex-col items-center gap-1 text-xs font-semibold text-gray-400">
           <span class="text-xl">💬</span> Messages
@@ -158,6 +162,20 @@
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appShell').classList.remove('hidden');
       loadPage('jobs');
+      refreshShoppingBadge();
+    }
+
+    async function refreshShoppingBadge() {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: jobs } = await sb.from('jobs')
+        .select('service_account_id').eq('tech_id', currentTechId).eq('scheduled_date', today);
+      if (!jobs?.length) return;
+      const accountIds = [...new Set(jobs.map(j => j.service_account_id))];
+      const { count } = await sb.from('basket_items')
+        .select('id', { count: 'exact', head: true })
+        .in('service_account_id', accountIds)
+        .eq('billed', false).eq('requested_by', 'customer');
+      updateShoppingBadge(count || 0);
     }
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -204,7 +222,7 @@
 
     function loadPage(page) {
       const el = document.getElementById('pageContent');
-      const pages = { jobs: renderJobs, route: renderRoute, messages: renderMessages };
+      const pages = { jobs: renderJobs, route: renderRoute, shopping: renderShoppingList, messages: renderMessages };
       if (pages[page]) pages[page](el);
     }
 
@@ -411,6 +429,74 @@
         s.async = true; s.defer = true;
         document.head.appendChild(s);
       });
+    }
+
+    // ── Shopping List ─────────────────────────────────────────────────────────
+    async function renderShoppingList(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm p-4">Loading...</p>';
+      const today = new Date().toISOString().split('T')[0];
+
+      // Get today's jobs for this tech
+      const { data: jobs } = await sb.from('jobs')
+        .select('service_account_id')
+        .eq('tech_id', currentTechId)
+        .eq('scheduled_date', today);
+
+      if (!jobs?.length) {
+        el.innerHTML = `
+          <div class="p-4 max-w-lg mx-auto">
+            <h2 class="text-xl font-extrabold mb-1">Shopping List</h2>
+            <p class="text-gray-500 text-sm mb-4">Items customers requested for today's visits.</p>
+            <div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No jobs scheduled for today.</div>
+          </div>`;
+        updateShoppingBadge(0);
+        return;
+      }
+
+      const accountIds = [...new Set(jobs.map(j => j.service_account_id))];
+
+      const { data: items } = await sb.from('basket_items')
+        .select('id, quantity, notes, products(name), service_accounts(contact_name)')
+        .in('service_account_id', accountIds)
+        .eq('billed', false)
+        .eq('requested_by', 'customer')
+        .order('created_at');
+
+      updateShoppingBadge(items?.length || 0);
+
+      el.innerHTML = `
+        <div class="p-4 max-w-lg mx-auto">
+          <h2 class="text-xl font-extrabold mb-1">Shopping List</h2>
+          <p class="text-gray-500 text-sm mb-4">Items customers requested for today's visits.</p>
+          ${!(items?.length) ? `
+            <div class="bg-white rounded-xl border p-8 text-center">
+              <p class="text-2xl mb-2">✓</p>
+              <p class="text-gray-400 text-sm">Nothing to bring — no customer requests for today.</p>
+            </div>` : `
+            <div class="space-y-3">
+              ${items.map(item => `
+                <div class="bg-white rounded-xl border p-4 flex items-center gap-4">
+                  <div class="w-10 h-10 rounded-full bg-[var(--green)] bg-opacity-10 flex items-center justify-center text-lg shrink-0">🛍️</div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-bold text-sm">${tEsc(item.products?.name || '—')}</p>
+                    <p class="text-xs text-gray-500">For: ${tEsc(item.service_accounts?.contact_name || '—')}</p>
+                    ${item.notes ? `<p class="text-xs text-gray-400 italic mt-0.5">${tEsc(item.notes)}</p>` : ''}
+                  </div>
+                  <span class="shrink-0 text-sm font-bold text-[var(--green)] bg-green-50 rounded-full px-2.5 py-0.5">×${item.quantity || 1}</span>
+                </div>`).join('')}
+            </div>`}
+        </div>`;
+    }
+
+    function updateShoppingBadge(count) {
+      const badge = document.getElementById('shoppingBadge');
+      if (!badge) return;
+      if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
     }
 
     async function renderRoute(el) {
