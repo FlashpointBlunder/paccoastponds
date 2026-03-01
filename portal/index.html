@@ -1185,8 +1185,8 @@
           ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Progress photos will appear here as work gets underway.</div>'
           : `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
               ${photos.map(ph => `
-                <div class="bg-white rounded-xl border overflow-hidden cursor-pointer" onclick="portalOpenLightbox('${ph.url}','${pEsc(ph.caption||'')}')">
-                  <img src="${ph.url}" class="w-full h-36 object-cover"/>
+                <div class="bg-white rounded-xl border overflow-hidden cursor-pointer" onclick="portalOpenLightbox('${ph.photo_url}','${pEsc(ph.caption||'')}')">
+                  <img src="${ph.photo_url}" class="w-full h-36 object-cover"/>
                   ${ph.caption ? `<p class="px-2 py-1.5 text-xs text-gray-600 truncate">${pEsc(ph.caption)}</p>` : ''}
                   ${ph.taken_at ? `<p class="px-2 pb-2 text-xs text-gray-300">${new Date(ph.taken_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</p>` : ''}
                 </div>`).join('')}
@@ -1252,10 +1252,10 @@
           ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Documents will appear here once uploaded by your project team.</div>'
           : `<div class="space-y-3">
               ${docs.map(d => `
-                <a href="${d.url}" target="_blank" class="bg-white rounded-xl border p-4 flex items-center gap-4 hover:bg-gray-50 transition">
+                <a href="${d.file_url}" target="_blank" class="bg-white rounded-xl border p-4 flex items-center gap-4 hover:bg-gray-50 transition">
                   <span class="text-3xl">${d.file_type==='pdf'?'📄':'🖼'}</span>
                   <div class="flex-1 min-w-0">
-                    <p class="font-semibold text-sm truncate">${pEsc(d.label||'Document')}</p>
+                    <p class="font-semibold text-sm truncate">${pEsc(d.title||'Document')}</p>
                     <p class="text-xs text-[var(--green)] mt-0.5">Tap to open &rarr;</p>
                   </div>
                 </a>`).join('')}

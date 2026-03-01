@@ -2784,7 +2784,7 @@ async function renderBuildPhotos(el) {
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           ${(data||[]).map(ph => `
             <div class="border rounded-xl overflow-hidden">
-              <img src="${ph.url}" class="w-full h-36 object-cover cursor-pointer" onclick="openImageLightbox('${ph.url}','${ph.caption||''}')"/>
+              <img src="${ph.photo_url}" class="w-full h-36 object-cover cursor-pointer" onclick="openImageLightbox('${ph.photo_url}','${ph.caption||''}')"/>
               <div class="p-2">
                 <input value="${ph.caption||''}" placeholder="Caption…" class="text-xs border rounded px-2 py-1 w-full"
                   onblur="sb.from('build_progress_photos').update({caption:this.value}).eq('id','${ph.id}')"/>
@@ -2804,7 +2804,7 @@ async function uploadBuildPhotos(files) {
     if (!up) continue;
     const { data: { publicUrl } } = sb.storage.from('build-progress').getPublicUrl(path);
     await sb.from('build_progress_photos').insert({
-      project_id: _currentBuildId, url: publicUrl, taken_at: new Date().toISOString()
+      project_id: _currentBuildId, photo_url: publicUrl, taken_at: new Date().toISOString()
     });
   }
   loadBuildSubTab('photos');
@@ -2858,7 +2858,7 @@ async function addBuildPayment() {
   if (!label) return;
   const amtStr = prompt('Amount (e.g. 2500):');
   const amount = parseFloat(amtStr || '0') || 0;
-  await sb.from('build_payments').insert({ project_id: _currentBuildId, label: label.trim(), amount, status: 'pending' });
+  await sb.from('build_payments').insert({ project_id: _currentBuildId, label: label.trim(), amount, status: 'pending', sort_order: 0 });
   loadBuildSubTab('payments');
 }
 
@@ -2891,9 +2891,9 @@ async function renderBuildDocuments(el) {
             <div class="py-3 flex items-center gap-3">
               <span class="text-2xl">${d.file_type==='pdf'?'📄':'🖼'}</span>
               <div class="flex-1 min-w-0">
-                <a href="${d.url}" target="_blank" class="font-semibold text-sm text-[var(--green)] hover:underline truncate block">${d.label||d.url}</a>
-                <input value="${d.label||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full mt-1"
-                  onblur="sb.from('build_documents').update({label:this.value}).eq('id','${d.id}')"/>
+                <a href="${d.file_url}" target="_blank" class="font-semibold text-sm text-[var(--green)] hover:underline truncate block">${d.title||d.file_url}</a>
+                <input value="${d.title||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full mt-1"
+                  onblur="sb.from('build_documents').update({title:this.value}).eq('id','${d.id}')"/>
               </div>
               <button onclick="deleteBuildDocument('${d.id}')" class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
             </div>`).join('')}
@@ -2910,8 +2910,8 @@ async function uploadBuildDocuments(files) {
     const { data: { publicUrl } } = sb.storage.from('build-documents').getPublicUrl(path);
     const isImg = file.type.startsWith('image/');
     await sb.from('build_documents').insert({
-      project_id: _currentBuildId, url: publicUrl,
-      file_type: isImg ? 'image' : 'pdf', label: file.name
+      project_id: _currentBuildId, file_url: publicUrl,
+      file_type: isImg ? 'image' : 'pdf', title: file.name
     });
   }
   loadBuildSubTab('documents');
