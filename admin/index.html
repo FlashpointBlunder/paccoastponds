@@ -372,7 +372,7 @@ async function loadCustomerTable(filter = _custFilter) {
     .select('id, active, contact_name, contact_email, contact_phone, address, is_subscription, monthly_service_fee, invite_sent_at, customer_id, profiles(full_name)')
     .order('created_at', { ascending: false });
 
-  if (filter === 'active')      query = query.eq('active', true).not('customer_id', 'is', null);
+  if (filter === 'active')      query = query.eq('active', true);
   if (filter === 'inactive')    query = query.eq('active', false);
   if (filter === 'invited')     query = query.eq('active', true).not('invite_sent_at', 'is', null).is('customer_id', null);
   if (filter === 'not_invited') query = query.is('invite_sent_at', null);
