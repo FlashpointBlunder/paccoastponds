@@ -2378,19 +2378,44 @@ async function loadBuildList() {
 
 async function createBuildProject() {
   const { data: customers } = await sb.from('service_accounts')
-    .select('id, full_name')
+    .select('id, contact_name')
     .eq('is_build_customer', true)
-    .order('full_name');
-  const opts = (customers || []).map(c => `<option value="${c.id}">${c.full_name}</option>`).join('');
-  const title = prompt('Project title:');
-  if (!title) return;
-  // simple inline form via prompt for now
-  const { data, error } = await sb.from('build_projects').insert({
-    title: title.trim(),
-    status: 'planning',
-  }).select('id').single();
-  if (error || !data) { alert('Error: ' + (error?.message || 'unknown')); return; }
-  openBuildProject(data.id);
+    .order('contact_name');
+  if (!customers?.length) {
+    alert('No build customers found. Mark a customer as a Build Customer first.');
+    return;
+  }
+  const opts = customers.map(c => `<option value="${c.id}">${c.contact_name}</option>`).join('');
+  // Show a small inline modal
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+      <h2 class="text-xl font-bold mb-4">New Build Project</h2>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+      <select id="_bpCust" class="w-full border rounded-lg px-3 py-2 mb-3 text-sm">${opts}</select>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
+      <input id="_bpTitle" type="text" placeholder="e.g. Backyard Koi Pond" class="w-full border rounded-lg px-3 py-2 mb-4 text-sm"/>
+      <div class="flex gap-3">
+        <button id="_bpCreate" class="btn-green flex-1 py-2">Create</button>
+        <button id="_bpCancel" class="btn-outline flex-1 py-2">Cancel</button>
+      </div>
+      <p id="_bpErr" class="text-red-500 text-sm mt-2 hidden"></p>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_bpCancel').onclick = () => document.body.removeChild(overlay);
+  document.getElementById('_bpCreate').onclick = async () => {
+    const title = document.getElementById('_bpTitle').value.trim();
+    const saId  = document.getElementById('_bpCust').value;
+    const errEl = document.getElementById('_bpErr');
+    if (!title) { errEl.textContent = 'Please enter a project title.'; errEl.classList.remove('hidden'); return; }
+    const { data, error } = await sb.from('build_projects').insert({
+      title, service_account_id: saId, status: 'planning',
+    }).select('id').single();
+    document.body.removeChild(overlay);
+    if (error || !data) { alert('Error: ' + (error?.message || 'unknown')); return; }
+    openBuildProject(data.id);
+  };
 }
 
 async function openBuildProject(id) {
