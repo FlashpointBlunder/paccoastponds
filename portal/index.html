@@ -73,14 +73,28 @@
       </div>
     </header>
 
-    <!-- Nav tabs -->
-    <div class="bg-white border-b sticky top-[76px] z-30">
+    <!-- Nav tabs — maintenance customers -->
+    <div id="mainNav" class="hidden bg-white border-b sticky top-[76px] z-30">
       <div class="max-w-3xl mx-auto flex">
         <button data-tab="schedule"  class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-[var(--green)] text-[var(--green)]">Schedule</button>
         <button data-tab="proposals" class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Proposals</button>
         <button data-tab="messages"  class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Messages</button>
         <button data-tab="shop"      class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Shop</button>
         <button data-tab="billing"   class="tab-btn flex-1 py-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500">Billing</button>
+      </div>
+    </div>
+
+    <!-- Nav tabs — build customers -->
+    <div id="buildNav" class="hidden bg-white border-b sticky top-[76px] z-30">
+      <div class="max-w-3xl mx-auto flex overflow-x-auto">
+        <button data-btab="overview"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Overview</button>
+        <button data-btab="timeline"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Timeline</button>
+        <button data-btab="scope"      class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Scope</button>
+        <button data-btab="equipment"  class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Equipment</button>
+        <button data-btab="photos"     class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Photos</button>
+        <button data-btab="payments"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Payments</button>
+        <button data-btab="documents"  class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Documents</button>
+        <button data-btab="messages"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Messages</button>
       </div>
     </div>
 
@@ -119,7 +133,14 @@
       const { data: { session } } = await sb.auth.getSession();
       if (session) {
         const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
-        if (profile?.role === 'customer') { showApp(); return; }
+        if (profile?.role === 'customer') {
+          const { data: account } = await sb.from('service_accounts')
+            .select('id, is_build_customer').eq('customer_id', session.user.id).single();
+          window._isBuildCustomer = account?.is_build_customer || false;
+          window._portalAccountId = account?.id || null;
+          showApp();
+          return;
+        }
         await sb.auth.signOut();
       }
       showLogin();
@@ -141,7 +162,15 @@
       document.getElementById('setupScreen').classList.add('hidden');
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appShell').classList.remove('hidden');
-      loadTab('schedule');
+      if (window._isBuildCustomer) {
+        document.getElementById('mainNav').classList.add('hidden');
+        document.getElementById('buildNav').classList.remove('hidden');
+        loadBuildTab('overview');
+      } else {
+        document.getElementById('mainNav').classList.remove('hidden');
+        document.getElementById('buildNav').classList.add('hidden');
+        loadTab('schedule');
+      }
     }
 
     document.getElementById('setupForm').addEventListener('submit', async (e) => {
@@ -192,9 +221,39 @@
       });
     });
 
+    document.querySelectorAll('.btab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btab-btn').forEach(b => {
+          b.classList.remove('border-[var(--green)]', 'text-[var(--green)]');
+          b.classList.add('border-transparent', 'text-gray-500');
+        });
+        btn.classList.add('border-[var(--green)]', 'text-[var(--green)]');
+        btn.classList.remove('border-transparent', 'text-gray-500');
+        loadBuildTab(btn.dataset.btab);
+      });
+    });
+
     function loadTab(tab) {
       const el = document.getElementById('tabContent');
       const tabs = { schedule: renderSchedule, proposals: renderProposals, messages: renderMessages, shop: renderShop, billing: renderBilling };
+      if (tabs[tab]) tabs[tab](el);
+    }
+
+    function loadBuildTab(tab) {
+      document.querySelectorAll('.btab-btn').forEach(b => {
+        const active = b.dataset.btab === tab;
+        b.classList.toggle('border-[var(--green)]', active);
+        b.classList.toggle('text-[var(--green)]', active);
+        b.classList.toggle('border-transparent', !active);
+        b.classList.toggle('text-gray-500', !active);
+      });
+      const el = document.getElementById('tabContent');
+      const tabs = {
+        overview: renderBuildOverview, timeline: renderBuildTimeline,
+        scope: renderBuildScopePortal, equipment: renderBuildEquipmentPortal,
+        photos: renderBuildPhotosPortal, payments: renderBuildPaymentsPortal,
+        documents: renderBuildDocumentsPortal, messages: renderBuildMessagesPortal,
+      };
       if (tabs[tab]) tabs[tab](el);
     }
 
@@ -946,6 +1005,300 @@
         return;
       }
       renderBilling(document.getElementById('tabContent'));
+    }
+
+    // ── Build portal ─────────────────────────────────────────────────────────────
+    let _buildProjectId = null;
+
+    async function getBuildProject() {
+      if (_buildProjectId) return _buildProjectId;
+      const { data } = await sb.from('build_projects')
+        .select('id').eq('service_account_id', window._portalAccountId).single();
+      _buildProjectId = data?.id || null;
+      return _buildProjectId;
+    }
+
+    async function renderBuildOverview(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<div class="bg-white rounded-xl border p-8 text-center text-gray-400">No active build project found. Contact us for more information.</div>'; return; }
+      const { data: p } = await sb.from('build_projects').select('*').eq('id', pid).single();
+      const { data: milestones } = await sb.from('build_milestones').select('*').eq('project_id', pid).order('sort_order');
+      const statusColor = { planning:'bg-blue-100 text-blue-700', in_progress:'bg-yellow-100 text-yellow-800', completed:'bg-green-100 text-green-700', on_hold:'bg-gray-100 text-gray-600' };
+      const total = (milestones||[]).length;
+      const done  = (milestones||[]).filter(m => m.status === 'completed').length;
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Your Build Project</h2>
+        <p class="text-gray-500 text-sm mb-6">Welcome to your project dashboard.</p>
+        <div class="bg-white rounded-xl border p-6 mb-4">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h3 class="text-xl font-bold">${pEsc(p.title)}</h3>
+              ${p.description ? `<p class="text-gray-500 text-sm mt-1">${pEsc(p.description)}</p>` : ''}
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold shrink-0 ${statusColor[p.status]||'bg-gray-100 text-gray-600'}">${(p.status||'').replace('_',' ')}</span>
+          </div>
+          ${total > 0 ? `
+            <div class="mt-2">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold text-gray-500">Overall Progress</span>
+                <span class="text-xs font-bold text-[var(--green)]">${done}/${total} milestones</span>
+              </div>
+              <div class="w-full bg-gray-100 rounded-full h-2.5">
+                <div class="bg-[var(--green)] h-2.5 rounded-full transition-all" style="width:${Math.round(done/total*100)}%"></div>
+              </div>
+            </div>` : ''}
+        </div>
+        ${total ? `
+        <div class="bg-white rounded-xl border p-5 mb-4">
+          <h3 class="font-bold text-base mb-3">Milestones</h3>
+          <div class="space-y-2">
+            ${(milestones||[]).map(m => `
+              <div class="flex items-center gap-3">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0 ${m.status==='completed'?'bg-green-500':m.status==='in_progress'?'bg-yellow-400':'bg-gray-300'}"></span>
+                <span class="text-sm flex-1 ${m.status==='completed'?'line-through text-gray-400':'text-gray-800'}">${pEsc(m.title)}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full ${m.status==='completed'?'bg-green-100 text-green-700':m.status==='in_progress'?'bg-yellow-100 text-yellow-700':'bg-gray-100 text-gray-500'}">${m.status.replace('_',' ')}</span>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+      `;
+    }
+
+    async function renderBuildTimeline(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: milestones } = await sb.from('build_milestones').select('*').eq('project_id', pid).order('sort_order');
+      const mDot = { pending:'bg-gray-300', in_progress:'bg-yellow-400', completed:'bg-green-500' };
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Timeline</h2>
+        <p class="text-gray-500 text-sm mb-6">Project milestones and progress.</p>
+        ${!(milestones||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No milestones set yet. Check back soon.</div>'
+          : `<div class="relative pl-8">
+              <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+              ${milestones.map(m => `
+                <div class="relative mb-6">
+                  <div class="absolute -left-8 top-1 w-4 h-4 rounded-full border-2 border-white shadow ${mDot[m.status]||'bg-gray-300'}"></div>
+                  <div class="bg-white rounded-xl border p-4 shadow-sm">
+                    <div class="flex items-start justify-between gap-2">
+                      <p class="font-bold text-sm">${pEsc(m.title)}</p>
+                      <span class="text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${m.status==='completed'?'bg-green-100 text-green-700':m.status==='in_progress'?'bg-yellow-100 text-yellow-700':'bg-gray-100 text-gray-500'}">${m.status.replace('_',' ')}</span>
+                    </div>
+                    ${m.description ? `<p class="text-xs text-gray-500 mt-1">${pEsc(m.description)}</p>` : ''}
+                    ${m.due_date ? `<p class="text-xs text-gray-400 mt-1.5">Due: ${new Date(m.due_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>` : ''}
+                  </div>
+                </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function renderBuildScopePortal(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: files } = await sb.from('build_scope_files').select('*').eq('project_id', pid).order('created_at');
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Project Scope</h2>
+        <p class="text-gray-500 text-sm mb-6">Renderings, drawings, and design files for your build.</p>
+        ${!(files||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Scope files will appear here once uploaded by your project team.</div>'
+          : `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              ${files.map(f => f.file_type === 'pdf' ? `
+                <a href="${f.url}" target="_blank" class="bg-white rounded-xl border p-5 flex items-center gap-4 hover:bg-gray-50 transition">
+                  <span class="text-4xl">📄</span>
+                  <div>
+                    <p class="font-semibold text-sm">${pEsc(f.label||'Document')}</p>
+                    <p class="text-xs text-[var(--green)] mt-0.5">Tap to open &rarr;</p>
+                  </div>
+                </a>` : `
+                <div class="bg-white rounded-xl border overflow-hidden cursor-pointer" onclick="portalOpenLightbox('${f.url}','${pEsc(f.label||'')}')">
+                  <img src="${f.url}" class="w-full h-48 object-cover"/>
+                  ${f.label ? `<p class="px-4 py-2 text-sm font-semibold">${pEsc(f.label)}</p>` : ''}
+                </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function renderBuildEquipmentPortal(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: equipment } = await sb.from('build_equipment').select('*').eq('project_id', pid).order('created_at');
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Equipment</h2>
+        <p class="text-gray-500 text-sm mb-6">Products and equipment planned for your build.</p>
+        ${!(equipment||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Equipment details will appear here once added by your project team.</div>'
+          : `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              ${equipment.map(eq => `
+                <div class="bg-white rounded-xl border overflow-hidden">
+                  ${eq.image_url
+                    ? `<img src="${eq.image_url}" class="w-full h-44 object-cover cursor-pointer" onclick="portalOpenLightbox('${eq.image_url}','${pEsc(eq.name||'')}')"/>`
+                    : '<div class="w-full h-44 bg-gray-50 flex items-center justify-center text-5xl">🔧</div>'}
+                  <div class="p-4">
+                    <p class="font-bold text-base">${pEsc(eq.name||'Equipment')}</p>
+                    ${eq.description ? `<p class="text-sm text-gray-500 mt-1">${pEsc(eq.description)}</p>` : ''}
+                  </div>
+                </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function renderBuildPhotosPortal(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: photos } = await sb.from('build_progress_photos').select('*').eq('project_id', pid).order('taken_at', { ascending: false });
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Build Progress</h2>
+        <p class="text-gray-500 text-sm mb-6">Photos documenting the progress of your pond build.</p>
+        ${!(photos||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Progress photos will appear here as work gets underway.</div>'
+          : `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              ${photos.map(ph => `
+                <div class="bg-white rounded-xl border overflow-hidden cursor-pointer" onclick="portalOpenLightbox('${ph.url}','${pEsc(ph.caption||'')}')">
+                  <img src="${ph.url}" class="w-full h-36 object-cover"/>
+                  ${ph.caption ? `<p class="px-2 py-1.5 text-xs text-gray-600 truncate">${pEsc(ph.caption)}</p>` : ''}
+                  ${ph.taken_at ? `<p class="px-2 pb-2 text-xs text-gray-300">${new Date(ph.taken_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</p>` : ''}
+                </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function renderBuildPaymentsPortal(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: payments } = await sb.from('build_payments').select('*').eq('project_id', pid).order('due_date');
+      const total = (payments||[]).reduce((s,p) => s+(p.amount_cents||0), 0);
+      const paid  = (payments||[]).filter(p => p.status==='paid').reduce((s,p) => s+(p.amount_cents||0), 0);
+      const fmt = c => '$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:2});
+      const sBadge = s => {
+        const cls = {pending:'bg-yellow-100 text-yellow-700', paid:'bg-green-100 text-green-700', overdue:'bg-red-100 text-red-700'};
+        return `<span class="text-xs px-2 py-0.5 rounded-full font-bold shrink-0 ${cls[s]||'bg-gray-100 text-gray-500'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+      };
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Payment Schedule</h2>
+        <p class="text-gray-500 text-sm mb-6">Your project payment milestones.</p>
+        ${total > 0 ? `
+          <div class="bg-white rounded-xl border p-5 mb-4">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm text-gray-500">Total Cost</span>
+              <span class="font-bold">${fmt(total)}</span>
+            </div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-sm text-gray-500">Amount Paid</span>
+              <span class="font-bold text-green-600">${fmt(paid)}</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-2.5">
+              <div class="bg-[var(--green)] h-2.5 rounded-full" style="width:${Math.round(paid/total*100)}%"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1.5">${Math.round(paid/total*100)}% paid</p>
+          </div>` : ''}
+        ${!(payments||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Payment schedule will appear here once your project is set up.</div>'
+          : `<div class="space-y-3">
+              ${payments.map(p => `
+                <div class="bg-white rounded-xl border p-4 flex items-center gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-sm">${pEsc(p.label||'Payment')}</p>
+                    ${p.due_date ? `<p class="text-xs text-gray-400 mt-0.5">Due: ${new Date(p.due_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>` : ''}
+                  </div>
+                  <span class="font-bold text-sm">${fmt(p.amount_cents||0)}</span>
+                  ${sBadge(p.status)}
+                </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function renderBuildDocumentsPortal(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: docs } = await sb.from('build_documents').select('*').eq('project_id', pid).order('created_at', { ascending: false });
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Documents</h2>
+        <p class="text-gray-500 text-sm mb-6">Contracts, permits, and project documents.</p>
+        ${!(docs||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Documents will appear here once uploaded by your project team.</div>'
+          : `<div class="space-y-3">
+              ${docs.map(d => `
+                <a href="${d.url}" target="_blank" class="bg-white rounded-xl border p-4 flex items-center gap-4 hover:bg-gray-50 transition">
+                  <span class="text-3xl">${d.file_type==='pdf'?'📄':'🖼'}</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-sm truncate">${pEsc(d.label||'Document')}</p>
+                    <p class="text-xs text-[var(--green)] mt-0.5">Tap to open &rarr;</p>
+                  </div>
+                </a>`).join('')}
+            </div>`}
+      `;
+    }
+
+    let _buildMsgChannel = null;
+
+    async function renderBuildMessagesPortal(el) {
+      if (_buildMsgChannel) { sb.removeChannel(_buildMsgChannel); _buildMsgChannel = null; }
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: { user } } = await sb.auth.getUser();
+      const { data: msgs } = await sb.from('build_messages')
+        .select('id, body, created_at, profiles(full_name, role)')
+        .eq('project_id', pid).order('created_at');
+      const buildBubble = m => {
+        const isMe = m.profiles?.role === 'customer';
+        return `<div class="flex ${isMe?'justify-end':'justify-start'} mb-3">
+          <div class="max-w-xs sm:max-w-sm rounded-2xl px-4 py-2.5 ${isMe?'bg-[var(--green)] text-white':'bg-white border text-gray-900'}">
+            <p class="text-xs font-semibold mb-1 ${isMe?'text-white/70':'text-gray-400'}">${pEsc(m.profiles?.full_name||(isMe?'You':'Pacific Coast Ponds'))}</p>
+            <p class="text-sm leading-relaxed">${pEsc(m.body)}</p>
+            <p class="text-xs mt-1.5 ${isMe?'text-white/50':'text-gray-400'}">${pTimeAgo(m.created_at)}</p>
+          </div>
+        </div>`;
+      };
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Messages</h2>
+        <p class="text-gray-500 text-sm mb-4">Chat with your project team.</p>
+        <div class="bg-white rounded-xl border flex flex-col" style="height:60vh">
+          <div id="buildMsgList" class="flex-1 overflow-y-auto p-4">
+            ${(msgs||[]).length ? msgs.map(buildBubble).join('') : '<p class="text-gray-400 text-sm text-center mt-8">No messages yet. Start the conversation below.</p>'}
+          </div>
+          <div class="border-t p-3 flex gap-2">
+            <input id="buildMsgInput" type="text" placeholder="Type a message\u2026"
+              class="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"
+              onkeydown="if(event.key==='Enter')sendBuildMessage('${pid}')"/>
+            <button onclick="sendBuildMessage('${pid}')"
+              class="bg-[var(--green)] text-white font-bold rounded-xl px-4 py-2.5 text-sm hover:bg-[var(--dark)] transition">Send</button>
+          </div>
+        </div>
+      `;
+      const listEl = document.getElementById('buildMsgList');
+      listEl.scrollTop = listEl.scrollHeight;
+      _buildMsgChannel = sb.channel('build-msgs-portal-'+pid)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'build_messages', filter: `project_id=eq.${pid}` }, async payload => {
+          const { data: m } = await sb.from('build_messages').select('id,body,created_at,profiles(full_name,role)').eq('id', payload.new.id).single();
+          if (m) { listEl.innerHTML += buildBubble(m); listEl.scrollTop = listEl.scrollHeight; }
+        }).subscribe();
+    }
+
+    async function sendBuildMessage(pid) {
+      const input = document.getElementById('buildMsgInput');
+      const body = input.value.trim();
+      if (!body) return;
+      input.value = '';
+      const { data: { user } } = await sb.auth.getUser();
+      await sb.from('build_messages').insert({ project_id: pid, sender_id: user.id, body });
+    }
+
+    function portalOpenLightbox(url, caption) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;';
+      overlay.onclick = () => document.body.removeChild(overlay);
+      overlay.innerHTML = `
+        <img src="${url}" style="max-width:90vw;max-height:85vh;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.6)"/>
+        ${caption ? `<p style="color:#fff;margin-top:12px;font-size:14px;opacity:0.8;">${caption}</p>` : ''}
+        <p style="color:#fff;margin-top:8px;font-size:12px;opacity:0.5;">Tap anywhere to close</p>`;
+      document.body.appendChild(overlay);
     }
 
     init();

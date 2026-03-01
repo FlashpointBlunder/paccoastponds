@@ -86,6 +86,7 @@
       <div class="sidebar-link" data-page="billing">💳 &nbsp;Billing</div>
       <div class="sidebar-link" data-page="messages">💬 &nbsp;Messages</div>
       <div class="sidebar-link" data-page="map">🗺 &nbsp;Map</div>
+      <div class="sidebar-link" data-page="build">🏗 &nbsp;Build</div>
     </nav>
     <div class="p-3 border-t border-white/10">
       <div id="logoutBtn" class="sidebar-link">→ &nbsp;Sign Out</div>
@@ -186,6 +187,7 @@ function loadPage(page) {
     techs:      renderTechs,
     products:  renderProducts,
     requests:  renderRequests,
+    build:     renderBuild,
     billing:   renderBilling,
     messages:  renderMessages,
     map:       renderMap,
@@ -433,7 +435,7 @@ async function openCustomerDetail(accountId) {
   el.innerHTML = '<p class="text-gray-400">Loading...</p>';
 
   const { data: c, error } = await sb.from('service_accounts')
-    .select('id, active, contact_name, contact_email, contact_phone, address, billing_address, is_subscription, monthly_service_fee, pond_notes, equipment_notes, invite_sent_at, customer_id, created_at, stripe_customer_id, profiles(full_name, email, phone)')
+    .select('id, active, contact_name, contact_email, contact_phone, address, billing_address, is_subscription, monthly_service_fee, pond_notes, equipment_notes, invite_sent_at, customer_id, created_at, stripe_customer_id, is_build_customer, profiles(full_name, email, phone)')
     .eq('id', accountId)
     .single();
 
@@ -594,6 +596,12 @@ async function openCustomerDetail(accountId) {
           </div>
           <textarea name="pond_notes" rows="2" class="field" placeholder="Pond notes...">${escHtml(c.pond_notes || '')}</textarea>
           <textarea name="equipment_notes" rows="2" class="field" placeholder="Equipment (pump model, filter type, UV, aerator...)">${escHtml(c.equipment_notes || '')}</textarea>
+          <label class="flex items-center gap-3 py-1 cursor-pointer select-none">
+            <input type="checkbox" id="editBuildCheck" name="is_build_customer"
+                   ${c.is_build_customer ? 'checked' : ''}
+                   class="w-4 h-4 rounded accent-[var(--green)]" />
+            <span class="text-sm font-medium text-gray-700">Build Customer Portal</span>
+          </label>
           <div class="flex gap-3 pt-1">
             <button type="submit" class="btn-green flex-1 py-2.5">Save Changes</button>
             <button type="button" class="btn-outline flex-1" onclick="closeModal('editCustomerModal')">Cancel</button>
@@ -626,6 +634,7 @@ async function openCustomerDetail(accountId) {
       monthly_service_fee: isSub ? (parseFloat(fd.get('monthly_service_fee')) || 0) : 0,
       pond_notes:          fd.get('pond_notes') || null,
       equipment_notes:     fd.get('equipment_notes') || null,
+      is_build_customer:   document.getElementById('editBuildCheck').checked,
     }).eq('id', accountId);
     if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
     closeModal('editCustomerModal');
@@ -2330,6 +2339,498 @@ async function renderMap(el) {
         <span class="text-sm font-medium text-gray-500">Completed</span>
       </div>`;
   }
+}
+
+// ─── BUILD PROJECTS ───────────────────────────────────────────────────────────
+
+let _currentBuildId = null;
+
+async function renderBuild(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-3xl font-extrabold">Build Projects</h1>
+      <button onclick="createBuildProject()" class="btn-primary px-4 py-2 rounded-lg text-sm font-semibold">+ New Project</button>
+    </div>
+    <div id="buildList" class="grid gap-4"></div>
+  `;
+  await loadBuildList();
+}
+
+async function loadBuildList() {
+  const { data, error } = await sb.from('build_projects')
+    .select('id, title, status, created_at, service_accounts(full_name)')
+    .order('created_at', { ascending: false });
+  const el = document.getElementById('buildList');
+  if (error || !data) { el.innerHTML = '<p class="text-red-500">Failed to load projects.</p>'; return; }
+  if (!data.length) { el.innerHTML = '<p class="text-gray-500">No build projects yet.</p>'; return; }
+  const statusColor = { planning:'bg-blue-100 text-blue-700', in_progress:'bg-yellow-100 text-yellow-700', completed:'bg-green-100 text-green-700', on_hold:'bg-gray-100 text-gray-600' };
+  el.innerHTML = data.map(p => `
+    <div class="bg-white border rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-md transition" onclick="openBuildProject('${p.id}')">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-bold text-lg">${p.title}</p>
+          <p class="text-sm text-gray-500">${p.service_accounts?.full_name || 'No customer'}</p>
+        </div>
+        <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusColor[p.status] || 'bg-gray-100 text-gray-600'}">${p.status.replace('_',' ')}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function createBuildProject() {
+  const { data: customers } = await sb.from('service_accounts')
+    .select('id, full_name')
+    .eq('is_build_customer', true)
+    .order('full_name');
+  const opts = (customers || []).map(c => `<option value="${c.id}">${c.full_name}</option>`).join('');
+  const title = prompt('Project title:');
+  if (!title) return;
+  // simple inline form via prompt for now
+  const { data, error } = await sb.from('build_projects').insert({
+    title: title.trim(),
+    status: 'planning',
+  }).select('id').single();
+  if (error || !data) { alert('Error: ' + (error?.message || 'unknown')); return; }
+  openBuildProject(data.id);
+}
+
+async function openBuildProject(id) {
+  _currentBuildId = id;
+  const { data: p, error } = await sb.from('build_projects')
+    .select('*, service_accounts(id, full_name)')
+    .eq('id', id).single();
+  if (error || !p) { alert('Failed to load project'); return; }
+
+  const mainEl = document.getElementById('main');
+  const statusColor = { planning:'bg-blue-100 text-blue-700', in_progress:'bg-yellow-100 text-yellow-700', completed:'bg-green-100 text-green-700', on_hold:'bg-gray-100 text-gray-600' };
+  mainEl.innerHTML = `
+    <div class="mb-4 flex items-center gap-3">
+      <button onclick="navigate('build')" class="text-gray-400 hover:text-gray-700 text-2xl">&larr;</button>
+      <div class="flex-1">
+        <input id="bpTitle" value="${p.title}" class="text-3xl font-extrabold bg-transparent border-b-2 border-transparent focus:border-[var(--green)] outline-none w-full"
+          onblur="saveBuildProjectField('title', this.value)"/>
+      </div>
+      <select onchange="saveBuildProjectField('status', this.value)" class="border rounded-lg px-3 py-1.5 text-sm font-semibold ${statusColor[p.status]}">
+        ${['planning','in_progress','completed','on_hold'].map(s =>
+          `<option value="${s}" ${p.status===s?'selected':''}>${s.replace('_',' ')}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- Customer link -->
+    <div class="bg-white border rounded-xl p-4 mb-4 flex items-center gap-4">
+      <span class="text-sm text-gray-500 w-28">Customer</span>
+      <span class="font-semibold">${p.service_accounts?.full_name || '—'}</span>
+    </div>
+
+    <!-- Description -->
+    <div class="bg-white border rounded-xl p-4 mb-4">
+      <label class="text-sm text-gray-500 block mb-1">Project Description</label>
+      <textarea id="bpDesc" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"
+        onblur="saveBuildProjectField('description', this.value)">${p.description || ''}</textarea>
+    </div>
+
+    <!-- Sub-tabs -->
+    <div class="flex gap-2 mb-4 flex-wrap" id="buildSubTabs">
+      ${['milestones','scope','equipment','photos','payments','documents','messages'].map((t,i) => `
+        <button onclick="loadBuildSubTab('${t}')" data-tab="${t}"
+          class="build-tab px-4 py-1.5 rounded-full text-sm font-semibold border-2 ${i===0?'border-[var(--green)] text-[var(--green)]':'border-gray-200 text-gray-500'}">
+          ${t.charAt(0).toUpperCase()+t.slice(1)}
+        </button>`).join('')}
+    </div>
+    <div id="buildSubContent"></div>
+  `;
+  loadBuildSubTab('milestones');
+}
+
+async function saveBuildProjectField(field, value) {
+  if (!_currentBuildId) return;
+  await sb.from('build_projects').update({ [field]: value }).eq('id', _currentBuildId);
+}
+
+function loadBuildSubTab(tab) {
+  document.querySelectorAll('.build-tab').forEach(b => {
+    const active = b.dataset.tab === tab;
+    b.className = `build-tab px-4 py-1.5 rounded-full text-sm font-semibold border-2 ${active ? 'border-[var(--green)] text-[var(--green)]' : 'border-gray-200 text-gray-500'}`;
+  });
+  const el = document.getElementById('buildSubContent');
+  if (tab === 'milestones') renderBuildMilestones(el);
+  else if (tab === 'scope') renderBuildScope(el);
+  else if (tab === 'equipment') renderBuildEquipment(el);
+  else if (tab === 'photos') renderBuildPhotos(el);
+  else if (tab === 'payments') renderBuildPayments(el);
+  else if (tab === 'documents') renderBuildDocuments(el);
+  else if (tab === 'messages') renderBuildMessages(el);
+}
+
+// ── Milestones ──────────────────────────────────────────────────────────────
+async function renderBuildMilestones(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_milestones')
+    .select('*').eq('project_id', _currentBuildId).order('sort_order');
+  const statusOpts = ['pending','in_progress','completed'].map(s =>
+    `<option value="${s}">${s.replace('_',' ')}</option>`).join('');
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg">Milestones</h2>
+        <button onclick="addMilestone()" class="btn-primary px-3 py-1.5 text-sm rounded-lg">+ Add</button>
+      </div>
+      ${(data||[]).length ? `
+        <div class="divide-y" id="milestoneList">
+          ${(data||[]).map(m => `
+            <div class="py-3 flex items-start gap-3" id="ml-${m.id}">
+              <div class="flex-1">
+                <input value="${m.title}" class="font-semibold w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent"
+                  onblur="sb.from('build_milestones').update({title:this.value}).eq('id','${m.id}')"/>
+                <input value="${m.description||''}" placeholder="Description…" class="text-sm text-gray-500 w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent mt-0.5"
+                  onblur="sb.from('build_milestones').update({description:this.value}).eq('id','${m.id}')"/>
+                ${m.due_date ? `<p class="text-xs text-gray-400 mt-0.5">Due: ${m.due_date}</p>` : ''}
+              </div>
+              <select onchange="updateMilestoneStatus('${m.id}', this.value)" class="border rounded-lg px-2 py-1 text-xs">
+                ${['pending','in_progress','completed'].map(s =>
+                  `<option value="${s}" ${m.status===s?'selected':''}>${s.replace('_',' ')}</option>`).join('')}
+              </select>
+              <button onclick="deleteMilestone('${m.id}')" class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No milestones yet.</p>'}
+    </div>`;
+}
+
+async function addMilestone() {
+  const title = prompt('Milestone title:');
+  if (!title) return;
+  await sb.from('build_milestones').insert({ project_id: _currentBuildId, title: title.trim(), status: 'pending', sort_order: 999 });
+  loadBuildSubTab('milestones');
+}
+
+async function updateMilestoneStatus(id, status) {
+  await sb.from('build_milestones').update({ status }).eq('id', id);
+}
+
+async function deleteMilestone(id) {
+  if (!confirm('Delete milestone?')) return;
+  await sb.from('build_milestones').delete().eq('id', id);
+  loadBuildSubTab('milestones');
+}
+
+// ── Scope (renderings / drawings) ───────────────────────────────────────────
+async function renderBuildScope(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_scope_files')
+    .select('*').eq('project_id', _currentBuildId).order('created_at');
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg">Scope — Renderings &amp; Drawings</h2>
+        <label class="btn-primary px-3 py-1.5 text-sm rounded-lg cursor-pointer">
+          + Upload <input type="file" accept="image/*,application/pdf" multiple class="hidden" onchange="uploadScopeFiles(this.files)"/>
+        </label>
+      </div>
+      ${(data||[]).length ? `
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="scopeGrid">
+          ${(data||[]).map(f => f.file_type === 'pdf' ? `
+            <div class="border rounded-xl p-3 flex flex-col gap-2">
+              <a href="${f.url}" target="_blank" class="text-[var(--green)] text-sm font-medium truncate">📄 ${f.label||'Document'}</a>
+              <input value="${f.label||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full"
+                onblur="sb.from('build_scope_files').update({label:this.value}).eq('id','${f.id}')"/>
+              <button onclick="deleteScopeFile('${f.id}')" class="text-red-400 text-xs hover:underline self-start">Delete</button>
+            </div>` : `
+            <div class="border rounded-xl overflow-hidden">
+              <img src="${f.url}" class="w-full h-40 object-cover cursor-pointer" onclick="openImageLightbox('${f.url}','${f.label||''}')"/>
+              <div class="p-2">
+                <input value="${f.label||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full"
+                  onblur="sb.from('build_scope_files').update({label:this.value}).eq('id','${f.id}')"/>
+                <button onclick="deleteScopeFile('${f.id}')" class="text-red-400 text-xs hover:underline mt-1 block">Delete</button>
+              </div>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No scope files uploaded yet.</p>'}
+    </div>`;
+}
+
+async function uploadScopeFiles(files) {
+  for (const file of files) {
+    const ext = file.name.split('.').pop();
+    const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
+    const { data: up } = await sb.storage.from('build-scope').upload(path, file, { upsert: true });
+    if (!up) continue;
+    const { data: { publicUrl } } = sb.storage.from('build-scope').getPublicUrl(path);
+    const isImg = file.type.startsWith('image/');
+    await sb.from('build_scope_files').insert({
+      project_id: _currentBuildId, url: publicUrl,
+      file_type: isImg ? 'image' : 'pdf', label: file.name
+    });
+  }
+  loadBuildSubTab('scope');
+}
+
+async function deleteScopeFile(id) {
+  if (!confirm('Delete this file?')) return;
+  await sb.from('build_scope_files').delete().eq('id', id);
+  loadBuildSubTab('scope');
+}
+
+// ── Equipment ────────────────────────────────────────────────────────────────
+async function renderBuildEquipment(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_equipment')
+    .select('*').eq('project_id', _currentBuildId).order('created_at');
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg">Equipment</h2>
+        <label class="btn-primary px-3 py-1.5 text-sm rounded-lg cursor-pointer">
+          + Add Equipment <input type="file" accept="image/*" class="hidden" onchange="uploadEquipmentPhoto(this.files[0])"/>
+        </label>
+      </div>
+      ${(data||[]).length ? `
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          ${(data||[]).map(eq => `
+            <div class="border rounded-xl overflow-hidden">
+              ${eq.image_url ? `<img src="${eq.image_url}" class="w-full h-40 object-cover cursor-pointer" onclick="openImageLightbox('${eq.image_url}','${eq.name||''}')"/>` : '<div class="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-300 text-4xl">🔧</div>'}
+              <div class="p-3">
+                <input value="${eq.name||''}" placeholder="Equipment name…" class="font-semibold text-sm w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent"
+                  onblur="sb.from('build_equipment').update({name:this.value}).eq('id','${eq.id}')"/>
+                <textarea placeholder="Description…" rows="2" class="text-xs text-gray-500 w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent mt-1 resize-none"
+                  onblur="sb.from('build_equipment').update({description:this.value}).eq('id','${eq.id}')">${eq.description||''}</textarea>
+                <button onclick="deleteEquipment('${eq.id}')" class="text-red-400 text-xs hover:underline mt-1 block">Delete</button>
+              </div>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No equipment added yet.</p>'}
+    </div>`;
+}
+
+async function uploadEquipmentPhoto(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop();
+  const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
+  const { data: up } = await sb.storage.from('build-equipment').upload(path, file, { upsert: true });
+  if (!up) { alert('Upload failed'); return; }
+  const { data: { publicUrl } } = sb.storage.from('build-equipment').getPublicUrl(path);
+  await sb.from('build_equipment').insert({ project_id: _currentBuildId, image_url: publicUrl, name: file.name });
+  loadBuildSubTab('equipment');
+}
+
+async function deleteEquipment(id) {
+  if (!confirm('Delete equipment item?')) return;
+  await sb.from('build_equipment').delete().eq('id', id);
+  loadBuildSubTab('equipment');
+}
+
+// ── Progress Photos ──────────────────────────────────────────────────────────
+async function renderBuildPhotos(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_progress_photos')
+    .select('*').eq('project_id', _currentBuildId).order('taken_at', { ascending: false });
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg">Build Progress Photos</h2>
+        <label class="btn-primary px-3 py-1.5 text-sm rounded-lg cursor-pointer">
+          + Upload Photos <input type="file" accept="image/*" multiple class="hidden" onchange="uploadBuildPhotos(this.files)"/>
+        </label>
+      </div>
+      ${(data||[]).length ? `
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          ${(data||[]).map(ph => `
+            <div class="border rounded-xl overflow-hidden">
+              <img src="${ph.url}" class="w-full h-36 object-cover cursor-pointer" onclick="openImageLightbox('${ph.url}','${ph.caption||''}')"/>
+              <div class="p-2">
+                <input value="${ph.caption||''}" placeholder="Caption…" class="text-xs border rounded px-2 py-1 w-full"
+                  onblur="sb.from('build_progress_photos').update({caption:this.value}).eq('id','${ph.id}')"/>
+                <p class="text-xs text-gray-400 mt-1">${ph.taken_at ? new Date(ph.taken_at).toLocaleDateString() : ''}</p>
+                <button onclick="deleteBuildPhoto('${ph.id}')" class="text-red-400 text-xs hover:underline mt-0.5 block">Delete</button>
+              </div>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No photos uploaded yet.</p>'}
+    </div>`;
+}
+
+async function uploadBuildPhotos(files) {
+  for (const file of files) {
+    const ext = file.name.split('.').pop();
+    const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
+    const { data: up } = await sb.storage.from('build-progress').upload(path, file, { upsert: true });
+    if (!up) continue;
+    const { data: { publicUrl } } = sb.storage.from('build-progress').getPublicUrl(path);
+    await sb.from('build_progress_photos').insert({
+      project_id: _currentBuildId, url: publicUrl, taken_at: new Date().toISOString()
+    });
+  }
+  loadBuildSubTab('photos');
+}
+
+async function deleteBuildPhoto(id) {
+  if (!confirm('Delete this photo?')) return;
+  await sb.from('build_progress_photos').delete().eq('id', id);
+  loadBuildSubTab('photos');
+}
+
+// ── Payments ─────────────────────────────────────────────────────────────────
+async function renderBuildPayments(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_payments')
+    .select('*').eq('project_id', _currentBuildId).order('due_date');
+  const total = (data||[]).reduce((s,p) => s + (p.amount_cents||0), 0);
+  const paid  = (data||[]).filter(p => p.status==='paid').reduce((s,p) => s + (p.amount_cents||0), 0);
+  const fmt = c => '$' + (c/100).toLocaleString('en-US', {minimumFractionDigits:2});
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-bold text-lg">Payment Schedule</h2>
+          <p class="text-sm text-gray-500">${fmt(paid)} paid of ${fmt(total)} total</p>
+        </div>
+        <button onclick="addBuildPayment()" class="btn-primary px-3 py-1.5 text-sm rounded-lg">+ Add</button>
+      </div>
+      ${(data||[]).length ? `
+        <div class="divide-y">
+          ${(data||[]).map(p => `
+            <div class="py-3 flex items-center gap-3">
+              <div class="flex-1">
+                <input value="${p.label||''}" placeholder="Payment label…" class="font-semibold text-sm w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent"
+                  onblur="sb.from('build_payments').update({label:this.value}).eq('id','${p.id}')"/>
+                ${p.due_date ? `<p class="text-xs text-gray-400">Due: ${p.due_date}</p>` : ''}
+              </div>
+              <span class="font-bold text-sm w-28 text-right">${fmt(p.amount_cents||0)}</span>
+              <select onchange="updatePaymentStatus('${p.id}', this.value)" class="border rounded-lg px-2 py-1 text-xs">
+                ${['pending','paid','overdue'].map(s =>
+                  `<option value="${s}" ${p.status===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
+              </select>
+              <button onclick="deleteBuildPayment('${p.id}')" class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No payments scheduled yet.</p>'}
+    </div>`;
+}
+
+async function addBuildPayment() {
+  const label = prompt('Payment label (e.g. "Deposit"):');
+  if (!label) return;
+  const amtStr = prompt('Amount (e.g. 2500):');
+  const amount_cents = Math.round(parseFloat(amtStr || '0') * 100);
+  await sb.from('build_payments').insert({ project_id: _currentBuildId, label: label.trim(), amount_cents, status: 'pending' });
+  loadBuildSubTab('payments');
+}
+
+async function updatePaymentStatus(id, status) {
+  await sb.from('build_payments').update({ status }).eq('id', id);
+}
+
+async function deleteBuildPayment(id) {
+  if (!confirm('Delete this payment entry?')) return;
+  await sb.from('build_payments').delete().eq('id', id);
+  loadBuildSubTab('payments');
+}
+
+// ── Documents ────────────────────────────────────────────────────────────────
+async function renderBuildDocuments(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_documents')
+    .select('*').eq('project_id', _currentBuildId).order('created_at', { ascending: false });
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg">Documents</h2>
+        <label class="btn-primary px-3 py-1.5 text-sm rounded-lg cursor-pointer">
+          + Upload <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,image/*" multiple class="hidden" onchange="uploadBuildDocuments(this.files)"/>
+        </label>
+      </div>
+      ${(data||[]).length ? `
+        <div class="divide-y">
+          ${(data||[]).map(d => `
+            <div class="py-3 flex items-center gap-3">
+              <span class="text-2xl">${d.file_type==='pdf'?'📄':'🖼'}</span>
+              <div class="flex-1 min-w-0">
+                <a href="${d.url}" target="_blank" class="font-semibold text-sm text-[var(--green)] hover:underline truncate block">${d.label||d.url}</a>
+                <input value="${d.label||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full mt-1"
+                  onblur="sb.from('build_documents').update({label:this.value}).eq('id','${d.id}')"/>
+              </div>
+              <button onclick="deleteBuildDocument('${d.id}')" class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No documents uploaded yet.</p>'}
+    </div>`;
+}
+
+async function uploadBuildDocuments(files) {
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
+    const { data: up } = await sb.storage.from('build-documents').upload(path, file, { upsert: true });
+    if (!up) continue;
+    const { data: { publicUrl } } = sb.storage.from('build-documents').getPublicUrl(path);
+    const isImg = file.type.startsWith('image/');
+    await sb.from('build_documents').insert({
+      project_id: _currentBuildId, url: publicUrl,
+      file_type: isImg ? 'image' : 'pdf', label: file.name
+    });
+  }
+  loadBuildSubTab('documents');
+}
+
+async function deleteBuildDocument(id) {
+  if (!confirm('Delete this document?')) return;
+  await sb.from('build_documents').delete().eq('id', id);
+  loadBuildSubTab('documents');
+}
+
+// ── Build Messages (admin) ───────────────────────────────────────────────────
+let _adminBuildMsgChannel = null;
+
+async function renderBuildMessages(el) {
+  if (_adminBuildMsgChannel) { sb.removeChannel(_adminBuildMsgChannel); _adminBuildMsgChannel = null; }
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data: msgs } = await sb.from('build_messages')
+    .select('id, body, created_at, profiles(full_name, role)')
+    .eq('project_id', _currentBuildId).order('created_at');
+  const bubble = m => {
+    const isAdmin = m.profiles?.role === 'admin';
+    return `<div class="flex ${isAdmin?'justify-end':'justify-start'} mb-3">
+      <div class="max-w-sm rounded-2xl px-4 py-2.5 ${isAdmin?'bg-[var(--green)] text-white':'bg-white border text-gray-900'}">
+        <p class="text-xs font-semibold mb-1 ${isAdmin?'text-white/70':'text-gray-400'}">${escHtml(m.profiles?.full_name||(isAdmin?'Admin':'Customer'))}</p>
+        <p class="text-sm leading-relaxed">${escHtml(m.body)}</p>
+      </div>
+    </div>`;
+  };
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl shadow-sm flex flex-col" style="height:55vh">
+      <div id="adminBuildMsgList" class="flex-1 overflow-y-auto p-4">
+        ${(msgs||[]).length ? msgs.map(bubble).join('') : '<p class="text-gray-400 text-sm text-center mt-8">No messages yet.</p>'}
+      </div>
+      <div class="border-t p-3 flex gap-2">
+        <input id="adminBuildMsgInput" type="text" placeholder="Reply to customer…"
+          class="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"
+          onkeydown="if(event.key==='Enter')sendAdminBuildMessage()"/>
+        <button onclick="sendAdminBuildMessage()"
+          class="bg-[var(--green)] text-white font-bold rounded-xl px-4 py-2.5 text-sm hover:bg-[var(--dark)] transition">Send</button>
+      </div>
+    </div>
+  `;
+  const listEl = document.getElementById('adminBuildMsgList');
+  listEl.scrollTop = listEl.scrollHeight;
+  _adminBuildMsgChannel = sb.channel('admin-build-msgs-'+_currentBuildId)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'build_messages', filter: `project_id=eq.${_currentBuildId}` }, async payload => {
+      const { data: m } = await sb.from('build_messages').select('id,body,created_at,profiles(full_name,role)').eq('id', payload.new.id).single();
+      if (m) { listEl.innerHTML += bubble(m); listEl.scrollTop = listEl.scrollHeight; }
+    }).subscribe();
+}
+
+async function sendAdminBuildMessage() {
+  const input = document.getElementById('adminBuildMsgInput');
+  const body = input.value.trim();
+  if (!body) return;
+  input.value = '';
+  const { data: { user } } = await sb.auth.getUser();
+  await sb.from('build_messages').insert({ project_id: _currentBuildId, sender_id: user.id, body });
+}
+
+// ── Shared lightbox ──────────────────────────────────────────────────────────
+function openImageLightbox(url, caption) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;';
+  overlay.onclick = () => document.body.removeChild(overlay);
+  overlay.innerHTML = `
+    <img src="${url}" style="max-width:90vw;max-height:85vh;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.6)"/>
+    ${caption ? `<p style="color:#fff;margin-top:12px;font-size:14px;opacity:0.8;">${caption}</p>` : ''}
+    <p style="color:#fff;margin-top:8px;font-size:12px;opacity:0.5;">Click anywhere to close</p>`;
+  document.body.appendChild(overlay);
 }
 
 // ─── SERVICE REQUESTS ─────────────────────────────────────────────────────────
