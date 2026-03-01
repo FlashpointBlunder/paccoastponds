@@ -1171,9 +1171,9 @@
       const pid = await getBuildProject();
       if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
       const { data: payments } = await sb.from('build_payments').select('*').eq('project_id', pid).order('due_date');
-      const total = (payments||[]).reduce((s,p) => s+(p.amount_cents||0), 0);
-      const paid  = (payments||[]).filter(p => p.status==='paid').reduce((s,p) => s+(p.amount_cents||0), 0);
-      const fmt = c => '$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:2});
+      const total = (payments||[]).reduce((s,p) => s+parseFloat(p.amount||0), 0);
+      const paid  = (payments||[]).filter(p => p.status==='paid').reduce((s,p) => s+parseFloat(p.amount||0), 0);
+      const fmt = n => '$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2});
       const sBadge = s => {
         const cls = {pending:'bg-yellow-100 text-yellow-700', paid:'bg-green-100 text-green-700', overdue:'bg-red-100 text-red-700'};
         return `<span class="text-xs px-2 py-0.5 rounded-full font-bold shrink-0 ${cls[s]||'bg-gray-100 text-gray-500'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
@@ -1205,7 +1205,7 @@
                     <p class="font-semibold text-sm">${pEsc(p.label||'Payment')}</p>
                     ${p.due_date ? `<p class="text-xs text-gray-400 mt-0.5">Due: ${new Date(p.due_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>` : ''}
                   </div>
-                  <span class="font-bold text-sm">${fmt(p.amount_cents||0)}</span>
+                  <span class="font-bold text-sm">${fmt(p.amount||0)}</span>
                   ${sBadge(p.status)}
                 </div>`).join('')}
             </div>`}

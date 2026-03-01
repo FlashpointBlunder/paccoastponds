@@ -2694,9 +2694,9 @@ async function renderBuildPayments(el) {
   el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
   const { data } = await sb.from('build_payments')
     .select('*').eq('project_id', _currentBuildId).order('due_date');
-  const total = (data||[]).reduce((s,p) => s + (p.amount_cents||0), 0);
-  const paid  = (data||[]).filter(p => p.status==='paid').reduce((s,p) => s + (p.amount_cents||0), 0);
-  const fmt = c => '$' + (c/100).toLocaleString('en-US', {minimumFractionDigits:2});
+  const total = (data||[]).reduce((s,p) => s + parseFloat(p.amount||0), 0);
+  const paid  = (data||[]).filter(p => p.status==='paid').reduce((s,p) => s + parseFloat(p.amount||0), 0);
+  const fmt = n => '$' + parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2});
   el.innerHTML = `
     <div class="bg-white border rounded-xl p-5 shadow-sm">
       <div class="flex items-center justify-between mb-4">
@@ -2715,7 +2715,7 @@ async function renderBuildPayments(el) {
                   onblur="sb.from('build_payments').update({label:this.value}).eq('id','${p.id}')"/>
                 ${p.due_date ? `<p class="text-xs text-gray-400">Due: ${p.due_date}</p>` : ''}
               </div>
-              <span class="font-bold text-sm w-28 text-right">${fmt(p.amount_cents||0)}</span>
+              <span class="font-bold text-sm w-28 text-right">${fmt(p.amount||0)}</span>
               <select onchange="updatePaymentStatus('${p.id}', this.value)" class="border rounded-lg px-2 py-1 text-xs">
                 ${['pending','paid','overdue'].map(s =>
                   `<option value="${s}" ${p.status===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
@@ -2730,8 +2730,8 @@ async function addBuildPayment() {
   const label = prompt('Payment label (e.g. "Deposit"):');
   if (!label) return;
   const amtStr = prompt('Amount (e.g. 2500):');
-  const amount_cents = Math.round(parseFloat(amtStr || '0') * 100);
-  await sb.from('build_payments').insert({ project_id: _currentBuildId, label: label.trim(), amount_cents, status: 'pending' });
+  const amount = parseFloat(amtStr || '0') || 0;
+  await sb.from('build_payments').insert({ project_id: _currentBuildId, label: label.trim(), amount, status: 'pending' });
   loadBuildSubTab('payments');
 }
 
