@@ -2581,7 +2581,7 @@ async function uploadScopeFiles(files) {
     const isImg = file.type.startsWith('image/');
     await sb.from('build_scope_files').insert({
       project_id: _currentBuildId, file_url: publicUrl,
-      file_type: isImg ? 'image' : 'pdf', title: file.name, sort_order: Date.now()
+      file_type: isImg ? 'image' : 'pdf', title: file.name, sort_order: 0
     });
   }
   loadBuildSubTab('scope');
