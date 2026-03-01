@@ -2455,7 +2455,7 @@ async function openBuildProject(id) {
 
     <!-- Sub-tabs -->
     <div class="flex gap-2 mb-4 flex-wrap" id="buildSubTabs">
-      ${['milestones','scope','equipment','photos','payments','documents','messages'].map((t,i) => `
+      ${['milestones','scope','equipment','photos','payments','invoices','documents','messages'].map((t,i) => `
         <button onclick="loadBuildSubTab('${t}')" data-tab="${t}"
           class="build-tab px-4 py-1.5 rounded-full text-sm font-semibold border-2 ${i===0?'border-[var(--green)] text-[var(--green)]':'border-gray-200 text-gray-500'}">
           ${t.charAt(0).toUpperCase()+t.slice(1)}
@@ -2482,6 +2482,7 @@ function loadBuildSubTab(tab) {
   else if (tab === 'equipment') renderBuildEquipment(el);
   else if (tab === 'photos') renderBuildPhotos(el);
   else if (tab === 'payments') renderBuildPayments(el);
+  else if (tab === 'invoices') renderBuildInvoices(el);
   else if (tab === 'documents') renderBuildDocuments(el);
   else if (tab === 'messages') renderBuildMessages(el);
 }
@@ -2870,6 +2871,140 @@ async function deleteBuildPayment(id) {
   if (!confirm('Delete this payment entry?')) return;
   await sb.from('build_payments').delete().eq('id', id);
   loadBuildSubTab('payments');
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────────
+const _invMap = {};
+let _editingInvoiceId = null;
+
+async function renderBuildInvoices(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data } = await sb.from('build_invoices')
+    .select('*, build_invoice_items(amount)')
+    .eq('project_id', _currentBuildId)
+    .order('created_at', { ascending: false });
+  (data||[]).forEach(inv => { _invMap[inv.id] = inv; });
+  const fmt = n => '$' + parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2});
+  const invTotal = inv => (inv.build_invoice_items||[]).reduce((s,i) => s + parseFloat(i.amount||0), 0);
+  const statusBadge = s => {
+    const cls = { draft:'bg-gray-100 text-gray-500', sent:'bg-blue-100 text-blue-700', paid:'bg-green-100 text-green-700' };
+    return `<span class="text-xs px-2 py-0.5 rounded-full font-bold ${cls[s]||'bg-gray-100 text-gray-500'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+  };
+  el.innerHTML = `
+    <div class="bg-white border rounded-xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg">Invoices</h2>
+        <button onclick="openInvoiceModal()" class="btn-primary px-3 py-1.5 text-sm rounded-lg">+ New Invoice</button>
+      </div>
+      ${(data||[]).length ? `
+        <div class="divide-y">
+          ${(data||[]).map(inv => `
+            <div class="py-3 flex items-center gap-3 flex-wrap">
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-sm">${escHtml(inv.invoice_number)}</p>
+                <p class="text-xs text-gray-400">${inv.due_date ? 'Due: '+new Date(inv.due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'No due date'}</p>
+              </div>
+              <span class="font-bold text-sm">${fmt(invTotal(inv))}</span>
+              ${statusBadge(inv.status)}
+              <div class="flex gap-2 shrink-0">
+                <button onclick="openInvoiceModal('${inv.id}')" class="btn-outline text-xs px-2 py-1">Edit</button>
+                ${inv.status==='draft' ? `<button onclick="updateInvoiceStatus('${inv.id}','sent')" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-semibold hover:bg-blue-200">Mark Sent</button>` : ''}
+                ${inv.status==='sent'  ? `<button onclick="updateInvoiceStatus('${inv.id}','paid')" class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-lg font-semibold hover:bg-green-200">Mark Paid</button>` : ''}
+                ${inv.status==='draft' ? `<button onclick="deleteInvoice('${inv.id}')" class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>` : '<p class="text-gray-400 text-sm">No invoices yet.</p>'}
+    </div>`;
+}
+
+async function openInvoiceModal(id = null) {
+  _editingInvoiceId = id;
+  document.getElementById('invModalTitle').textContent = id ? 'Edit Invoice' : 'New Invoice';
+  document.getElementById('invNotes').value = '';
+  document.getElementById('invDueDate').value = '';
+  document.getElementById('invItemsContainer').innerHTML = '';
+  if (id) {
+    const { data: inv } = await sb.from('build_invoices').select('*').eq('id', id).single();
+    const { data: items } = await sb.from('build_invoice_items').select('*').eq('invoice_id', id).order('sort_order');
+    document.getElementById('invNumber').value = inv.invoice_number || '';
+    document.getElementById('invDueDate').value = inv.due_date || '';
+    document.getElementById('invNotes').value = inv.notes || '';
+    (items||[]).forEach(item => addInvItemRow(item.description, item.amount));
+  } else {
+    const { count } = await sb.from('build_invoices').select('id', { count: 'exact', head: true });
+    document.getElementById('invNumber').value = 'INV-' + String((count||0) + 1).padStart(4, '0');
+    addInvItemRow();
+  }
+  updateInvTotal();
+  openModal('invoiceModal');
+}
+
+function addInvItemRow(description = '', amount = '') {
+  const row = document.createElement('div');
+  row.className = 'flex gap-2 items-center mb-2';
+  row.dataset.itemRow = '1';
+  row.innerHTML = `
+    <input type="text" placeholder="Description" value="${escHtml(String(description))}"
+      class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none" data-desc/>
+    <div class="relative w-32 shrink-0">
+      <span class="absolute left-2.5 top-2 text-gray-400 text-sm">$</span>
+      <input type="number" step="0.01" min="0" placeholder="0.00" value="${amount}"
+        class="w-full border rounded-lg px-3 py-2 pl-6 text-sm text-right focus:ring-2 focus:ring-[var(--green)] outline-none" data-amt oninput="updateInvTotal()"/>
+    </div>
+    <button onclick="this.closest('[data-item-row]').remove(); updateInvTotal();" class="text-red-400 hover:text-red-600 text-xl leading-none shrink-0">&times;</button>`;
+  document.getElementById('invItemsContainer').appendChild(row);
+}
+
+function updateInvTotal() {
+  const amounts = [...document.querySelectorAll('#invItemsContainer [data-amt]')]
+    .map(i => parseFloat(i.value) || 0);
+  const total = amounts.reduce((s, a) => s + a, 0);
+  document.getElementById('invTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2});
+}
+
+async function saveInvoice() {
+  const invoiceNumber = document.getElementById('invNumber').value.trim();
+  if (!invoiceNumber) { alert('Invoice number is required'); return; }
+  const rows = [...document.getElementById('invItemsContainer').querySelectorAll('[data-item-row]')];
+  const items = rows.map((row, i) => ({
+    description: row.querySelector('[data-desc]').value.trim(),
+    amount: parseFloat(row.querySelector('[data-amt]').value) || 0,
+    sort_order: i
+  })).filter(item => item.description);
+  if (!items.length) { alert('Add at least one line item with a description'); return; }
+  const fields = {
+    invoice_number: invoiceNumber,
+    due_date: document.getElementById('invDueDate').value || null,
+    notes: document.getElementById('invNotes').value.trim() || null,
+  };
+  let invId = _editingInvoiceId;
+  if (!invId) {
+    const { data, error } = await sb.from('build_invoices')
+      .insert({ project_id: _currentBuildId, ...fields, status: 'draft' }).select().single();
+    if (error) { alert('Save failed: ' + error.message); return; }
+    invId = data.id;
+  } else {
+    const { error } = await sb.from('build_invoices').update(fields).eq('id', invId);
+    if (error) { alert('Save failed: ' + error.message); return; }
+    await sb.from('build_invoice_items').delete().eq('invoice_id', invId);
+  }
+  await sb.from('build_invoice_items').insert(items.map(item => ({ invoice_id: invId, ...item })));
+  closeModal('invoiceModal');
+  loadBuildSubTab('invoices');
+}
+
+async function updateInvoiceStatus(id, status) {
+  const update = { status };
+  if (status === 'sent') update.sent_at = new Date().toISOString();
+  if (status === 'paid') update.paid_at = new Date().toISOString();
+  await sb.from('build_invoices').update(update).eq('id', id);
+  loadBuildSubTab('invoices');
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('Delete this invoice?')) return;
+  await sb.from('build_invoices').delete().eq('id', id);
+  loadBuildSubTab('invoices');
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────
@@ -3447,6 +3582,46 @@ document.addEventListener('click', e => {
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 checkAuth();
 </script>
+
+<!-- Invoice Modal -->
+<div id="invoiceModal" class="modal-bg hidden">
+  <div class="modal max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold" id="invModalTitle">New Invoice</h2>
+      <button onclick="closeModal('invoiceModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <!-- Invoice # and Due Date -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Invoice #</label>
+        <input id="invNumber" type="text" placeholder="INV-0001" class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Due Date</label>
+        <input id="invDueDate" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+      </div>
+    </div>
+    <!-- Line Items -->
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">Line Items</label>
+      <div id="invItemsContainer" class="space-y-0"></div>
+      <button onclick="addInvItemRow()" class="text-sm text-[var(--green)] hover:underline mt-1">+ Add Line Item</button>
+      <div class="border-t mt-3 pt-3 flex justify-between items-center">
+        <span class="text-sm font-semibold text-gray-500">Total</span>
+        <span class="text-lg font-bold" id="invTotal">$0.00</span>
+      </div>
+    </div>
+    <!-- Notes -->
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Notes / Terms</label>
+      <textarea id="invNotes" rows="3" placeholder="Payment terms, notes for the customer…" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none resize-none"></textarea>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button onclick="closeModal('invoiceModal')" class="btn-outline flex-1">Cancel</button>
+      <button onclick="saveInvoice()" class="btn-primary flex-1">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- Equipment Modal -->
 <div id="equipmentModal" class="modal-bg hidden">

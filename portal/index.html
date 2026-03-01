@@ -93,6 +93,7 @@
         <button data-btab="equipment"  class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Equipment</button>
         <button data-btab="photos"     class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Photos</button>
         <button data-btab="payments"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Payments</button>
+        <button data-btab="invoices"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Invoices</button>
         <button data-btab="documents"  class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Documents</button>
         <button data-btab="messages"   class="btab-btn flex-none py-3 px-3 text-xs sm:text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 whitespace-nowrap">Messages</button>
       </div>
@@ -251,7 +252,7 @@
       const tabs = {
         overview: renderBuildOverview, timeline: renderBuildTimeline,
         scope: renderBuildScopePortal, equipment: renderBuildEquipmentPortal,
-        photos: renderBuildPhotosPortal, payments: renderBuildPaymentsPortal,
+        photos: renderBuildPhotosPortal, payments: renderBuildPaymentsPortal, invoices: renderBuildInvoicesPortal,
         documents: renderBuildDocumentsPortal, messages: renderBuildMessagesPortal,
       };
       if (tabs[tab]) tabs[tab](el);
@@ -1236,6 +1237,59 @@
                   <span class="font-bold text-sm">${fmt(p.amount||0)}</span>
                   ${sBadge(p.status)}
                 </div>`).join('')}
+            </div>`}
+      `;
+    }
+
+    async function renderBuildInvoicesPortal(el) {
+      el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
+      const pid = await getBuildProject();
+      if (!pid) { el.innerHTML = '<p class="text-gray-400">No build project found.</p>'; return; }
+      const { data: invoices } = await sb.from('build_invoices')
+        .select('*, build_invoice_items(description, amount, sort_order)')
+        .eq('project_id', pid)
+        .neq('status', 'draft')
+        .order('created_at', { ascending: false });
+      const fmt = n => '$' + parseFloat(n||0).toLocaleString('en-US', {minimumFractionDigits:2});
+      const invTotal = inv => (inv.build_invoice_items||[]).reduce((s,i) => s + parseFloat(i.amount||0), 0);
+      const statusBadge = s => {
+        const cls = { sent:'bg-blue-100 text-blue-700', paid:'bg-green-100 text-green-700' };
+        return `<span class="text-xs px-2 py-0.5 rounded-full font-bold ${cls[s]||'bg-gray-100 text-gray-500'}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+      };
+      el.innerHTML = `
+        <h2 class="text-2xl font-extrabold mb-1">Invoices</h2>
+        <p class="text-gray-500 text-sm mb-6">Invoices issued for your build project.</p>
+        ${!(invoices||[]).length
+          ? '<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No invoices have been issued yet.</div>'
+          : `<div class="space-y-4">
+              ${invoices.map(inv => {
+                const items = [...(inv.build_invoice_items||[])].sort((a,b) => a.sort_order - b.sort_order);
+                return `
+                <div class="bg-white rounded-xl border overflow-hidden">
+                  <div class="p-4 flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p class="font-bold text-base">${pEsc(inv.invoice_number)}</p>
+                      <p class="text-xs text-gray-400 mt-0.5">${inv.due_date ? 'Due: '+new Date(inv.due_date+'T00:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : ''}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="font-bold text-lg">${fmt(invTotal(inv))}</span>
+                      ${statusBadge(inv.status)}
+                    </div>
+                  </div>
+                  ${items.length ? `
+                    <div class="border-t divide-y px-4">
+                      ${items.map(item => `
+                        <div class="py-2.5 flex justify-between gap-3 text-sm">
+                          <span class="text-gray-700">${pEsc(item.description)}</span>
+                          <span class="font-semibold shrink-0">${fmt(item.amount)}</span>
+                        </div>`).join('')}
+                      <div class="py-2.5 flex justify-between font-bold text-sm">
+                        <span>Total</span><span>${fmt(invTotal(inv))}</span>
+                      </div>
+                    </div>` : ''}
+                  ${inv.notes ? `<div class="px-4 py-3 bg-gray-50 border-t text-xs text-gray-500">${pEsc(inv.notes)}</div>` : ''}
+                </div>`;
+              }).join('')}
             </div>`}
       `;
     }
