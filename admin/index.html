@@ -2358,7 +2358,7 @@ async function renderBuild(el) {
 
 async function loadBuildList() {
   const { data, error } = await sb.from('build_projects')
-    .select('id, title, status, created_at, service_accounts(full_name)')
+    .select('id, title, status, created_at, service_accounts(contact_name)')
     .order('created_at', { ascending: false });
   const el = document.getElementById('buildList');
   if (error || !data) { el.innerHTML = '<p class="text-red-500">Failed to load projects.</p>'; return; }
@@ -2369,7 +2369,7 @@ async function loadBuildList() {
       <div class="flex items-center justify-between">
         <div>
           <p class="font-bold text-lg">${p.title}</p>
-          <p class="text-sm text-gray-500">${p.service_accounts?.full_name || 'No customer'}</p>
+          <p class="text-sm text-gray-500">${p.service_accounts?.contact_name || 'No customer'}</p>
         </div>
         <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusColor[p.status] || 'bg-gray-100 text-gray-600'}">${p.status.replace('_',' ')}</span>
       </div>
@@ -2421,7 +2421,7 @@ async function createBuildProject() {
 async function openBuildProject(id) {
   _currentBuildId = id;
   const { data: p, error } = await sb.from('build_projects')
-    .select('*, service_accounts(id, full_name)')
+    .select('*, service_accounts(id, contact_name)')
     .eq('id', id).single();
   if (error || !p) { alert('Failed to load project'); return; }
 
@@ -2443,7 +2443,7 @@ async function openBuildProject(id) {
     <!-- Customer link -->
     <div class="bg-white border rounded-xl p-4 mb-4 flex items-center gap-4">
       <span class="text-sm text-gray-500 w-28">Customer</span>
-      <span class="font-semibold">${p.service_accounts?.full_name || '—'}</span>
+      <span class="font-semibold">${p.service_accounts?.contact_name || '—'}</span>
     </div>
 
     <!-- Description -->
