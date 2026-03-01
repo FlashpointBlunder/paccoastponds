@@ -2425,11 +2425,11 @@ async function openBuildProject(id) {
     .eq('id', id).single();
   if (error || !p) { alert('Failed to load project'); return; }
 
-  const mainEl = document.getElementById('main');
+  const mainEl = document.getElementById('pageContent');
   const statusColor = { planning:'bg-blue-100 text-blue-700', in_progress:'bg-yellow-100 text-yellow-700', completed:'bg-green-100 text-green-700', on_hold:'bg-gray-100 text-gray-600' };
   mainEl.innerHTML = `
     <div class="mb-4 flex items-center gap-3">
-      <button onclick="navigate('build')" class="text-gray-400 hover:text-gray-700 text-2xl">&larr;</button>
+      <button onclick="loadPage('build')" class="text-gray-400 hover:text-gray-700 text-2xl">&larr;</button>
       <div class="flex-1">
         <input id="bpTitle" value="${p.title}" class="text-3xl font-extrabold bg-transparent border-b-2 border-transparent focus:border-[var(--green)] outline-none w-full"
           onblur="saveBuildProjectField('title', this.value)"/>
