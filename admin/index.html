@@ -2541,7 +2541,7 @@ async function deleteMilestone(id) {
 async function renderBuildScope(el) {
   el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
   const { data } = await sb.from('build_scope_files')
-    .select('*').eq('project_id', _currentBuildId).order('created_at');
+    .select('*').eq('project_id', _currentBuildId).order('sort_order');
   el.innerHTML = `
     <div class="bg-white border rounded-xl p-5 shadow-sm">
       <div class="flex items-center justify-between mb-4">
@@ -2554,16 +2554,16 @@ async function renderBuildScope(el) {
         <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="scopeGrid">
           ${(data||[]).map(f => f.file_type === 'pdf' ? `
             <div class="border rounded-xl p-3 flex flex-col gap-2">
-              <a href="${f.url}" target="_blank" class="text-[var(--green)] text-sm font-medium truncate">📄 ${f.label||'Document'}</a>
-              <input value="${f.label||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full"
-                onblur="sb.from('build_scope_files').update({label:this.value}).eq('id','${f.id}')"/>
+              <a href="${f.file_url}" target="_blank" class="text-[var(--green)] text-sm font-medium truncate">📄 ${f.title||'Document'}</a>
+              <input value="${escHtml(f.title||'')}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full"
+                onblur="sb.from('build_scope_files').update({title:this.value}).eq('id','${f.id}')"/>
               <button onclick="deleteScopeFile('${f.id}')" class="text-red-400 text-xs hover:underline self-start">Delete</button>
             </div>` : `
             <div class="border rounded-xl overflow-hidden">
-              <img src="${f.url}" class="w-full h-40 object-cover cursor-pointer" onclick="openImageLightbox('${f.url}','${f.label||''}')"/>
+              <img src="${f.file_url}" class="w-full h-40 object-cover cursor-pointer" onclick="openImageLightbox('${f.file_url}','${escHtml(f.title||'')}')"/>
               <div class="p-2">
-                <input value="${f.label||''}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full"
-                  onblur="sb.from('build_scope_files').update({label:this.value}).eq('id','${f.id}')"/>
+                <input value="${escHtml(f.title||'')}" placeholder="Label…" class="text-xs border rounded px-2 py-1 w-full"
+                  onblur="sb.from('build_scope_files').update({title:this.value}).eq('id','${f.id}')"/>
                 <button onclick="deleteScopeFile('${f.id}')" class="text-red-400 text-xs hover:underline mt-1 block">Delete</button>
               </div>
             </div>`).join('')}
@@ -2576,14 +2576,13 @@ async function uploadScopeFiles(files) {
     const ext = file.name.split('.').pop();
     const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
     const { data: up, error: upErr } = await sb.storage.from('build-scope').upload(path, file, { upsert: true });
-    if (upErr) { console.error('Storage upload error:', upErr); alert('Upload failed: ' + upErr.message); continue; }
+    if (upErr) { alert('Upload failed: ' + upErr.message); continue; }
     const { data: { publicUrl } } = sb.storage.from('build-scope').getPublicUrl(path);
     const isImg = file.type.startsWith('image/');
-    const { error: dbErr } = await sb.from('build_scope_files').insert({
-      project_id: _currentBuildId, url: publicUrl,
-      file_type: isImg ? 'image' : 'pdf', label: file.name
+    await sb.from('build_scope_files').insert({
+      project_id: _currentBuildId, file_url: publicUrl,
+      file_type: isImg ? 'image' : 'pdf', title: file.name, sort_order: Date.now()
     });
-    if (dbErr) console.error('DB insert error:', dbErr);
   }
   loadBuildSubTab('scope');
 }
