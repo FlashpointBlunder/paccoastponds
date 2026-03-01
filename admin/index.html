@@ -2594,48 +2594,175 @@ async function deleteScopeFile(id) {
 }
 
 // ── Equipment ────────────────────────────────────────────────────────────────
+const _eqMap = {};
+let _editingEquipmentId = null;
+let _eqPendingPhotoFile = null;
+
 async function renderBuildEquipment(el) {
   el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
   const { data } = await sb.from('build_equipment')
-    .select('*').eq('project_id', _currentBuildId).order('created_at');
+    .select('*').eq('project_id', _currentBuildId).order('sort_order');
+  (data||[]).forEach(eq => { _eqMap[eq.id] = eq; });
+  const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
   el.innerHTML = `
     <div class="bg-white border rounded-xl p-5 shadow-sm">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-bold text-lg">Equipment</h2>
-        <label class="btn-primary px-3 py-1.5 text-sm rounded-lg cursor-pointer">
-          + Add Equipment <input type="file" accept="image/*" class="hidden" onchange="uploadEquipmentPhoto(this.files[0])"/>
-        </label>
+        <button class="btn-primary px-3 py-1.5 text-sm rounded-lg" onclick="openAddEquipment()">+ Add Equipment</button>
       </div>
       ${(data||[]).length ? `
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="space-y-3">
           ${(data||[]).map(eq => `
-            <div class="border rounded-xl overflow-hidden">
-              ${eq.image_url ? `<img src="${eq.image_url}" class="w-full h-40 object-cover cursor-pointer" onclick="openImageLightbox('${eq.image_url}','${eq.name||''}')"/>` : '<div class="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-300 text-4xl">🔧</div>'}
-              <div class="p-3">
-                <input value="${eq.name||''}" placeholder="Equipment name…" class="font-semibold text-sm w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent"
-                  onblur="sb.from('build_equipment').update({name:this.value}).eq('id','${eq.id}')"/>
-                <textarea placeholder="Description…" rows="2" class="text-xs text-gray-500 w-full border-b border-transparent focus:border-[var(--green)] outline-none bg-transparent mt-1 resize-none"
-                  onblur="sb.from('build_equipment').update({description:this.value}).eq('id','${eq.id}')">${eq.description||''}</textarea>
-                <button onclick="deleteEquipment('${eq.id}')" class="text-red-400 text-xs hover:underline mt-1 block">Delete</button>
+            <div class="border rounded-xl overflow-hidden flex">
+              <div class="w-28 shrink-0 bg-gray-50">
+                ${eq.image_url
+                  ? `<img src="${eq.image_url}" class="w-full h-full object-cover" style="min-height:100px" onclick="openImageLightbox('${eq.image_url}','${escHtml(eq.name||'')}')"/>`
+                  : '<div class="w-full min-h-[100px] h-full flex items-center justify-center text-gray-200 text-4xl">🔧</div>'}
+              </div>
+              <div class="flex-1 p-4">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <p class="font-bold text-sm">${escHtml(eq.name||'Unnamed')}</p>
+                    ${(eq.brand||eq.model) ? `<p class="text-xs text-gray-500">${escHtml([eq.brand,eq.model].filter(Boolean).join(' · '))}</p>` : ''}
+                    ${eq.serial_number ? `<p class="text-xs text-gray-400 font-mono mt-0.5">S/N: ${escHtml(eq.serial_number)}</p>` : ''}
+                  </div>
+                  <div class="flex gap-2 shrink-0">
+                    <button onclick="openEditEquipment('${eq.id}')" class="btn-outline text-xs px-2 py-1">Edit</button>
+                    <button onclick="deleteEquipment('${eq.id}')" class="text-red-400 text-xs hover:underline">Delete</button>
+                  </div>
+                </div>
+                ${(eq.warranty_provider||eq.warranty_expires) ? `
+                  <div class="mt-2 pt-2 border-t flex flex-wrap gap-x-4 gap-y-0.5">
+                    ${eq.warranty_provider ? `<span class="text-xs text-gray-500">🛡️ ${escHtml(eq.warranty_provider)}</span>` : ''}
+                    ${eq.warranty_expires ? `<span class="text-xs text-gray-400">Expires ${fmtDate(eq.warranty_expires)}</span>` : ''}
+                  </div>` : ''}
               </div>
             </div>`).join('')}
         </div>` : '<p class="text-gray-400 text-sm">No equipment added yet.</p>'}
     </div>`;
 }
 
-async function uploadEquipmentPhoto(file) {
+function openAddEquipment() {
+  _editingEquipmentId = null;
+  _eqPendingPhotoFile = null;
+  document.getElementById('eqModalTitle').textContent = 'Add Equipment';
+  ['eqName','eqBrand','eqModel','eqSerial','eqWarrantyProvider','eqWarrantyExpires','eqWarrantyNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('eqPhotoImg').classList.add('hidden');
+  document.getElementById('eqPhotoPlaceholder').classList.remove('hidden');
+  document.getElementById('eqDocsSection').classList.add('hidden');
+  openModal('equipmentModal');
+}
+
+function openEditEquipment(id) {
+  const eq = _eqMap[id];
+  if (!eq) return;
+  _editingEquipmentId = id;
+  _eqPendingPhotoFile = null;
+  document.getElementById('eqModalTitle').textContent = 'Edit Equipment';
+  document.getElementById('eqName').value = eq.name || '';
+  document.getElementById('eqBrand').value = eq.brand || '';
+  document.getElementById('eqModel').value = eq.model || '';
+  document.getElementById('eqSerial').value = eq.serial_number || '';
+  document.getElementById('eqWarrantyProvider').value = eq.warranty_provider || '';
+  document.getElementById('eqWarrantyExpires').value = eq.warranty_expires || '';
+  document.getElementById('eqWarrantyNotes').value = eq.warranty_notes || '';
+  if (eq.image_url) {
+    document.getElementById('eqPhotoImg').src = eq.image_url;
+    document.getElementById('eqPhotoImg').classList.remove('hidden');
+    document.getElementById('eqPhotoPlaceholder').classList.add('hidden');
+  } else {
+    document.getElementById('eqPhotoImg').classList.add('hidden');
+    document.getElementById('eqPhotoPlaceholder').classList.remove('hidden');
+  }
+  document.getElementById('eqDocsSection').classList.remove('hidden');
+  renderEqDocs(id);
+  openModal('equipmentModal');
+}
+
+function eqHandlePhoto(file) {
   if (!file) return;
-  const ext = file.name.split('.').pop();
-  const path = `${_currentBuildId}/${crypto.randomUUID()}.${ext}`;
-  const { data: up } = await sb.storage.from('build-equipment').upload(path, file, { upsert: true });
-  if (!up) { alert('Upload failed'); return; }
-  const { data: { publicUrl } } = sb.storage.from('build-equipment').getPublicUrl(path);
-  await sb.from('build_equipment').insert({ project_id: _currentBuildId, image_url: publicUrl, name: file.name });
+  _eqPendingPhotoFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('eqPhotoImg');
+    img.src = e.target.result;
+    img.classList.remove('hidden');
+    document.getElementById('eqPhotoPlaceholder').classList.add('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveEquipment() {
+  const name = document.getElementById('eqName').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const fields = {
+    name,
+    brand: document.getElementById('eqBrand').value.trim() || null,
+    model: document.getElementById('eqModel').value.trim() || null,
+    serial_number: document.getElementById('eqSerial').value.trim() || null,
+    warranty_provider: document.getElementById('eqWarrantyProvider').value.trim() || null,
+    warranty_expires: document.getElementById('eqWarrantyExpires').value || null,
+    warranty_notes: document.getElementById('eqWarrantyNotes').value.trim() || null,
+  };
+  let eqId = _editingEquipmentId;
+  if (!eqId) {
+    const { data, error } = await sb.from('build_equipment')
+      .insert({ project_id: _currentBuildId, ...fields, sort_order: 0 }).select().single();
+    if (error) { alert('Save failed: ' + error.message); return; }
+    eqId = data.id;
+  } else {
+    const { error } = await sb.from('build_equipment').update(fields).eq('id', eqId);
+    if (error) { alert('Save failed: ' + error.message); return; }
+  }
+  if (_eqPendingPhotoFile) {
+    const ext = _eqPendingPhotoFile.name.split('.').pop();
+    const path = `${_currentBuildId}/${eqId}.${ext}`;
+    const { data: up } = await sb.storage.from('build-equipment').upload(path, _eqPendingPhotoFile, { upsert: true });
+    if (up) {
+      const { data: { publicUrl } } = sb.storage.from('build-equipment').getPublicUrl(path);
+      await sb.from('build_equipment').update({ image_url: publicUrl }).eq('id', eqId);
+    }
+    _eqPendingPhotoFile = null;
+  }
+  closeModal('equipmentModal');
   loadBuildSubTab('equipment');
 }
 
+async function renderEqDocs(equipmentId) {
+  const container = document.getElementById('eqDocsList');
+  if (!container) return;
+  const { data } = await sb.from('build_equipment_docs').select('*').eq('equipment_id', equipmentId).order('created_at');
+  container.innerHTML = (data||[]).length
+    ? (data||[]).map(d => `
+        <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+          <span class="text-sm flex-1 truncate">📄 ${escHtml(d.name)}</span>
+          <a href="${d.file_url}" target="_blank" class="text-[var(--green)] text-xs hover:underline shrink-0">Download</a>
+          <button onclick="deleteEqDoc('${d.id}')" class="text-red-400 text-xs hover:underline shrink-0">Delete</button>
+        </div>`).join('')
+    : '<p class="text-xs text-gray-400">No documents uploaded yet.</p>';
+}
+
+async function eqUploadDoc(file) {
+  if (!file || !_editingEquipmentId) return;
+  const ext = file.name.split('.').pop();
+  const path = `${_currentBuildId}/docs/${_editingEquipmentId}/${crypto.randomUUID()}.${ext}`;
+  const { data: up, error } = await sb.storage.from('build-equipment').upload(path, file, { upsert: true });
+  if (error) { alert('Upload failed: ' + error.message); return; }
+  const { data: { publicUrl } } = sb.storage.from('build-equipment').getPublicUrl(path);
+  await sb.from('build_equipment_docs').insert({
+    equipment_id: _editingEquipmentId, project_id: _currentBuildId, name: file.name, file_url: publicUrl
+  });
+  renderEqDocs(_editingEquipmentId);
+}
+
+async function deleteEqDoc(docId) {
+  if (!confirm('Delete this document?')) return;
+  await sb.from('build_equipment_docs').delete().eq('id', docId);
+  renderEqDocs(_editingEquipmentId);
+}
+
 async function deleteEquipment(id) {
-  if (!confirm('Delete equipment item?')) return;
+  if (!confirm('Delete this equipment item?')) return;
   await sb.from('build_equipment').delete().eq('id', id);
   loadBuildSubTab('equipment');
 }
@@ -3320,5 +3447,75 @@ document.addEventListener('click', e => {
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 checkAuth();
 </script>
+
+<!-- Equipment Modal -->
+<div id="equipmentModal" class="modal-bg hidden">
+  <div class="modal max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold" id="eqModalTitle">Add Equipment</h2>
+      <button onclick="closeModal('equipmentModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <!-- Photo -->
+    <div class="mb-4">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Photo</p>
+      <div class="w-full h-40 bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden relative flex items-center justify-center">
+        <span id="eqPhotoPlaceholder" class="text-gray-300 text-5xl">🔧</span>
+        <img id="eqPhotoImg" class="hidden absolute inset-0 w-full h-full object-cover"/>
+      </div>
+      <label class="btn-outline text-sm mt-2 w-full text-center cursor-pointer block">
+        Upload Photo <input type="file" accept="image/*" class="hidden" onchange="eqHandlePhoto(this.files[0])"/>
+      </label>
+    </div>
+    <!-- Name -->
+    <div class="mb-3">
+      <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Name *</label>
+      <input id="eqName" type="text" placeholder="e.g. Aquascape Pond Pump" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+    </div>
+    <!-- Brand / Model -->
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Brand</label>
+        <input id="eqBrand" type="text" placeholder="Aquascape" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Model</label>
+        <input id="eqModel" type="text" placeholder="AquaSurge 2000" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+      </div>
+    </div>
+    <!-- Serial Number -->
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Serial Number</label>
+      <input id="eqSerial" type="text" placeholder="SN-XXXXXXXX" class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+    </div>
+    <!-- Warranty -->
+    <div class="border rounded-xl p-4 mb-4 bg-gray-50">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-3">Warranty</p>
+      <div class="mb-2">
+        <label class="block text-xs text-gray-500 mb-1">Provider</label>
+        <input id="eqWarrantyProvider" type="text" placeholder="e.g. Aquascape Inc." class="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+      </div>
+      <div class="mb-2">
+        <label class="block text-xs text-gray-500 mb-1">Expires</label>
+        <input id="eqWarrantyExpires" type="date" class="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[var(--green)] outline-none"/>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Notes</label>
+        <textarea id="eqWarrantyNotes" rows="2" placeholder="Coverage details, exclusions…" class="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[var(--green)] outline-none resize-none"></textarea>
+      </div>
+    </div>
+    <!-- Documents (edit only) -->
+    <div id="eqDocsSection" class="hidden mb-4">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Documents</p>
+      <div id="eqDocsList" class="space-y-2 mb-2"></div>
+      <label class="btn-outline text-sm cursor-pointer block text-center">
+        + Upload Document <input type="file" accept="application/pdf,image/*,.doc,.docx" class="hidden" onchange="eqUploadDoc(this.files[0])"/>
+      </label>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button onclick="closeModal('equipmentModal')" class="btn-outline flex-1">Cancel</button>
+      <button onclick="saveEquipment()" class="btn-primary flex-1">Save</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
