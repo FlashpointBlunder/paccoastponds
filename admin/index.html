@@ -1445,6 +1445,7 @@ async function deleteEntireSeries(parentJobId) {
 let _editingProposalId = null;
 let _proposalLineItems = [];
 let _proposalProducts = [];
+let _propImageFile    = null;
 
 async function renderProposals(el) {
   if (!_jobsAccounts.length) {
@@ -1480,6 +1481,16 @@ async function renderProposals(el) {
             <div id="propLineItems"></div>
           </div>
           <div><label class="text-xs font-semibold text-gray-500 uppercase">Notes for Customer</label><textarea id="propNotes" rows="2" class="field mt-1" placeholder="Optional notes visible to customer"></textarea></div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Closing Image <span class="normal-case text-gray-400 font-normal">(optional — shown at bottom of proposal)</span></label>
+            <div class="mt-1">
+              <label class="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-[var(--green)] transition">
+                <span>📷</span><span id="propImageLabel">Choose image…</span>
+                <input type="file" id="propImageInput" accept="image/*" class="hidden" onchange="propPreviewImage(this)" />
+              </label>
+            </div>
+            <img id="propImagePreview" src="" alt="" class="mt-2 rounded-lg max-h-48 hidden" />
+          </div>
         </div>
         <div class="mt-5 flex gap-2">
           <button onclick="saveProposal(false)" class="btn-outline flex-1">Save Draft</button>
@@ -1535,6 +1546,10 @@ function openCreateProposal() {
   document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
     _jobsAccounts.map(a => `<option value="${a.id}">${escHtml(a.contact_name||'—')}</option>`).join('');
   document.getElementById('propTitle').value = ''; document.getElementById('propNotes').value = '';
+  _propImageFile = null;
+  document.getElementById('propImageLabel').textContent = 'Choose image…';
+  document.getElementById('propImagePreview').classList.add('hidden');
+  document.getElementById('propImagePreview').src = '';
   _renderProposalLineItems(); openModal('proposalModal');
   setTimeout(() => _searchable('propAccountId'), 50);
 }
@@ -1548,8 +1563,29 @@ async function openEditProposal(proposalId) {
   document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
     _jobsAccounts.map(a => `<option value="${a.id}" ${a.id===prop.service_account_id?'selected':''}>${escHtml(a.contact_name||'—')}</option>`).join('');
   document.getElementById('propTitle').value = prop.title||''; document.getElementById('propNotes').value = prop.notes||'';
+  _propImageFile = null;
+  const _prevImg = document.getElementById('propImagePreview');
+  if (prop.image_url) {
+    _prevImg.src = prop.image_url; _prevImg.classList.remove('hidden');
+    document.getElementById('propImageLabel').textContent = 'Change image…';
+  } else {
+    _prevImg.src = ''; _prevImg.classList.add('hidden');
+    document.getElementById('propImageLabel').textContent = 'Choose image…';
+  }
   _renderProposalLineItems(); openModal('proposalModal');
   setTimeout(() => _searchable('propAccountId'), 50);
+}
+
+function propPreviewImage(input) {
+  const file = input.files[0]; if (!file) return;
+  _propImageFile = file;
+  document.getElementById('propImageLabel').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('propImagePreview');
+    img.src = e.target.result; img.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
 }
 
 function _renderProposalLineItems() {
@@ -1606,17 +1642,33 @@ async function saveProposal(sendNow) {
   if (!_proposalLineItems.length) { toast('Add at least one line item', false); return; }
   const { data:{ user } } = await sb.auth.getUser();
   const status = sendNow ? 'sent' : 'draft';
+  // Upload new image if selected
+  let imageUrl = null;
+  if (_propImageFile) {
+    const ext  = _propImageFile.name.split('.').pop();
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await sb.storage.from('proposal-images').upload(path, _propImageFile, { upsert: true });
+    if (!upErr) {
+      const { data: urlData } = sb.storage.from('proposal-images').getPublicUrl(path);
+      imageUrl = urlData.publicUrl;
+    }
+  }
   let proposalId = _editingProposalId;
   if (proposalId) {
-    await sb.from('proposals').update({service_account_id:accountId,title,notes,status,updated_at:new Date().toISOString()}).eq('id',proposalId);
+    const upd = {service_account_id:accountId,title,notes,status,updated_at:new Date().toISOString()};
+    if (imageUrl) upd.image_url = imageUrl;
+    await sb.from('proposals').update(upd).eq('id',proposalId);
     await sb.from('proposal_line_items').delete().eq('proposal_id',proposalId);
   } else {
-    const { data: newP } = await sb.from('proposals').insert({service_account_id:accountId,title,notes,status,created_by:user.id}).select().single();
+    const ins = {service_account_id:accountId,title,notes,status,created_by:user.id};
+    if (imageUrl) ins.image_url = imageUrl;
+    const { data: newP } = await sb.from('proposals').insert(ins).select().single();
     proposalId = newP.id;
   }
   await sb.from('proposal_line_items').insert(_proposalLineItems.map((item,i) => ({
     proposal_id:proposalId, description:item.description, quantity:item.quantity, unit_price:item.unit_price, sort_order:i,
   })));
+  if (sendNow) await sendProposalEmail(proposalId);
   toast(sendNow ? 'Proposal sent to customer' : 'Proposal saved as draft');
   closeModal('proposalModal'); await loadProposalsList();
 }
@@ -1645,8 +1697,9 @@ async function openProposalDetail(proposalId) {
         <p class="text-lg font-extrabold">${escHtml(prop.title)}</p>
         <p class="text-sm text-gray-500 mt-0.5">${escHtml(prop.service_accounts?.contact_name||'—')}</p>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
+      <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
         ${sb2(prop.status)}
+        <button onclick="sendProposalEmail('${prop.id}')" class="btn-blue text-xs py-1">📧 Email</button>
         ${prop.status!=='accepted'&&prop.status!=='declined'?`<button onclick="openEditProposal('${prop.id}')" class="btn-outline text-xs py-1">Edit</button>`:''}
         ${prop.status==='accepted'?`<button onclick="openCreateJobFromProposal('${prop.id}')" class="btn-green text-xs py-1">+ Create Job</button>`:''}
       </div>
@@ -1661,6 +1714,7 @@ async function openProposalDetail(proposalId) {
       </table>
     </div>
     ${prop.notes?`<div class="bg-white border rounded-xl p-3 mb-4 text-sm text-gray-600"><strong>Notes:</strong> ${escHtml(prop.notes)}</div>`:''}
+    ${prop.image_url?`<div class="mb-4"><img src="${prop.image_url}" alt="Proposal Image" class="rounded-xl w-full object-cover max-h-72 border" /></div>`:''}
     ${prop.status==='changes_requested'?`<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 font-semibold">Customer has requested changes — see thread below.</div>`:''}
     <div class="bg-white rounded-xl border">
       <div class="p-3 border-b font-semibold text-sm">Message Thread</div>
@@ -1705,6 +1759,19 @@ function openCreateJobFromProposal(proposalId) {
       }, 100);
     }
   }, 250);
+}
+
+async function sendProposalEmail(proposalId) {
+  const { data:{ session } } = await sb.auth.getSession();
+  const res = await fetch('/.netlify/functions/send-proposal-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ proposal_id: proposalId })
+  });
+  const json = await res.json();
+  if (json.sent)        { toast('Proposal emailed to customer ✓'); }
+  else if (json.reason) { toast(json.reason, false); }
+  else                  { toast('Failed to send email', false); }
 }
 
 // DEAD CODE kept for reference: renderSchedule

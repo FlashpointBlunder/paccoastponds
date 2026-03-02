@@ -412,6 +412,7 @@
             </table>
           </div>
           ${prop.notes?`<p class="text-sm text-gray-600 mb-4">${pEsc(prop.notes)}</p>`:''}
+          ${prop.image_url?`<div class="mb-4"><img src="${prop.image_url}" alt="Project Image" class="rounded-xl w-full border" /></div>`:''}
           ${canRespond?`
             <div class="flex gap-2">
               <button onclick="portalRespondProposal('${proposalId}','accepted')"
