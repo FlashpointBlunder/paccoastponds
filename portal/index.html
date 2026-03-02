@@ -230,8 +230,60 @@
       }
       const p = rows[0];
       const { data: items } = await sb.rpc('get_proposal_items_public', { p_proposal_id: p.id });
-      const total = (items||[]).reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
+      const isBuild = p.proposal_type === 'build';
       const canRespond = p.status === 'sent' || p.status === 'changes_requested';
+      const fmtMoney = n => '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
+      let lineItemsHtml;
+      if (isBuild) {
+        const grandTotal = (parseFloat(p.build_subtotal)||0) + (parseFloat(p.build_overhead)||0) + (parseFloat(p.build_profit)||0);
+        lineItemsHtml = `
+          <div class="space-y-2">
+            ${(items||[]).map(i => `
+              <div class="bg-white rounded-xl border p-4">
+                <p class="font-semibold text-sm text-gray-900">${pEsc(i.description)}</p>
+                ${i.notes ? `<p class="text-sm text-gray-500 mt-1">${pEsc(i.notes)}</p>` : ''}
+              </div>`).join('')}
+          </div>
+          <div class="bg-white rounded-xl border overflow-hidden">
+            <table class="w-full text-sm">
+              <tbody>
+                <tr class="border-b"><td class="p-3 text-gray-600">Sub Total</td><td class="p-3 text-right font-semibold">${fmtMoney(p.build_subtotal)}</td></tr>
+                <tr class="border-b"><td class="p-3 text-gray-600">Overhead</td><td class="p-3 text-right font-semibold">${fmtMoney(p.build_overhead)}</td></tr>
+                <tr class="border-b"><td class="p-3 text-gray-600">Profit</td><td class="p-3 text-right font-semibold">${fmtMoney(p.build_profit)}</td></tr>
+              </tbody>
+              <tfoot><tr class="bg-gray-50">
+                <td class="p-3 text-right font-bold text-gray-900">Grand Total</td>
+                <td class="p-3 text-right font-bold text-lg text-[var(--green)]">${fmtMoney(grandTotal)}</td>
+              </tr></tfoot>
+            </table>
+          </div>`;
+      } else {
+        const total = (items||[]).reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
+        lineItemsHtml = `
+          <div class="bg-white rounded-xl border overflow-hidden">
+            <table class="w-full text-sm">
+              <thead><tr class="bg-gray-50">
+                <th class="text-left p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">Description</th>
+                <th class="p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide text-center">Qty</th>
+                <th class="p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide text-right">Total</th>
+              </tr></thead>
+              <tbody>
+                ${(items||[]).map(i => `
+                  <tr class="border-t">
+                    <td class="p-3 text-gray-900">${pEsc(i.description)}</td>
+                    <td class="p-3 text-center text-gray-500">${i.quantity}</td>
+                    <td class="p-3 text-right font-semibold">${fmtMoney(parseFloat(i.quantity)*parseFloat(i.unit_price))}</td>
+                  </tr>`).join('')}
+              </tbody>
+              <tfoot><tr class="border-t bg-gray-50">
+                <td colspan="2" class="p-3 text-right font-bold text-gray-900">Total</td>
+                <td class="p-3 text-right font-bold text-lg text-[var(--green)]">${fmtMoney(total)}</td>
+              </tr></tfoot>
+            </table>
+          </div>`;
+      }
+
       screen.innerHTML = `
         <div class="min-h-screen bg-gray-50">
           <div class="bg-[var(--dark)] py-6 px-4 text-center">
@@ -240,29 +292,9 @@
           <div class="max-w-xl mx-auto px-4 py-8 space-y-4">
             <div>
               <h1 class="text-2xl font-extrabold text-gray-900">${pEsc(p.title)}</h1>
-              <p class="text-sm text-gray-500 mt-1">Proposal from Pacific Coast Ponds</p>
+              <p class="text-sm text-gray-500 mt-1">${isBuild ? 'Build Proposal' : 'Proposal'} from Pacific Coast Ponds</p>
             </div>
-            <div class="bg-white rounded-xl border overflow-hidden">
-              <table class="w-full text-sm">
-                <thead><tr class="bg-gray-50">
-                  <th class="text-left p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">Description</th>
-                  <th class="p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide text-center">Qty</th>
-                  <th class="p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide text-right">Total</th>
-                </tr></thead>
-                <tbody>
-                  ${(items||[]).map(i => `
-                    <tr class="border-t">
-                      <td class="p-3 text-gray-900">${pEsc(i.description)}</td>
-                      <td class="p-3 text-center text-gray-500">${i.quantity}</td>
-                      <td class="p-3 text-right font-semibold">$${(parseFloat(i.quantity)*parseFloat(i.unit_price)).toFixed(2)}</td>
-                    </tr>`).join('')}
-                </tbody>
-                <tfoot><tr class="border-t bg-gray-50">
-                  <td colspan="2" class="p-3 text-right font-bold text-gray-900">Total</td>
-                  <td class="p-3 text-right font-bold text-lg text-[var(--green)]">$${total.toFixed(2)}</td>
-                </tr></tfoot>
-              </table>
-            </div>
+            ${lineItemsHtml}
             ${p.notes ? `<div class="bg-white rounded-xl border p-4 text-sm text-gray-600">${pEsc(p.notes)}</div>` : ''}
             ${p.image_url ? `<div><img src="${p.image_url}" alt="Project Image" class="rounded-xl w-full border" /></div>` : ''}
             <div id="publicResponseArea">

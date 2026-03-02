@@ -1446,6 +1446,7 @@ let _editingProposalId = null;
 let _proposalLineItems = [];
 let _proposalProducts = [];
 let _propImageFile    = null;
+let _propType         = 'service';
 
 async function renderProposals(el) {
   if (!_jobsAccounts.length) {
@@ -1475,10 +1476,55 @@ async function renderProposals(el) {
             <div><label class="text-xs font-semibold text-gray-500 uppercase">Customer</label><select id="propAccountId" class="field mt-1"></select></div>
             <div><label class="text-xs font-semibold text-gray-500 uppercase">Title</label><input id="propTitle" type="text" class="field mt-1" placeholder="e.g. Custom Pond Build" /></div>
           </div>
+          <!-- Proposal Type -->
           <div>
-            <label class="text-xs font-semibold text-gray-500 uppercase">Line Items</label>
-            <div class="text-xs text-gray-400 mb-1 mt-1">Description &middot; Qty &middot; Unit Price</div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Proposal Type</label>
+            <div class="flex gap-2 mt-1">
+              <button id="propTypeService" onclick="setPropType('service')"
+                class="flex-1 py-2 rounded-lg border-2 text-sm font-semibold transition">Service / Maintenance</button>
+              <button id="propTypeBuild" onclick="setPropType('build')"
+                class="flex-1 py-2 rounded-lg border-2 text-sm font-semibold transition">Build</button>
+            </div>
+          </div>
+          <!-- Line Items -->
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase" id="propLineItemsLabel">Line Items</label>
+            <div class="text-xs text-gray-400 mb-1 mt-1" id="propLineItemsHint">Description &middot; Qty &middot; Unit Price</div>
             <div id="propLineItems"></div>
+          </div>
+          <!-- Build Financials (build type only) -->
+          <div id="propBuildFinancials" class="hidden">
+            <label class="text-xs font-semibold text-gray-500 uppercase">Project Financials</label>
+            <div class="grid grid-cols-3 gap-3 mt-2">
+              <div>
+                <label class="text-xs text-gray-400">Sub Total</label>
+                <div class="relative mt-1">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" id="propSubtotal" min="0" step="0.01" placeholder="0.00"
+                         oninput="_updateBuildTotal()" class="field pl-7 w-full py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs text-gray-400">Overhead</label>
+                <div class="relative mt-1">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" id="propOverhead" min="0" step="0.01" placeholder="0.00"
+                         oninput="_updateBuildTotal()" class="field pl-7 w-full py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs text-gray-400">Profit</label>
+                <div class="relative mt-1">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" id="propProfit" min="0" step="0.01" placeholder="0.00"
+                         oninput="_updateBuildTotal()" class="field pl-7 w-full py-2 text-sm" />
+                </div>
+              </div>
+            </div>
+            <div class="bg-[#0F1C12] text-white rounded-xl px-4 py-3 flex justify-between items-center mt-3">
+              <span class="font-semibold text-sm">Grand Total</span>
+              <span id="propGrandTotal" class="text-xl font-extrabold text-[#4ade80]">$0.00</span>
+            </div>
           </div>
           <div><label class="text-xs font-semibold text-gray-500 uppercase">Notes for Customer</label><textarea id="propNotes" rows="2" class="field mt-1" placeholder="Optional notes visible to customer"></textarea></div>
           <div>
@@ -1541,7 +1587,7 @@ async function loadProposalsList() {
 }
 
 function openCreateProposal() {
-  _editingProposalId = null; _proposalLineItems = [];
+  _editingProposalId = null; _proposalLineItems = []; _propType = 'service';
   document.getElementById('propModalTitle').textContent = 'New Proposal';
   document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
     _jobsAccounts.map(a => `<option value="${a.id}">${escHtml(a.contact_name||'—')}</option>`).join('');
@@ -1550,7 +1596,7 @@ function openCreateProposal() {
   document.getElementById('propImageLabel').textContent = 'Choose image…';
   document.getElementById('propImagePreview').classList.add('hidden');
   document.getElementById('propImagePreview').src = '';
-  _renderProposalLineItems(); openModal('proposalModal');
+  setPropType('service');
   setTimeout(() => _searchable('propAccountId'), 50);
 }
 
@@ -1558,7 +1604,8 @@ async function openEditProposal(proposalId) {
   closeModal('proposalDetailModal'); _editingProposalId = proposalId;
   const { data: prop  } = await sb.from('proposals').select('*').eq('id',proposalId).single();
   const { data: items } = await sb.from('proposal_line_items').select('*').eq('proposal_id',proposalId).order('sort_order');
-  _proposalLineItems = (items||[]).map(i => ({id:i.id,description:i.description,quantity:i.quantity,unit_price:i.unit_price}));
+  _propType = prop.proposal_type || 'service';
+  _proposalLineItems = (items||[]).map(i => ({id:i.id,description:i.description,quantity:i.quantity,unit_price:i.unit_price,notes:i.notes||''}));
   document.getElementById('propModalTitle').textContent = 'Edit Proposal';
   document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
     _jobsAccounts.map(a => `<option value="${a.id}" ${a.id===prop.service_account_id?'selected':''}>${escHtml(a.contact_name||'—')}</option>`).join('');
@@ -1572,7 +1619,13 @@ async function openEditProposal(proposalId) {
     _prevImg.src = ''; _prevImg.classList.add('hidden');
     document.getElementById('propImageLabel').textContent = 'Choose image…';
   }
-  _renderProposalLineItems(); openModal('proposalModal');
+  setPropType(_propType);
+  if (_propType === 'build') {
+    document.getElementById('propSubtotal').value = prop.build_subtotal || '';
+    document.getElementById('propOverhead').value = prop.build_overhead || '';
+    document.getElementById('propProfit').value   = prop.build_profit   || '';
+    _updateBuildTotal();
+  }
   setTimeout(() => _searchable('propAccountId'), 50);
 }
 
@@ -1592,49 +1645,102 @@ function propPreviewImage(input) {
   reader.readAsDataURL(file);
 }
 
+function setPropType(type) {
+  _propType = type;
+  const sBtn = document.getElementById('propTypeService');
+  const bBtn = document.getElementById('propTypeBuild');
+  const fin  = document.getElementById('propBuildFinancials');
+  const hint = document.getElementById('propLineItemsHint');
+  if (!sBtn) return;
+  const active   = 'border-[var(--green)] bg-[var(--green)] text-white';
+  const inactive = 'border-gray-200 bg-white text-gray-600';
+  sBtn.className = sBtn.className.replace(/(border-\S+|bg-\S+|text-(?:white|gray-600))/g, '').trim();
+  bBtn.className = bBtn.className.replace(/(border-\S+|bg-\S+|text-(?:white|gray-600))/g, '').trim();
+  if (type === 'service') {
+    sBtn.classList.add(...active.split(' '));
+    bBtn.classList.add(...inactive.split(' '));
+    fin.classList.add('hidden');
+    hint.textContent = 'Description · Qty · Unit Price';
+  } else {
+    bBtn.classList.add(...active.split(' '));
+    sBtn.classList.add(...inactive.split(' '));
+    fin.classList.remove('hidden');
+    hint.textContent = 'Item name and details — pricing is set in the financials below';
+  }
+  _renderProposalLineItems();
+  openModal('proposalModal');
+}
+
 function _renderProposalLineItems() {
   const el = document.getElementById('propLineItems'); if (!el) return;
-  const total = _proposalLineItems.reduce((s,i) => s+(parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0), 0);
-  el.innerHTML = `
-    ${_proposalLineItems.map((item,idx) => `
-      <div class="flex gap-2 items-center mb-2">
-        <input type="text" value="${escHtml(String(item.description||''))}" placeholder="Description"
-               oninput="_proposalLineItems[${idx}].description=this.value"
-               class="field flex-[3] py-2 text-sm" />
-        <input type="number" value="${item.quantity}" min="0.01" step="any"
-               oninput="_proposalLineItems[${idx}].quantity=parseFloat(this.value)||1;_updatePropTotal()"
-               class="field w-16 py-2 text-sm text-center" placeholder="Qty" />
-        <input type="number" value="${item.unit_price}" min="0" step="0.01"
-               oninput="_proposalLineItems[${idx}].unit_price=parseFloat(this.value)||0;_updatePropTotal()"
-               class="field w-24 py-2 text-sm" placeholder="$" />
-        <button onclick="_proposalLineItems.splice(${idx},1);_renderProposalLineItems()"
-                class="text-red-400 hover:text-red-600 text-xl font-bold px-1">&times;</button>
-      </div>`).join('')}
-    <div class="flex gap-2 mt-1">
-      <select id="propCatalogPicker" class="field flex-1 text-sm py-1.5">
-        <option value="">+ From Catalog…</option>
-        ${_proposalProducts.map(p => `<option value="${p.id}">${escHtml(p.name)}${p.price!=null?' — '+fmtMoney(p.price):''}</option>`).join('')}
-      </select>
-      <button onclick="_proposalLineItems.push({id:null,description:'',quantity:1,unit_price:0});_renderProposalLineItems()"
-              class="btn-outline text-sm py-1.5 whitespace-nowrap">+ Custom Line</button>
-    </div>
-    <div id="propTotal" class="text-right mt-2 font-bold">Total: ${fmtMoney(total)}</div>`;
-  _searchable('propCatalogPicker', function(val) {
-    if (val) { _addProductLine(val); setTimeout(() => this.clear(), 0); }
-  });
+  if (_propType === 'build') {
+    el.innerHTML = `
+      ${_proposalLineItems.map((item,idx) => `
+        <div class="mb-2 bg-gray-50 border rounded-lg p-3">
+          <div class="flex gap-2 items-center mb-2">
+            <input type="text" value="${escHtml(String(item.description||''))}" placeholder="Item name (e.g. Excavation, Concrete Work)"
+                   oninput="_proposalLineItems[${idx}].description=this.value"
+                   class="field flex-1 py-2 text-sm font-medium" />
+            <button onclick="_proposalLineItems.splice(${idx},1);_renderProposalLineItems()"
+                    class="text-red-400 hover:text-red-600 text-xl font-bold px-1">&times;</button>
+          </div>
+          <textarea placeholder="Details (materials, scope, specifications…)" rows="2"
+                    oninput="_proposalLineItems[${idx}].notes=this.value"
+                    class="field w-full text-sm py-2">${escHtml(String(item.notes||''))}</textarea>
+        </div>`).join('')}
+      <button onclick="_proposalLineItems.push({id:null,description:'',quantity:1,unit_price:0,notes:''});_renderProposalLineItems()"
+              class="btn-outline text-sm py-1.5 w-full">+ Add Line Item</button>`;
+  } else {
+    const total = _proposalLineItems.reduce((s,i) => s+(parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0), 0);
+    el.innerHTML = `
+      ${_proposalLineItems.map((item,idx) => `
+        <div class="flex gap-2 items-center mb-2">
+          <input type="text" value="${escHtml(String(item.description||''))}" placeholder="Description"
+                 oninput="_proposalLineItems[${idx}].description=this.value"
+                 class="field flex-[3] py-2 text-sm" />
+          <input type="number" value="${item.quantity}" min="0.01" step="any"
+                 oninput="_proposalLineItems[${idx}].quantity=parseFloat(this.value)||1;_updatePropTotal()"
+                 class="field w-16 py-2 text-sm text-center" placeholder="Qty" />
+          <input type="number" value="${item.unit_price}" min="0" step="0.01"
+                 oninput="_proposalLineItems[${idx}].unit_price=parseFloat(this.value)||0;_updatePropTotal()"
+                 class="field w-24 py-2 text-sm" placeholder="$" />
+          <button onclick="_proposalLineItems.splice(${idx},1);_renderProposalLineItems()"
+                  class="text-red-400 hover:text-red-600 text-xl font-bold px-1">&times;</button>
+        </div>`).join('')}
+      <div class="flex gap-2 mt-1">
+        <select id="propCatalogPicker" class="field flex-1 text-sm py-1.5">
+          <option value="">+ From Catalog…</option>
+          ${_proposalProducts.map(p => `<option value="${p.id}">${escHtml(p.name)}${p.price!=null?' — '+fmtMoney(p.price):''}</option>`).join('')}
+        </select>
+        <button onclick="_proposalLineItems.push({id:null,description:'',quantity:1,unit_price:0,notes:''});_renderProposalLineItems()"
+                class="btn-outline text-sm py-1.5 whitespace-nowrap">+ Custom Line</button>
+      </div>
+      <div id="propTotal" class="text-right mt-2 font-bold">Total: ${fmtMoney(total)}</div>`;
+    _searchable('propCatalogPicker', function(val) {
+      if (val) { _addProductLine(val); setTimeout(() => this.clear(), 0); }
+    });
+  }
 }
 
 function _addProductLine(productId) {
   if (!productId) return;
   const p = _proposalProducts.find(p => p.id === productId);
   if (!p) return;
-  _proposalLineItems.push({id:null, description:p.name, quantity:1, unit_price:parseFloat(p.price)||0});
+  _proposalLineItems.push({id:null, description:p.name, quantity:1, unit_price:parseFloat(p.price)||0, notes:''});
   _renderProposalLineItems();
 }
 
 function _updatePropTotal() {
   const el = document.getElementById('propTotal'); if (!el) return;
   el.textContent = `Total: ${fmtMoney(_proposalLineItems.reduce((s,i) => s+(parseFloat(i.quantity)||0)*(parseFloat(i.unit_price)||0),0))}`;
+}
+
+function _updateBuildTotal() {
+  const sub = parseFloat(document.getElementById('propSubtotal')?.value) || 0;
+  const ovr = parseFloat(document.getElementById('propOverhead')?.value) || 0;
+  const prf = parseFloat(document.getElementById('propProfit')?.value)   || 0;
+  const el  = document.getElementById('propGrandTotal');
+  if (el) el.textContent = fmtMoney(sub + ovr + prf);
 }
 
 async function saveProposal(sendNow) {
@@ -1644,6 +1750,16 @@ async function saveProposal(sendNow) {
   if (!accountId) { toast('Select a customer', false); return; }
   if (!title)     { toast('Enter a title', false); return; }
   if (!_proposalLineItems.length) { toast('Add at least one line item', false); return; }
+  const isBuild = _propType === 'build';
+  let buildSubtotal = null, buildOverhead = null, buildProfit = null;
+  if (isBuild) {
+    buildSubtotal = parseFloat(document.getElementById('propSubtotal').value);
+    buildOverhead = parseFloat(document.getElementById('propOverhead').value);
+    buildProfit   = parseFloat(document.getElementById('propProfit').value);
+    if (isNaN(buildSubtotal) || isNaN(buildOverhead) || isNaN(buildProfit)) {
+      toast('Enter Sub Total, Overhead, and Profit amounts', false); return;
+    }
+  }
   const { data:{ user } } = await sb.auth.getUser();
   const status = sendNow ? 'sent' : 'draft';
   // Upload new image if selected
@@ -1662,18 +1778,21 @@ async function saveProposal(sendNow) {
   }
   let proposalId = _editingProposalId;
   if (proposalId) {
-    const upd = {service_account_id:accountId,title,notes,status,updated_at:new Date().toISOString()};
+    const upd = {service_account_id:accountId,title,notes,status,proposal_type:_propType,updated_at:new Date().toISOString()};
     if (imageUrl) upd.image_url = imageUrl;
+    if (isBuild) { upd.build_subtotal=buildSubtotal; upd.build_overhead=buildOverhead; upd.build_profit=buildProfit; }
     await sb.from('proposals').update(upd).eq('id',proposalId);
     await sb.from('proposal_line_items').delete().eq('proposal_id',proposalId);
   } else {
-    const ins = {service_account_id:accountId,title,notes,status,created_by:user.id};
+    const ins = {service_account_id:accountId,title,notes,status,proposal_type:_propType,created_by:user.id};
     if (imageUrl) ins.image_url = imageUrl;
+    if (isBuild) { ins.build_subtotal=buildSubtotal; ins.build_overhead=buildOverhead; ins.build_profit=buildProfit; }
     const { data: newP } = await sb.from('proposals').insert(ins).select().single();
     proposalId = newP.id;
   }
   await sb.from('proposal_line_items').insert(_proposalLineItems.map((item,i) => ({
-    proposal_id:proposalId, description:item.description, quantity:item.quantity, unit_price:item.unit_price, sort_order:i,
+    proposal_id:proposalId, description:item.description, quantity:item.quantity,
+    unit_price:item.unit_price, notes:item.notes||null, sort_order:i,
   })));
   if (sendNow) await sendProposalEmail(proposalId);
   toast(sendNow ? 'Proposal sent to customer' : 'Proposal saved as draft');
@@ -1686,10 +1805,9 @@ async function openProposalDetail(proposalId) {
     sb.from('proposal_line_items').select('*').eq('proposal_id',proposalId).order('sort_order'),
     sb.from('proposal_messages').select('id,body,created_at,profiles(full_name,role)').eq('proposal_id',proposalId).order('created_at'),
   ]);
-  const total = (items||[]).reduce((s,i) => s+parseFloat(i.quantity)*parseFloat(i.unit_price), 0);
+  const isBuild = prop.proposal_type === 'build';
   const sb2 = s => { const m={draft:'badge-gray',sent:'badge-blue',accepted:'badge-green',changes_requested:'badge-yellow',declined:'badge-red'}; return `<span class="badge ${m[s]||'badge-gray'}">${s.replace('_',' ')}</span>`; };
-  const { data:{ user } } = await sb.auth.getUser();
-  const buildBubble = m => {
+  const msgBubble = m => {
     const isA = m.profiles?.role==='admin';
     return `<div class="flex ${isA?'justify-end':'justify-start'}">
       <div class="max-w-xs rounded-2xl px-4 py-2.5 ${isA?'bg-[var(--green)] text-white':'bg-gray-100 text-gray-900'}">
@@ -1698,11 +1816,47 @@ async function openProposalDetail(proposalId) {
         <p class="text-xs mt-1 ${isA?'text-white/50':'text-gray-400'}">${timeAgo(m.created_at)}</p>
       </div></div>`;
   };
+  let lineItemsHtml;
+  if (isBuild) {
+    const grandTotal = (parseFloat(prop.build_subtotal)||0) + (parseFloat(prop.build_overhead)||0) + (parseFloat(prop.build_profit)||0);
+    lineItemsHtml = `
+      <div class="space-y-2 mb-3">
+        ${(items||[]).map(i => `
+          <div class="bg-gray-50 border rounded-lg p-3">
+            <p class="font-semibold text-sm text-gray-900">${escHtml(i.description)}</p>
+            ${i.notes?`<p class="text-xs text-gray-500 mt-1">${escHtml(i.notes)}</p>`:''}
+          </div>`).join('')}
+      </div>
+      <div class="bg-gray-50 rounded-xl border overflow-hidden">
+        <table>
+          <tbody>
+            <tr><td class="text-gray-600">Sub Total</td><td class="text-right font-semibold">${fmtMoney(prop.build_subtotal||0)}</td></tr>
+            <tr><td class="text-gray-600">Overhead</td><td class="text-right font-semibold">${fmtMoney(prop.build_overhead||0)}</td></tr>
+            <tr><td class="text-gray-600">Profit</td><td class="text-right font-semibold">${fmtMoney(prop.build_profit||0)}</td></tr>
+          </tbody>
+          <tfoot><tr><td class="text-right font-bold">Grand Total</td><td class="font-bold text-lg text-[var(--green)]">${fmtMoney(grandTotal)}</td></tr></tfoot>
+        </table>
+      </div>`;
+  } else {
+    const total = (items||[]).reduce((s,i) => s+parseFloat(i.quantity)*parseFloat(i.unit_price), 0);
+    lineItemsHtml = `
+      <div class="bg-gray-50 rounded-xl border overflow-hidden mb-4">
+        <table>
+          <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+          <tbody>
+            ${(items||[]).map(i => `<tr><td>${escHtml(i.description)}</td><td>${i.quantity}</td><td>${fmtMoney(i.unit_price)}</td><td class="font-semibold">${fmtMoney(parseFloat(i.quantity)*parseFloat(i.unit_price))}</td></tr>`).join('')}
+          </tbody>
+          <tfoot><tr><td colspan="3" class="text-right font-bold">Total</td><td class="font-bold text-lg">${fmtMoney(total)}</td></tr></tfoot>
+        </table>
+      </div>`;
+  }
   document.getElementById('proposalDetailBody').innerHTML = `
     <div class="flex items-start justify-between mb-4 gap-3">
       <div>
         <p class="text-lg font-extrabold">${escHtml(prop.title)}</p>
-        <p class="text-sm text-gray-500 mt-0.5">${escHtml(prop.service_accounts?.contact_name||'—')}</p>
+        <p class="text-sm text-gray-500 mt-0.5">${escHtml(prop.service_accounts?.contact_name||'—')}
+          <span class="ml-2 text-xs font-semibold uppercase tracking-wide ${isBuild?'text-blue-600':'text-[var(--green)]'}">${isBuild?'Build':'Service'}</span>
+        </p>
       </div>
       <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
         ${sb2(prop.status)}
@@ -1711,22 +1865,14 @@ async function openProposalDetail(proposalId) {
         ${prop.status==='accepted'?`<button onclick="openCreateJobFromProposal('${prop.id}')" class="btn-green text-xs py-1">+ Create Job</button>`:''}
       </div>
     </div>
-    <div class="bg-gray-50 rounded-xl border overflow-hidden mb-4">
-      <table>
-        <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
-        <tbody>
-          ${(items||[]).map(i => `<tr><td>${escHtml(i.description)}</td><td>${i.quantity}</td><td>${fmtMoney(i.unit_price)}</td><td class="font-semibold">${fmtMoney(parseFloat(i.quantity)*parseFloat(i.unit_price))}</td></tr>`).join('')}
-        </tbody>
-        <tfoot><tr><td colspan="3" class="text-right font-bold">Total</td><td class="font-bold text-lg">${fmtMoney(total)}</td></tr></tfoot>
-      </table>
-    </div>
-    ${prop.notes?`<div class="bg-white border rounded-xl p-3 mb-4 text-sm text-gray-600"><strong>Notes:</strong> ${escHtml(prop.notes)}</div>`:''}
-    ${prop.image_url?`<div class="mb-4"><img src="${prop.image_url}" alt="Proposal Image" class="rounded-xl w-full object-cover max-h-72 border" /></div>`:''}
+    ${lineItemsHtml}
+    ${prop.notes?`<div class="bg-white border rounded-xl p-3 mb-4 text-sm text-gray-600 mt-4"><strong>Notes:</strong> ${escHtml(prop.notes)}</div>`:''}
+    ${prop.image_url?`<div class="mb-4 mt-4"><img src="${prop.image_url}" alt="Proposal Image" class="rounded-xl w-full object-cover max-h-72 border" /></div>`:''}
     ${prop.status==='changes_requested'?`<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 font-semibold">Customer has requested changes — see thread below.</div>`:''}
-    <div class="bg-white rounded-xl border">
+    <div class="bg-white rounded-xl border mt-4">
       <div class="p-3 border-b font-semibold text-sm">Message Thread</div>
       <div id="propThread" class="p-3 space-y-3 max-h-56 overflow-y-auto">
-        ${(msgs||[]).map(buildBubble).join('')||'<p class="text-xs text-gray-400 text-center py-2">No messages yet.</p>'}
+        ${(msgs||[]).map(msgBubble).join('')||'<p class="text-xs text-gray-400 text-center py-2">No messages yet.</p>'}
       </div>
       <div class="p-3 border-t flex gap-2">
         <input id="propReplyText" type="text" placeholder="Reply to customer..."

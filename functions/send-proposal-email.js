@@ -22,13 +22,13 @@ exports.handler = async (event) => {
   if (!proposal_id) return { statusCode: 400, body: JSON.stringify({ error: 'proposal_id required' }) };
 
   const { data: prop } = await sb.from('proposals')
-    .select('id,title,notes,status,image_url,public_token,service_accounts(contact_name,contact_email)')
+    .select('id,title,notes,status,image_url,public_token,proposal_type,build_subtotal,build_overhead,build_profit,service_accounts(contact_name,contact_email)')
     .eq('id', proposal_id).single();
 
   if (!prop) return { statusCode: 404, body: JSON.stringify({ error: 'Proposal not found' }) };
 
   const { data: items } = await sb.from('proposal_line_items')
-    .select('description,quantity,unit_price')
+    .select('description,quantity,unit_price,notes')
     .eq('proposal_id', proposal_id)
     .order('sort_order');
 
@@ -39,15 +39,73 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Customer has no email on file' }) };
   }
 
-  const total    = (items || []).reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
-  const fmtMoney = n => '$' + parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const fmtMoney = n => '$' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const isBuild  = prop.proposal_type === 'build';
 
-  const lineItemRows = (items || []).map(i => `
-    <tr>
-      <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#111827;">${i.description}</td>
-      <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:center;color:#6b7280;">${i.quantity}</td>
-      <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:right;font-weight:600;color:#111827;">${fmtMoney(parseFloat(i.quantity) * parseFloat(i.unit_price))}</td>
-    </tr>`).join('');
+  // Build the line items + pricing section
+  let lineItemsSection;
+  if (isBuild) {
+    const grandTotal = (parseFloat(prop.build_subtotal)||0)
+                     + (parseFloat(prop.build_overhead)||0)
+                     + (parseFloat(prop.build_profit)||0);
+
+    const buildCards = (items || []).map(i => `
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+        <p style="margin:0 0 ${i.notes ? '6px' : '0'};font-size:14px;font-weight:600;color:#111827;">${i.description}</p>
+        ${i.notes ? `<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">${i.notes}</p>` : ''}
+      </div>`).join('');
+
+    lineItemsSection = `
+      <div style="margin-bottom:24px;">${buildCards}</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:28px;">
+        <tbody>
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#6b7280;">Sub Total</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:right;font-weight:600;color:#111827;">${fmtMoney(prop.build_subtotal)}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#6b7280;">Overhead</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:right;font-weight:600;color:#111827;">${fmtMoney(prop.build_overhead)}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#6b7280;">Profit</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:right;font-weight:600;color:#111827;">${fmtMoney(prop.build_profit)}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#f9fafb;">
+            <td style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px;color:#111827;border-top:2px solid #e5e7eb;">Grand Total</td>
+            <td style="padding:14px 16px;text-align:right;font-weight:800;font-size:20px;color:#1E5E37;border-top:2px solid #e5e7eb;">${fmtMoney(grandTotal)}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+  } else {
+    const total = (items || []).reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
+    const lineItemRows = (items || []).map(i => `
+      <tr>
+        <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#111827;">${i.description}</td>
+        <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:center;color:#6b7280;">${i.quantity}</td>
+        <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:14px;text-align:right;font-weight:600;color:#111827;">${fmtMoney(parseFloat(i.quantity) * parseFloat(i.unit_price))}</td>
+      </tr>`).join('');
+
+    lineItemsSection = `
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:28px;">
+        <thead>
+          <tr style="background:#f9fafb;">
+            <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;border-bottom:1px solid #e5e7eb;">Description</th>
+            <th style="padding:10px 16px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;border-bottom:1px solid #e5e7eb;width:60px;">Qty</th>
+            <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;border-bottom:1px solid #e5e7eb;">Total</th>
+          </tr>
+        </thead>
+        <tbody>${lineItemRows}</tbody>
+        <tfoot>
+          <tr style="background:#f9fafb;">
+            <td colspan="2" style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px;color:#111827;border-top:2px solid #e5e7eb;">Total</td>
+            <td style="padding:14px 16px;text-align:right;font-weight:800;font-size:20px;color:#1E5E37;border-top:2px solid #e5e7eb;">${fmtMoney(total)}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+  }
 
   const imageSection = prop.image_url ? `
     <div style="padding:0 0 28px 0;">
@@ -77,32 +135,16 @@ exports.handler = async (event) => {
     <div style="padding:36px 32px;">
       <p style="margin:0 0 6px;font-size:16px;font-weight:600;color:#111827;">Hi ${customerName},</p>
       <p style="margin:0 0 28px;font-size:14px;color:#6b7280;line-height:1.7;">
-        We've prepared a proposal for you. Please review the details below and log in to your portal to accept or request changes.
+        We've prepared a proposal for you. Please review the details below and use the button below to accept or request changes.
       </p>
 
       <!-- Proposal Title Banner -->
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #1E5E37;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:28px;">
-        <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#6b7280;">Proposal</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#6b7280;">${isBuild ? 'Build Proposal' : 'Proposal'}</p>
         <p style="margin:0;font-size:20px;font-weight:800;color:#0F1C12;">${prop.title}</p>
       </div>
 
-      <!-- Line Items Table -->
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:28px;">
-        <thead>
-          <tr style="background:#f9fafb;">
-            <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;border-bottom:1px solid #e5e7eb;">Description</th>
-            <th style="padding:10px 16px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;border-bottom:1px solid #e5e7eb;width:60px;">Qty</th>
-            <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;border-bottom:1px solid #e5e7eb;">Total</th>
-          </tr>
-        </thead>
-        <tbody>${lineItemRows}</tbody>
-        <tfoot>
-          <tr style="background:#f9fafb;">
-            <td colspan="2" style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px;color:#111827;border-top:2px solid #e5e7eb;">Total</td>
-            <td style="padding:14px 16px;text-align:right;font-weight:800;font-size:20px;color:#1E5E37;border-top:2px solid #e5e7eb;">${fmtMoney(total)}</td>
-          </tr>
-        </tfoot>
-      </table>
+      ${lineItemsSection}
 
       ${notesSection}
       ${imageSection}
