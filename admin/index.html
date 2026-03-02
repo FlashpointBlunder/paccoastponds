@@ -1578,6 +1578,10 @@ async function openEditProposal(proposalId) {
 
 function propPreviewImage(input) {
   const file = input.files[0]; if (!file) return;
+  if (file.size > 25 * 1024 * 1024) {
+    toast('Image must be under 25 MB', false);
+    input.value = ''; return;
+  }
   _propImageFile = file;
   document.getElementById('propImageLabel').textContent = file.name;
   const reader = new FileReader();
