@@ -1648,10 +1648,13 @@ async function saveProposal(sendNow) {
     const ext  = _propImageFile.name.split('.').pop();
     const path = `${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await sb.storage.from('proposal-images').upload(path, _propImageFile, { upsert: true });
-    if (!upErr) {
-      const { data: urlData } = sb.storage.from('proposal-images').getPublicUrl(path);
-      imageUrl = urlData.publicUrl;
+    if (upErr) {
+      console.error('Image upload error:', upErr);
+      toast('Image upload failed: ' + upErr.message, false);
+      return;
     }
+    const { data: urlData } = sb.storage.from('proposal-images').getPublicUrl(path);
+    imageUrl = urlData.publicUrl;
   }
   let proposalId = _editingProposalId;
   if (proposalId) {
