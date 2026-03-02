@@ -22,7 +22,7 @@ exports.handler = async (event) => {
   if (!proposal_id) return { statusCode: 400, body: JSON.stringify({ error: 'proposal_id required' }) };
 
   const { data: prop } = await sb.from('proposals')
-    .select('id,title,notes,status,image_url,service_accounts(contact_name,contact_email)')
+    .select('id,title,notes,status,image_url,public_token,service_accounts(contact_name,contact_email)')
     .eq('id', proposal_id).single();
 
   if (!prop) return { statusCode: 404, body: JSON.stringify({ error: 'Proposal not found' }) };
@@ -109,7 +109,7 @@ exports.handler = async (event) => {
 
       <!-- CTA Button -->
       <div style="text-align:center;padding:8px 0 20px;">
-        <a href="https://my.paccoastponds.com"
+        <a href="https://my.paccoastponds.com?proposal=${prop.public_token}"
            style="display:inline-block;background:#1E5E37;color:#ffffff;padding:15px 36px;border-radius:8px;font-weight:700;font-size:15px;text-decoration:none;letter-spacing:.3px;">
           View &amp; Accept Proposal &rarr;
         </a>

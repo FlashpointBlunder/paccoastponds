@@ -19,6 +19,9 @@
 </head>
 <body class="bg-[var(--cream)] text-gray-900 min-h-screen">
 
+  <!-- PUBLIC PROPOSAL (no login required) -->
+  <div id="publicProposalScreen" class="hidden"></div>
+
   <!-- SET PASSWORD (invite / password-reset flow) -->
   <div id="setupScreen" class="hidden min-h-screen flex items-center justify-center bg-[var(--dark)] px-4">
     <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm">
@@ -134,6 +137,10 @@
       const query = new URLSearchParams(window.location.search);
       const type  = hash.get('type') || query.get('type');
 
+      // Public proposal link — no login required
+      const proposalToken = query.get('proposal');
+      if (proposalToken) { showPublicProposal(proposalToken); return; }
+
       if (type === 'invite' || type === 'recovery') {
         // Give Supabase a moment to exchange the token from the URL
         await new Promise(r => setTimeout(r, 250));
@@ -206,6 +213,105 @@
         document.getElementById('mainNav').classList.remove('hidden');
         document.getElementById('buildNav').classList.add('hidden');
         loadTab('schedule');
+      }
+    }
+
+    async function showPublicProposal(token) {
+      document.getElementById('setupScreen').classList.add('hidden');
+      document.getElementById('loginScreen').classList.add('hidden');
+      const screen = document.getElementById('publicProposalScreen');
+      screen.classList.remove('hidden');
+      screen.innerHTML = '<p class="text-gray-400 text-center py-24 text-sm">Loading proposal…</p>';
+
+      const { data: rows, error } = await sb.rpc('get_proposal_public', { p_token: token });
+      if (error || !rows?.length) {
+        screen.innerHTML = '<div class="min-h-screen flex items-center justify-center"><p class="text-gray-400 text-sm">Proposal not found or link has expired.</p></div>';
+        return;
+      }
+      const p = rows[0];
+      const { data: items } = await sb.rpc('get_proposal_items_public', { p_proposal_id: p.id });
+      const total = (items||[]).reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
+      const canRespond = p.status === 'sent' || p.status === 'changes_requested';
+      screen.innerHTML = `
+        <div class="min-h-screen bg-gray-50">
+          <div class="bg-[var(--dark)] py-6 px-4 text-center">
+            <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-10 mx-auto" />
+          </div>
+          <div class="max-w-xl mx-auto px-4 py-8 space-y-4">
+            <div>
+              <h1 class="text-2xl font-extrabold text-gray-900">${pEsc(p.title)}</h1>
+              <p class="text-sm text-gray-500 mt-1">Proposal from Pacific Coast Ponds</p>
+            </div>
+            <div class="bg-white rounded-xl border overflow-hidden">
+              <table class="w-full text-sm">
+                <thead><tr class="bg-gray-50">
+                  <th class="text-left p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">Description</th>
+                  <th class="p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide text-center">Qty</th>
+                  <th class="p-3 text-xs text-gray-500 font-semibold uppercase tracking-wide text-right">Total</th>
+                </tr></thead>
+                <tbody>
+                  ${(items||[]).map(i => `
+                    <tr class="border-t">
+                      <td class="p-3 text-gray-900">${pEsc(i.description)}</td>
+                      <td class="p-3 text-center text-gray-500">${i.quantity}</td>
+                      <td class="p-3 text-right font-semibold">$${(parseFloat(i.quantity)*parseFloat(i.unit_price)).toFixed(2)}</td>
+                    </tr>`).join('')}
+                </tbody>
+                <tfoot><tr class="border-t bg-gray-50">
+                  <td colspan="2" class="p-3 text-right font-bold text-gray-900">Total</td>
+                  <td class="p-3 text-right font-bold text-lg text-[var(--green)]">$${total.toFixed(2)}</td>
+                </tr></tfoot>
+              </table>
+            </div>
+            ${p.notes ? `<div class="bg-white rounded-xl border p-4 text-sm text-gray-600">${pEsc(p.notes)}</div>` : ''}
+            ${p.image_url ? `<div><img src="${p.image_url}" alt="Project Image" class="rounded-xl w-full border" /></div>` : ''}
+            <div id="publicResponseArea">
+              ${canRespond ? `
+                <div class="flex gap-3 pt-2">
+                  <button onclick="publicRespondProposal('${token}','accepted')"
+                          class="flex-1 py-3.5 bg-[var(--green)] text-white font-bold rounded-xl text-sm uppercase tracking-wide hover:bg-[var(--dark)] transition">
+                    ✓ Accept Proposal
+                  </button>
+                  <button onclick="publicRespondProposal('${token}','declined')"
+                          class="flex-1 py-3.5 border-2 border-gray-300 text-gray-600 font-bold rounded-xl text-sm uppercase tracking-wide hover:bg-gray-50 transition">
+                    Decline
+                  </button>
+                </div>` : `
+                <div class="bg-white rounded-xl border p-5 text-center">
+                  <p class="font-bold text-sm ${p.status==='accepted'?'text-green-600':'text-gray-500'}">
+                    ${p.status==='accepted'?'✓ You accepted this proposal':p.status==='declined'?'You declined this proposal':'Status: '+p.status.replace(/_/g,' ')}
+                  </p>
+                </div>`}
+            </div>
+            <div class="text-center pt-2 pb-10">
+              <p class="text-xs text-gray-400">Already have an account? <a href="https://my.paccoastponds.com" class="text-[var(--green)] font-semibold">Sign in to your portal →</a></p>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function publicRespondProposal(token, status) {
+      const btn = document.querySelector('#publicResponseArea button');
+      if (btn) btn.disabled = true;
+      const { data, error } = await sb.rpc('respond_proposal_public', { p_token: token, p_status: status });
+      const area = document.getElementById('publicResponseArea');
+      if (!error && data) {
+        area.innerHTML = `
+          <div class="bg-white rounded-xl border p-6 text-center space-y-2">
+            <p class="text-3xl">${status==='accepted'?'🎉':'👋'}</p>
+            <p class="font-extrabold text-lg ${status==='accepted'?'text-green-700':'text-gray-700'}">
+              ${status==='accepted'?'Proposal Accepted!':'Proposal Declined'}
+            </p>
+            <p class="text-sm text-gray-500">
+              ${status==='accepted'?'Thank you! We\'ll be in touch shortly to get started.':'Thank you for letting us know.'}
+            </p>
+          </div>`;
+      } else {
+        if (btn) btn.disabled = false;
+        const err = document.createElement('p');
+        err.className = 'text-red-500 text-sm text-center mt-2';
+        err.textContent = 'Something went wrong — please try again.';
+        document.getElementById('publicResponseArea').appendChild(err);
       }
     }
 
