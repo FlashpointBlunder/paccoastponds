@@ -526,9 +526,11 @@ function prodCard(p) {
             data-id="${esc(p.id)}" data-name="${esc(p.name)}"
             data-price="${p.price}" data-img="${esc(p.image_url || '')}"
             data-ss="${p.subscribe_save_eligible}"
+            data-has-variants="${p.variant_attribute ? 'true' : 'false'}"
+            data-slug="${esc(p.slug || p.id)}"
             ${inStock ? '' : 'disabled'}
-            title="${inStock ? 'Add to cart' : 'Out of stock'}"
-          >+</button>
+            title="${p.variant_attribute ? 'Select options' : (inStock ? 'Add to cart' : 'Out of stock')}"
+          >${p.variant_attribute ? '→' : '+'}</button>
         </div>
       </div>
     </article>`;
@@ -539,6 +541,11 @@ document.addEventListener('click', e => {
   const btn = e.target.closest('.js-atc');
   if (!btn) return;
   e.stopPropagation();
+  // Variant products: navigate to product page for size selection
+  if (btn.dataset.hasVariants === 'true') {
+    nav('/products/' + btn.dataset.slug);
+    return;
+  }
   const ssEligible = btn.dataset.ss === 'true';
   const origPrice  = parseFloat(btn.dataset.price);
   const price      = (ssEligible && _isSub) ? +(origPrice * 0.95).toFixed(2) : origPrice;
@@ -559,7 +566,7 @@ async function pgHome(el) {
   const [{ data: cats }, { data: featured }] = await Promise.all([
     sb.from('product_categories').select('id, name, slug').is('parent_id', null).order('name'),
     sb.from('products')
-      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible')
+      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
       .eq('active', true).not('slug', 'is', null)
       .order('created_at', { ascending: false }).limit(8),
   ]);
@@ -653,7 +660,7 @@ async function pgCollection(el, slug) {
   const { data: subs } = await sb.from('product_categories').select('id').eq('parent_id', cat.id);
   const ids = [cat.id, ...(subs || []).map(s => s.id)];
   const { data: products } = await sb.from('products')
-    .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible')
+    .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
     .in('category_id', ids).eq('active', true).order('name');
 
   el.innerHTML = `
