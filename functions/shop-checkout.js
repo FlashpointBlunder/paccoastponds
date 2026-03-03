@@ -44,24 +44,37 @@ exports.handler = async (event) => {
     .in('id', productIds);
   const productMap = Object.fromEntries((products || []).map(p => [p.id, p]));
 
+  // Fetch variant data for price verification
+  const variantIds = items.map(i => i.variant_id).filter(Boolean);
+  let variantMap = {};
+  if (variantIds.length) {
+    const { data: variants } = await sb.from('product_variants')
+      .select('id, sku, price').in('id', variantIds);
+    variantMap = Object.fromEntries((variants || []).map(v => [v.id, v]));
+  }
+
   // Calculate totals
   let subtotal = 0;
   let discountAmount = 0;
   const lineItems = items.map(item => {
     const product   = productMap[item.product_id];
-    const unitPrice = product ? parseFloat(product.price) : parseFloat(item.unit_price);
+    const variant   = item.variant_id ? variantMap[item.variant_id] : null;
+    const unitPrice = variant ? parseFloat(variant.price)
+                    : product ? parseFloat(product.price)
+                    : parseFloat(item.unit_price);
     const eligible  = isSubscriber && product?.subscribe_save_eligible;
     const finalPrice = eligible ? +(unitPrice * 0.95).toFixed(2) : unitPrice;
-    const lineTotal  = finalPrice * item.quantity;
     subtotal        += unitPrice * item.quantity;
     if (eligible) discountAmount += (unitPrice - finalPrice) * item.quantity;
     return {
       product_id:             item.product_id,
       product_name:           product?.name || item.product_name,
-      product_sku:            product?.sku  || item.sku || null,
+      product_sku:            variant?.sku || product?.sku || item.sku || null,
       quantity:               item.quantity,
       unit_price:             finalPrice,
       subscribe_save_applied: eligible,
+      variant_id:             item.variant_id   || null,
+      variant_name:           item.variant_name || null,
     };
   });
 

@@ -2198,6 +2198,11 @@ async function renderProducts(el) {
                 <option value="discontinued">Discontinued</option>
               </select>
             </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Variant Attribute</label>
+              <input name="variant_attribute" placeholder="e.g. Size, Color, Model — leave blank if no variants" class="field mt-1" />
+              <p class="text-xs text-gray-400 mt-0.5">After saving the product, use the "Variants" button in the table to add variant options.</p>
+            </div>
             <label class="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
               <input type="checkbox" name="subscribe_save_eligible" class="w-4 h-4 rounded accent-[var(--green)]" />
               Subscribe &amp; Save eligible (5% off for subscribers)
@@ -2242,6 +2247,70 @@ async function renderProducts(el) {
         </form>
       </div>
     </div>
+
+    <!-- Variants Modal -->
+    <div id="variantModal" class="modal-bg hidden">
+      <div class="modal" style="max-width:680px">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold" id="variantModalTitle">Variants</h2>
+          <button class="btn-outline text-sm px-3 py-1.5" onclick="openAddVariant()">+ Add Variant</button>
+        </div>
+        <p class="text-sm text-gray-500 mb-4" id="variantAttrLabel"></p>
+        <div id="variantList" class="space-y-2 mb-4">Loading…</div>
+
+        <!-- Add/Edit Variant Form -->
+        <div id="variantFormWrap" class="hidden border-t border-gray-100 pt-4 mt-4">
+          <h3 class="font-bold text-base mb-3" id="variantFormTitle">Add Variant</h3>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Value *</label>
+              <input id="vf_value" placeholder="e.g. Small, Red, 1lb" class="field mt-1" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">SKU</label>
+              <input id="vf_sku" placeholder="Optional" class="field mt-1" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Price *</label>
+              <input id="vf_price" type="number" step="0.01" placeholder="0.00" class="field mt-1" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Stock Status</label>
+              <select id="vf_stock" class="field mt-1">
+                <option value="in_stock">In Stock</option>
+                <option value="out_of_stock">Out of Stock</option>
+                <option value="discontinued">Discontinued</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Weight (oz)</label>
+              <input id="vf_weight" type="number" step="0.1" placeholder="Optional" class="field mt-1" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-500 uppercase">Sort Order</label>
+              <input id="vf_sort" type="number" placeholder="0" value="0" class="field mt-1" />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-500 uppercase block mb-1">Variant Image URL</label>
+            <input id="vf_image" placeholder="https://… (optional, overrides product image)" class="field" />
+          </div>
+          <p id="variantFormErr" class="text-red-600 text-sm mb-2 hidden"></p>
+          <div class="flex gap-3">
+            <button class="btn-green flex-1 py-2" id="variantSaveBtn" onclick="saveVariant()">Save Variant</button>
+            <button class="btn-outline flex-1 py-2" onclick="closeVariantForm()">Cancel</button>
+          </div>
+        </div>
+
+        <div class="mt-4 text-right">
+          <button class="btn-outline" onclick="closeModal('variantModal')">Done</button>
+        </div>
+      </div>
+    </div>
   `;
 
   await loadCategoryPills();
@@ -2251,6 +2320,9 @@ async function renderProducts(el) {
 
   document.getElementById('manageCatsModal').addEventListener('click', e => {
     if (e.target.id === 'manageCatsModal') closeModal('manageCatsModal');
+  });
+  document.getElementById('variantModal').addEventListener('click', e => {
+    if (e.target.id === 'variantModal') closeModal('variantModal');
   });
   document.getElementById('addCatForm').addEventListener('submit', addCategory);
 }
@@ -2332,6 +2404,7 @@ async function loadProductTable(filter) {
           <td class="text-right">
             <div class="flex justify-end gap-2">
               <button class="btn-outline text-xs px-2 py-1" onclick="openEditProduct('${p.id}')">Edit</button>
+              <button class="btn-outline text-xs px-2 py-1" onclick="openVariants('${p.id}','${(p.name).replace(/'/g,"\\'")}')">Variants</button>
               <button class="btn-outline text-xs px-2 py-1" onclick="toggleProductActive('${p.id}',${p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
               <button class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded" onclick="deleteProduct('${p.id}','${(p.name).replace(/'/g,"\\'")}')">Delete</button>
             </div>
@@ -2375,10 +2448,11 @@ async function openEditProduct(productId) {
   f.querySelector('[name=shop_description]').value = p.shop_description || '';
   f.querySelector('[name=meta_title]').value       = p.meta_title || '';
   f.querySelector('[name=meta_description]').value = p.meta_description || '';
-  f.querySelector('[name=weight_oz]').value        = p.weight_oz || '';
-  f.querySelector('[name=length_in]').value        = p.length_in || '';
-  f.querySelector('[name=width_in]').value         = p.width_in  || '';
-  f.querySelector('[name=height_in]').value        = p.height_in || '';
+  f.querySelector('[name=weight_oz]').value         = p.weight_oz || '';
+  f.querySelector('[name=length_in]').value         = p.length_in || '';
+  f.querySelector('[name=width_in]').value          = p.width_in  || '';
+  f.querySelector('[name=height_in]').value         = p.height_in || '';
+  f.querySelector('[name=variant_attribute]').value = p.variant_attribute || '';
   // Image
   f.querySelector('[name=image_url]').value  = p.image_url || '';
   document.getElementById('productImageFile').value = '';
@@ -2475,6 +2549,7 @@ function bindProductModalForm() {
       slug:                    slug || null,
       brand:                   fd.get('brand') || null,
       stock_status:            fd.get('stock_status') || 'in_stock',
+      variant_attribute:       fd.get('variant_attribute') || null,
       subscribe_save_eligible: fd.get('subscribe_save_eligible') === 'on',
       shop_description:        fd.get('shop_description') || null,
       meta_title:              fd.get('meta_title') || null,
@@ -2507,6 +2582,159 @@ async function deleteProduct(productId, name) {
   if (error) { toast(error.message, false); return; }
   toast('Product deleted');
   loadProductTable(_prodCategoryFilter);
+}
+
+// ─── VARIANT MANAGEMENT ───────────────────────────────────────────────────────
+let _variantProductId   = null;
+let _variantProductName = '';
+let _variantEditId      = null;
+
+async function openVariants(productId, productName) {
+  _variantProductId   = productId;
+  _variantProductName = productName;
+  _variantEditId      = null;
+
+  // Get variant_attribute for label
+  const { data: p } = await sb.from('products').select('variant_attribute').eq('id', productId).single();
+  const attr = p?.variant_attribute || '';
+
+  document.getElementById('variantModalTitle').textContent = `Variants — ${productName}`;
+  document.getElementById('variantAttrLabel').textContent  = attr
+    ? `Attribute: ${attr}`
+    : 'No variant attribute set. Edit the product to add one (e.g. Size, Color, Model).';
+
+  document.getElementById('variantFormWrap').classList.add('hidden');
+  openModal('variantModal');
+  await loadVariants();
+}
+
+async function loadVariants() {
+  const el = document.getElementById('variantList');
+  if (!el) return;
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+
+  const { data: variants, error } = await sb.from('product_variants')
+    .select('id, value, sku, price, stock_status, weight_oz, image_url, sort_order, active')
+    .eq('product_id', _variantProductId)
+    .order('sort_order').order('value');
+
+  if (error || !variants?.length) {
+    el.innerHTML = '<p class="text-gray-400 text-sm">No variants yet. Click "+ Add Variant" to create one.</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="w-full text-sm">
+      <thead><tr class="text-xs text-gray-400 uppercase border-b">
+        <th class="text-left py-1.5 pr-2">Value</th>
+        <th class="text-left py-1.5 pr-2">SKU</th>
+        <th class="text-left py-1.5 pr-2">Price</th>
+        <th class="text-left py-1.5 pr-2">Stock</th>
+        <th class="text-left py-1.5 pr-2">Weight</th>
+        <th class="text-right py-1.5">Actions</th>
+      </tr></thead>
+      <tbody>
+        ${variants.map(v => `<tr class="border-b border-gray-50 ${v.active?'':'opacity-50'}">
+          <td class="py-1.5 pr-2 font-semibold">${escHtml(v.value)}</td>
+          <td class="py-1.5 pr-2 text-gray-400">${escHtml(v.sku||'—')}</td>
+          <td class="py-1.5 pr-2">${fmtMoney(v.price)}</td>
+          <td class="py-1.5 pr-2">
+            <span class="badge ${v.stock_status==='in_stock'?'badge-green':v.stock_status==='out_of_stock'?'badge-gray':'badge-gray'}">
+              ${v.stock_status==='in_stock'?'In Stock':v.stock_status==='out_of_stock'?'Out of Stock':'Discontinued'}
+            </span>
+          </td>
+          <td class="py-1.5 pr-2 text-gray-500">${v.weight_oz?v.weight_oz+'oz':'—'}</td>
+          <td class="py-1.5 text-right">
+            <div class="flex justify-end gap-1.5">
+              <button class="btn-outline text-xs px-2 py-0.5" onclick="openEditVariant('${v.id}')">Edit</button>
+              <button class="text-xs px-2 py-0.5 bg-red-50 text-red-600 border border-red-200 rounded" onclick="deleteVariant('${v.id}','${escHtml(v.value).replace(/'/g,"\\'")}')">Del</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function openAddVariant() {
+  _variantEditId = null;
+  document.getElementById('variantFormTitle').textContent = 'Add Variant';
+  document.getElementById('variantSaveBtn').textContent   = 'Save Variant';
+  document.getElementById('vf_value').value  = '';
+  document.getElementById('vf_sku').value    = '';
+  document.getElementById('vf_price').value  = '';
+  document.getElementById('vf_stock').value  = 'in_stock';
+  document.getElementById('vf_weight').value = '';
+  document.getElementById('vf_sort').value   = '0';
+  document.getElementById('vf_image').value  = '';
+  document.getElementById('variantFormErr').classList.add('hidden');
+  document.getElementById('variantFormWrap').classList.remove('hidden');
+  document.getElementById('vf_value').focus();
+}
+
+async function openEditVariant(variantId) {
+  const { data: v } = await sb.from('product_variants').select('*').eq('id', variantId).single();
+  if (!v) return;
+  _variantEditId = variantId;
+  document.getElementById('variantFormTitle').textContent = 'Edit Variant';
+  document.getElementById('variantSaveBtn').textContent   = 'Save Changes';
+  document.getElementById('vf_value').value  = v.value      || '';
+  document.getElementById('vf_sku').value    = v.sku        || '';
+  document.getElementById('vf_price').value  = v.price      || '';
+  document.getElementById('vf_stock').value  = v.stock_status || 'in_stock';
+  document.getElementById('vf_weight').value = v.weight_oz  || '';
+  document.getElementById('vf_sort').value   = v.sort_order ?? 0;
+  document.getElementById('vf_image').value  = v.image_url  || '';
+  document.getElementById('variantFormErr').classList.add('hidden');
+  document.getElementById('variantFormWrap').classList.remove('hidden');
+  document.getElementById('vf_value').focus();
+}
+
+async function saveVariant() {
+  const errEl = document.getElementById('variantFormErr');
+  const btn   = document.getElementById('variantSaveBtn');
+  const value = document.getElementById('vf_value').value.trim();
+  const price = parseFloat(document.getElementById('vf_price').value);
+
+  if (!value) { errEl.textContent = 'Value is required.'; errEl.classList.remove('hidden'); return; }
+  if (isNaN(price)) { errEl.textContent = 'Price is required.'; errEl.classList.remove('hidden'); return; }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  errEl.classList.add('hidden');
+
+  const payload = {
+    product_id:   _variantProductId,
+    value,
+    sku:          document.getElementById('vf_sku').value.trim() || null,
+    price,
+    stock_status: document.getElementById('vf_stock').value,
+    weight_oz:    document.getElementById('vf_weight').value ? parseFloat(document.getElementById('vf_weight').value) : null,
+    sort_order:   parseInt(document.getElementById('vf_sort').value || 0),
+    image_url:    document.getElementById('vf_image').value.trim() || null,
+  };
+
+  const { error } = _variantEditId
+    ? await sb.from('product_variants').update(payload).eq('id', _variantEditId)
+    : await sb.from('product_variants').insert(payload);
+
+  btn.disabled = false; btn.textContent = _variantEditId ? 'Save Changes' : 'Save Variant';
+  if (error) { errEl.textContent = error.message; errEl.classList.remove('hidden'); return; }
+
+  toast(_variantEditId ? 'Variant updated' : 'Variant added');
+  closeVariantForm();
+  await loadVariants();
+}
+
+async function deleteVariant(variantId, value) {
+  if (!confirm(`Delete variant "${value}"?`)) return;
+  const { error } = await sb.from('product_variants').delete().eq('id', variantId);
+  if (error) { toast(error.message, false); return; }
+  toast('Variant deleted');
+  await loadVariants();
+}
+
+function closeVariantForm() {
+  document.getElementById('variantFormWrap').classList.add('hidden');
+  _variantEditId = null;
 }
 
 // ─── CATEGORY MANAGEMENT ──────────────────────────────────────────────────────

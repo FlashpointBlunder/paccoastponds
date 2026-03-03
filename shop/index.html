@@ -203,6 +203,19 @@
     .btn-atc:disabled { background: var(--g200); color: var(--g500); cursor: not-allowed; }
     .pd-meta { font-size: .8125rem; color: var(--g500); margin-top: .875rem; display: flex; gap: 1rem; flex-wrap: wrap; }
 
+    /* ── Variants ── */
+    .var-group { margin-bottom: 1rem; }
+    .var-label { font-size: .8125rem; font-weight: 700; text-transform: uppercase; color: var(--g500); letter-spacing: .04em; margin-bottom: .5rem; }
+    .var-pills { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .var-pill {
+      padding: .4375rem .875rem; border-radius: var(--rad); font-size: .875rem; font-weight: 600;
+      border: 2px solid var(--g200); background: #fff; color: var(--g700); transition: border-color .15s, background .15s;
+    }
+    .var-pill:hover { border-color: var(--teal-light); }
+    .var-pill.selected { border-color: var(--teal); background: var(--teal); color: #fff; }
+    .var-pill.oos { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+    .cart-item-var { font-size: .8rem; color: var(--g500); display: block; margin-top: .1rem; }
+
     /* ── Cart ── */
     .cart-empty { text-align: center; padding: 5rem 1rem; color: var(--g500); }
     .cart-empty-icon { font-size: 3.5rem; margin-bottom: 1rem; }
@@ -660,10 +673,20 @@ async function pgCollection(el, slug) {
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
 async function pgProduct(el, slug) {
   const { data: p } = await sb.from('products')
-    .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id')
+    .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id, variant_attribute')
     .or(`slug.eq.${slug},id.eq.${slug}`)
     .eq('active', true).maybeSingle();
   if (!p) { el.innerHTML = '<div class="wrap sec"><p>Product not found.</p></div>'; return; }
+
+  // Fetch variants if product has a variant attribute
+  let variants = [];
+  if (p.variant_attribute) {
+    const { data: vData } = await sb.from('product_variants')
+      .select('id, value, sku, price, stock_status, weight_oz, image_url, sort_order')
+      .eq('product_id', p.id).eq('active', true)
+      .order('sort_order').order('value');
+    variants = vData || [];
+  }
 
   let cat = null;
   if (p.category_id) {
@@ -681,9 +704,66 @@ async function pgProduct(el, slug) {
     { name: p.name, url: `/products/${p.slug}` },
   ]);
 
-  const inStock = p.stock_status !== 'out_of_stock' && p.stock_status !== 'discontinued';
-  const ssPrice = (p.subscribe_save_eligible && _isSub) ? +(p.price * 0.95).toFixed(2) : null;
+  // State for selected variant
+  let _selVariant = variants.length === 1 ? variants[0] : null;
+
+  const hasVariants = variants.length > 0;
+
+  function getEffectivePrice(variant) {
+    const base = variant ? parseFloat(variant.price) : parseFloat(p.price);
+    const eligible = p.subscribe_save_eligible && _isSub;
+    return eligible ? +(base * 0.95).toFixed(2) : base;
+  }
+  function getOrigPrice(variant) {
+    return variant ? parseFloat(variant.price) : parseFloat(p.price);
+  }
+  function isInStock(variant) {
+    const s = variant ? variant.stock_status : p.stock_status;
+    return s !== 'out_of_stock' && s !== 'discontinued';
+  }
+
+  function renderPriceHtml(variant) {
+    const price    = getEffectivePrice(variant);
+    const origPrice = getOrigPrice(variant);
+    const ssApplied = p.subscribe_save_eligible && _isSub;
+    if (ssApplied) {
+      return `<span class="pd-price-ss">$${price.toFixed(2)}</span>
+              <span class="pd-price-orig">$${origPrice.toFixed(2)}</span>`;
+    }
+    return `<span class="pd-price">$${price.toFixed(2)}</span>`;
+  }
+
+  function renderAtcHtml(variant) {
+    if (hasVariants && !variant) {
+      return `<button class="btn-atc" disabled>Select a ${esc(p.variant_attribute)}</button>`;
+    }
+    if (!isInStock(variant)) {
+      return `<p class="badge-oos" style="font-size:.9375rem;padding:.5rem 1rem;border-radius:var(--rad);display:inline-block;margin-bottom:1rem;">Out of Stock</p>`;
+    }
+    return `
+      <div class="qty-row">
+        <span class="qty-label">Qty</span>
+        <div class="qty-ctrl">
+          <button type="button" id="qtyMinus">−</button>
+          <input type="number" id="qtyInput" value="1" min="1" max="99">
+          <button type="button" id="qtyPlus">+</button>
+        </div>
+      </div>
+      <button class="btn-atc" id="atcBtn">Add to Cart</button>`;
+  }
+
+  function renderMetaHtml(variant) {
+    const sku = variant?.sku || p.sku;
+    const wt  = variant?.weight_oz || p.weight_oz;
+    const stock = isInStock(variant);
+    return `
+      ${stock ? '<span>✓ In Stock</span>' : ''}
+      ${wt  ? `<span>Weight: ${wt} oz</span>` : ''}
+      ${sku ? `<span>SKU: ${esc(sku)}</span>` : ''}`;
+  }
+
   const displayDesc = p.shop_description || p.description || '';
+  const productImg  = p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" id="pdMainImg">` : `<div class="pd-img-ph">📦</div>`;
 
   el.innerHTML = `
     <div class="wrap sec">
@@ -693,64 +773,94 @@ async function pgProduct(el, slug) {
         <span>${esc(p.name)}</span>
       </nav>
       <div class="pd-grid">
-        <div class="pd-img">
-          ${p.image_url
-            ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}">`
-            : `<div class="pd-img-ph">📦</div>`}
+        <div class="pd-img" id="pdImgWrap">
+          ${productImg}
         </div>
         <div>
           ${p.brand ? `<p class="pd-brand">${esc(p.brand)}</p>` : ''}
           <h1 class="pd-title">${esc(p.name)}</h1>
-          <div class="pd-price-row">
-            ${ssPrice
-              ? `<span class="pd-price-ss">$${ssPrice.toFixed(2)}</span>
-                 <span class="pd-price-orig">$${parseFloat(p.price).toFixed(2)}</span>`
-              : `<span class="pd-price">$${parseFloat(p.price).toFixed(2)}</span>`}
+          <div class="pd-price-row" id="pdPriceRow">
+            ${renderPriceHtml(_selVariant)}
           </div>
           ${p.subscribe_save_eligible ? `
             <div class="ss-banner">
               💚 ${_isSub
-                ? `Subscribe &amp; Save applied — you save $${(p.price - ssPrice).toFixed(2)}`
+                ? `Subscribe &amp; Save applied — save 5%`
                 : `Save 5% with Subscribe &amp; Save. <a href="/account" data-nav="/account" style="color:var(--green);text-decoration:underline;margin-left:.25rem">Join free →</a>`}
             </div>` : ''}
-          ${displayDesc ? `<p class="pd-desc">${esc(displayDesc)}</p>` : ''}
-          ${inStock ? `
-            <div class="qty-row">
-              <span class="qty-label">Qty</span>
-              <div class="qty-ctrl">
-                <button type="button" id="qtyMinus">−</button>
-                <input type="number" id="qtyInput" value="1" min="1" max="99">
-                <button type="button" id="qtyPlus">+</button>
+          ${hasVariants ? `
+            <div class="var-group">
+              <p class="var-label">${esc(p.variant_attribute)}:</p>
+              <div class="var-pills" id="varPills">
+                ${variants.map(v => `
+                  <button class="var-pill${v.stock_status!=='in_stock'?' oos':''}${_selVariant?.id===v.id?' selected':''}"
+                    data-vid="${esc(v.id)}"
+                    ${v.stock_status!=='in_stock'?'disabled':''}>
+                    ${esc(v.value)}
+                  </button>`).join('')}
               </div>
-            </div>
-            <button class="btn-atc" id="atcBtn">Add to Cart</button>
-          ` : `<p class="badge-oos" style="font-size:.9375rem;padding:.5rem 1rem;border-radius:var(--rad);display:inline-block;margin-bottom:1rem;">Out of Stock</p>`}
-          <div class="pd-meta">
-            ${inStock ? '<span>✓ In Stock</span>' : ''}
-            ${p.weight_oz ? `<span>Weight: ${p.weight_oz} oz</span>` : ''}
-            ${p.sku ? `<span>SKU: ${esc(p.sku)}</span>` : ''}
-          </div>
+            </div>` : ''}
+          ${displayDesc ? `<p class="pd-desc">${esc(displayDesc)}</p>` : ''}
+          <div id="pdAtcWrap">${renderAtcHtml(_selVariant)}</div>
+          <div class="pd-meta" id="pdMeta">${renderMetaHtml(_selVariant)}</div>
         </div>
       </div>
     </div>`;
 
-  if (inStock) {
-    document.getElementById('qtyMinus').addEventListener('click', () => {
+  function bindAtcHandlers() {
+    const minus = document.getElementById('qtyMinus');
+    const plus  = document.getElementById('qtyPlus');
+    const atcBtn = document.getElementById('atcBtn');
+    if (minus) minus.addEventListener('click', () => {
       const inp = document.getElementById('qtyInput');
       inp.value = Math.max(1, parseInt(inp.value || 1) - 1);
     });
-    document.getElementById('qtyPlus').addEventListener('click', () => {
+    if (plus) plus.addEventListener('click', () => {
       const inp = document.getElementById('qtyInput');
       inp.value = Math.min(99, parseInt(inp.value || 1) + 1);
     });
-    document.getElementById('atcBtn').addEventListener('click', () => {
-      const qty  = parseInt(document.getElementById('qtyInput').value || 1);
-      const price = (p.subscribe_save_eligible && _isSub) ? +(p.price * 0.95).toFixed(2) : parseFloat(p.price);
-      const existing = _cart.find(i => i.product_id === p.id);
+    if (atcBtn) atcBtn.addEventListener('click', () => {
+      const qty      = parseInt(document.getElementById('qtyInput').value || 1);
+      const price    = getEffectivePrice(_selVariant);
+      const origPrice = getOrigPrice(_selVariant);
+      const img      = (_selVariant?.image_url) || p.image_url || '';
+      const varId    = _selVariant?.id   || null;
+      const varName  = _selVariant?.value || null;
+      const key      = p.id + '|' + (varId || '');
+      const existing = _cart.find(i => (i.product_id + '|' + (i.variant_id || '')) === key);
       if (existing) existing.qty += qty;
-      else _cart.push({ product_id: p.id, name: p.name, price, origPrice: parseFloat(p.price), image_url: p.image_url || '', qty, ss: p.subscribe_save_eligible && _isSub });
+      else _cart.push({ product_id: p.id, name: p.name, price, origPrice, image_url: img, qty,
+        ss: p.subscribe_save_eligible && _isSub, variant_id: varId, variant_name: varName });
       saveCart();
-      toast(p.name + ' added to cart');
+      toast(p.name + (varName ? ` (${varName})` : '') + ' added to cart');
+    });
+  }
+  bindAtcHandlers();
+
+  // Variant pill click handling
+  if (hasVariants) {
+    document.getElementById('varPills').addEventListener('click', e => {
+      const pill = e.target.closest('.var-pill');
+      if (!pill || pill.disabled) return;
+      const vid = pill.dataset.vid;
+      _selVariant = variants.find(v => v.id === vid) || null;
+
+      // Update selected pill styling
+      document.querySelectorAll('.var-pill').forEach(b => b.classList.remove('selected'));
+      pill.classList.add('selected');
+
+      // Update image if variant has one
+      const imgWrap = document.getElementById('pdImgWrap');
+      const varImg = _selVariant?.image_url || p.image_url;
+      if (varImg) {
+        imgWrap.innerHTML = `<img src="${esc(varImg)}" alt="${esc(p.name)}" id="pdMainImg">`;
+      }
+
+      // Update price, atc button, and meta
+      document.getElementById('pdPriceRow').innerHTML = renderPriceHtml(_selVariant);
+      document.getElementById('pdAtcWrap').innerHTML  = renderAtcHtml(_selVariant);
+      document.getElementById('pdMeta').innerHTML     = renderMetaHtml(_selVariant);
+      bindAtcHandlers();
     });
   }
 }
@@ -788,6 +898,7 @@ function pgCart(el) {
               </div>
               <div class="cart-item-info">
                 <p class="cart-item-name">${esc(item.name)}</p>
+                ${item.variant_name ? `<span class="cart-item-var">${esc(item.variant_name)}</span>` : ''}
                 <p class="cart-item-sub">$${item.price.toFixed(2)} × ${item.qty}${item.ss ? ' <span class="badge-ss">S&S</span>' : ''}</p>
                 <button class="cart-item-rm js-rm" data-idx="${i}">Remove</button>
               </div>
@@ -982,6 +1093,7 @@ async function renderCoPayment() {
       items: _cart.map(i => ({
         product_id: i.product_id, product_name: i.name,
         quantity: i.qty, unit_price: i.price,
+        variant_id: i.variant_id || null, variant_name: i.variant_name || null,
       })),
       shipping_address: {
         name: _coInfo.name, address1: _coInfo.address1, address2: _coInfo.address2,
