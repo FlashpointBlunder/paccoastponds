@@ -70,6 +70,13 @@ ALTER TABLE shop_orders      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_subscribers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Admins manage shop_orders"      ON shop_orders;
+DROP POLICY IF EXISTS "Admins manage shop_order_items" ON shop_order_items;
+DROP POLICY IF EXISTS "Admins manage shop_subscribers" ON shop_subscribers;
+DROP POLICY IF EXISTS "Customers view own orders"      ON shop_orders;
+DROP POLICY IF EXISTS "Customers view own order items" ON shop_order_items;
+DROP POLICY IF EXISTS "Customers manage own subscription" ON shop_subscribers;
+
 CREATE POLICY "Admins manage shop_orders"      ON shop_orders      FOR ALL USING (is_admin());
 CREATE POLICY "Admins manage shop_order_items" ON shop_order_items FOR ALL USING (is_admin());
 CREATE POLICY "Admins manage shop_subscribers" ON shop_subscribers FOR ALL USING (is_admin());
