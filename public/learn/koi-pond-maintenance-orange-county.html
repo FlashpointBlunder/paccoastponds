@@ -229,7 +229,7 @@
         <div class="inline-cta">
           <p class="font-bold text-[var(--brand-green)] m-0">Want someone else to handle this?</p>
           <p class="text-sm text-gray-700 mt-1 mb-3">Our quarterly maintenance program covers water testing, filter service, partial water changes, and a full system inspection — starting from $150/visit.</p>
-          <a href="https://paccoastponds.com/#quote" class="btn px-5 py-2 inline-block text-sm">Get a Maintenance Quote</a>
+          <a href="#maintenance-form" class="btn px-5 py-2 inline-block text-sm">Get a Maintenance Quote</a>
         </div>
 
         <h2 id="seasonal">Seasonal Maintenance Calendar for Orange County</h2>
@@ -289,7 +289,7 @@
         <div class="inline-cta">
           <p class="font-bold text-[var(--brand-green)] m-0">Not sure if your filter is sized correctly?</p>
           <p class="text-sm text-gray-700 mt-1 mb-3">We offer pond assessments for existing ponds — we'll test your water, inspect your equipment, and tell you exactly what's working and what isn't.</p>
-          <a href="/thank-you" class="btn px-5 py-2 inline-block text-sm">Schedule a Pond Assessment</a>
+          <a href="#maintenance-form" class="btn px-5 py-2 inline-block text-sm">Schedule a Pond Assessment</a>
         </div>
 
         <h2 id="professional-service">When to Use a Professional Maintenance Service</h2>
@@ -328,7 +328,7 @@
           <div class="bg-[var(--brand-green)] text-white p-5">
             <p class="font-bold uppercase text-lg leading-snug">Maintenance Program</p>
             <p class="text-sm text-white/80 mt-2 mb-4">Quarterly visits starting from $150. Water tests, filter service, water change, inspection report.</p>
-            <a href="https://paccoastponds.com/#quote" class="block text-center bg-white text-[var(--brand-green)] font-bold uppercase text-sm px-4 py-3 hover:bg-gray-100 transition">Get a Quote</a>
+            <a href="#maintenance-form" class="block text-center bg-white text-[var(--brand-green)] font-bold uppercase text-sm px-4 py-3 hover:bg-gray-100 transition">Get a Quote</a>
             <p class="text-center text-xs text-white/60 mt-3">Or call: <a href="tel:+19495414903" class="underline">(949) 541-4903</a></p>
           </div>
 
@@ -349,6 +349,101 @@
 
     </div>
   </div>
+
+  <!-- MAINTENANCE QUOTE FORM -->
+  <section id="maintenance-form" class="py-16 bg-[var(--brand-dark)]">
+    <div class="max-w-3xl mx-auto px-6">
+      <p class="text-[var(--brand-green)] font-bold uppercase tracking-widest text-sm mb-2">Free Quote — No Obligation</p>
+      <h2 class="text-3xl md:text-4xl font-extrabold text-white leading-tight mb-3">Request a Maintenance Quote</h2>
+      <p class="text-white/70 mb-8">Tell us about your pond and we'll send you a quote for our quarterly maintenance program or a one-time assessment. Serving all of Orange County.</p>
+
+      <form
+        name="maintenance-quote"
+        method="POST"
+        action="/thank-you"
+        data-netlify="true"
+        netlify
+        class="space-y-5"
+        id="maintenanceForm"
+        novalidate
+      >
+        <input type="hidden" name="form-name" value="maintenance-quote" />
+
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <label for="mq-name" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">Full Name <span class="text-red-400">*</span></label>
+            <input id="mq-name" name="name" type="text" required autocomplete="name"
+              class="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-[var(--brand-green)] focus:bg-white/15 transition"
+              placeholder="Jane Smith" />
+          </div>
+          <div>
+            <label for="mq-phone" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">Phone <span class="text-red-400">*</span></label>
+            <input id="mq-phone" name="phone" type="tel" required autocomplete="tel"
+              class="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-[var(--brand-green)] focus:bg-white/15 transition"
+              placeholder="(949) 555-0100" />
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <label for="mq-email" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">Email <span class="text-red-400">*</span></label>
+            <input id="mq-email" name="email" type="email" required autocomplete="email"
+              class="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-[var(--brand-green)] focus:bg-white/15 transition"
+              placeholder="you@example.com" />
+          </div>
+          <div>
+            <label for="mq-city" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">City / ZIP <span class="text-red-400">*</span></label>
+            <input id="mq-city" name="city" type="text" required autocomplete="address-level2"
+              class="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-[var(--brand-green)] focus:bg-white/15 transition"
+              placeholder="Irvine, CA or 92618" />
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <label for="mq-service" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">Service Needed <span class="text-red-400">*</span></label>
+            <select id="mq-service" name="service_type" required
+              class="w-full px-4 py-3 bg-[var(--brand-dark)] border border-white/20 text-white focus:outline-none focus:border-[var(--brand-green)] transition appearance-none cursor-pointer">
+              <option value="" disabled selected>Select a service…</option>
+              <option value="Quarterly Maintenance Program">Quarterly maintenance program</option>
+              <option value="Monthly Maintenance Program">Monthly maintenance program</option>
+              <option value="One-Time Pond Assessment">One-time pond assessment</option>
+              <option value="Water Quality Problem">Water quality / algae problem</option>
+              <option value="Full Pond Clean-Out">Full pond clean-out</option>
+              <option value="Emergency Visit">Emergency visit</option>
+            </select>
+          </div>
+          <div>
+            <label for="mq-size" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">Approx. Pond Size</label>
+            <select id="mq-size" name="pond_size"
+              class="w-full px-4 py-3 bg-[var(--brand-dark)] border border-white/20 text-white focus:outline-none focus:border-[var(--brand-green)] transition appearance-none cursor-pointer">
+              <option value="" disabled selected>Select size…</option>
+              <option value="Under 1,000 gal">Under 1,000 gallons</option>
+              <option value="1,000–2,500 gal">1,000 – 2,500 gallons</option>
+              <option value="2,500–5,000 gal">2,500 – 5,000 gallons</option>
+              <option value="5,000+ gal">5,000+ gallons</option>
+              <option value="Not sure">Not sure</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="mq-notes" class="block text-xs font-bold uppercase tracking-widest text-white/60 mb-1">Describe Your Situation <span class="text-white/30">(optional)</span></label>
+          <textarea id="mq-notes" name="notes" rows="4"
+            class="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-[var(--brand-green)] focus:bg-white/15 transition resize-none"
+            placeholder="E.g. green water for 3 weeks, existing Aquascape skimmer + bio-falls, 15 koi…"></textarea>
+        </div>
+
+        <div id="mq-error" class="hidden text-red-400 text-sm font-semibold"></div>
+
+        <button type="submit"
+          class="w-full py-4 bg-[var(--brand-green)] hover:bg-green-800 text-white font-extrabold uppercase tracking-widest text-sm transition">
+          Send Quote Request
+        </button>
+        <p class="text-center text-white/40 text-xs">We respond within 1 business day &middot; No spam, ever</p>
+      </form>
+    </div>
+  </section>
 
   <!-- RELATED ARTICLES -->
   <section class="py-14 bg-[var(--brand-cream)]">
@@ -432,6 +527,42 @@
       sections.forEach(s => observer.observe(s));
     })();
   </script>
+
+<script>
+  (function () {
+    const form = document.getElementById('maintenanceForm');
+    const errBox = document.getElementById('mq-error');
+    if (!form) return;
+
+    // Phone mask
+    const phoneInput = document.getElementById('mq-phone');
+    phoneInput.addEventListener('input', function () {
+      let d = this.value.replace(/\D/g, '').slice(0, 10);
+      if (d.length >= 7) d = '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+      else if (d.length >= 4) d = '(' + d.slice(0,3) + ') ' + d.slice(3);
+      else if (d.length >= 1) d = '(' + d;
+      this.value = d;
+    });
+
+    form.addEventListener('submit', function (e) {
+      errBox.classList.add('hidden');
+      errBox.textContent = '';
+      const name = form.querySelector('[name="name"]').value.trim();
+      const phone = form.querySelector('[name="phone"]').value.replace(/\D/g,'');
+      const email = form.querySelector('[name="email"]').value.trim();
+      const city = form.querySelector('[name="city"]').value.trim();
+      const service = form.querySelector('[name="service_type"]').value;
+
+      if (!name) { return showErr('Please enter your name.'); }
+      if (phone.length < 10) { return showErr('Please enter a valid 10-digit phone number.'); }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { return showErr('Please enter a valid email address.'); }
+      if (!city) { return showErr('Please enter your city or ZIP code.'); }
+      if (!service) { return showErr('Please select the service you need.'); }
+
+      function showErr(msg) { e.preventDefault(); errBox.textContent = msg; errBox.classList.remove('hidden'); errBox.scrollIntoView({behavior:'smooth',block:'center'}); }
+    });
+  })();
+</script>
 
 <!--Start of Tawk.to Script-->
 <script type="text/javascript">
