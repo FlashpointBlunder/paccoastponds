@@ -1926,6 +1926,10 @@ function openCreateJobFromProposal(proposalId) {
 }
 
 async function sendProposalEmail(proposalId) {
+  // Mark as sent if still draft so the customer sees accept/decline buttons
+  await sb.from('proposals')
+    .update({ status: 'sent', updated_at: new Date().toISOString() })
+    .eq('id', proposalId).eq('status', 'draft');
   const { data:{ session } } = await sb.auth.getSession();
   const res = await fetch('/.netlify/functions/send-proposal-email', {
     method: 'POST',
@@ -1933,7 +1937,7 @@ async function sendProposalEmail(proposalId) {
     body: JSON.stringify({ proposal_id: proposalId })
   });
   const json = await res.json();
-  if (json.sent)        { toast('Proposal emailed to customer ✓'); }
+  if (json.sent)        { toast('Proposal emailed to customer ✓'); await loadProposalsList(); }
   else if (json.reason) { toast(json.reason, false); }
   else                  { toast('Failed to send email', false); }
 }
