@@ -644,10 +644,12 @@ async function pgCollections(el) {
 }
 
 // ─── COLLECTION ───────────────────────────────────────────────────────────────
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function pgCollection(el, slug) {
+  const col = _UUID_RE.test(slug) ? 'id' : 'slug';
   const { data: cat } = await sb.from('product_categories')
     .select('id, name, slug, parent_id')
-    .or(`slug.eq.${slug},id.eq.${slug}`).maybeSingle();
+    .eq(col, slug).maybeSingle();
   if (!cat) { el.innerHTML = '<div class="wrap sec"><p>Category not found.</p></div>'; return; }
 
   setMeta(`${cat.name} — Pacific Coast Ponds Shop`, `Shop ${cat.name} pond supplies at Pacific Coast Ponds.`);
@@ -679,9 +681,10 @@ async function pgCollection(el, slug) {
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
 async function pgProduct(el, slug) {
+  const col = _UUID_RE.test(slug) ? 'id' : 'slug';
   const { data: p } = await sb.from('products')
     .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id, variant_attribute')
-    .or(`slug.eq.${slug},id.eq.${slug}`)
+    .eq(col, slug)
     .eq('active', true).maybeSingle();
   if (!p) { el.innerHTML = '<div class="wrap sec"><p>Product not found.</p></div>'; return; }
 
