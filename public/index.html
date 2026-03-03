@@ -390,10 +390,29 @@
 
   <!-- FAQ -->
   <section id="faq" class="py-20 bg-[var(--brand-cream)]">
+
+    <!-- Mobile pill bar (hidden on md+) -->
+    <div class="md:hidden sticky top-[72px] z-40 bg-[var(--brand-cream)] border-b border-gray-200 px-4 py-3 mb-6">
+      <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none" style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+        <a href="#faq-cost"        class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Cost</a>
+        <a href="#faq-renderings"  class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Free Renderings</a>
+        <a href="#faq-areas"       class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Service Areas</a>
+        <a href="#faq-timeline"    class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Timeline</a>
+        <a href="#faq-remodel"     class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Remodels</a>
+        <a href="#faq-value"       class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Home Value</a>
+        <a href="#faq-maintenance" class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Maintenance</a>
+        <a href="#faq-mosquitos"   class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Mosquitos</a>
+        <a href="#faq-space"       class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Space</a>
+        <a href="#faq-safety"      class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Safety</a>
+        <a href="#faq-warranty"    class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Warranty</a>
+        <a href="#faq-permits"     class="shrink-0 px-3 py-1.5 rounded-full border border-[var(--brand-green)] text-[var(--brand-green)] text-xs font-semibold whitespace-nowrap">Permits</a>
+      </div>
+    </div>
+
     <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-10">
 
-      <!-- Sticky quick-nav -->
-      <aside class="md:col-span-1 sticky top-24 self-start">
+      <!-- Sticky quick-nav (desktop only) -->
+      <aside class="hidden md:block md:col-span-1 sticky top-24 self-start">
         <h3 class="font-bold mb-4">Jump to:</h3>
         <ul class="space-y-2 text-sm">
           <li><a href="#faq-cost" class="text-[var(--brand-green)] hover:underline">Cost</a></li>
