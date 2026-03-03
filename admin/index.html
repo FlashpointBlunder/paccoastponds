@@ -1863,6 +1863,7 @@ async function openProposalDetail(proposalId) {
         <button onclick="sendProposalEmail('${prop.id}')" class="btn-blue text-xs py-1">📧 Email</button>
         ${prop.status!=='accepted'&&prop.status!=='declined'?`<button onclick="openEditProposal('${prop.id}')" class="btn-outline text-xs py-1">Edit</button>`:''}
         ${prop.status==='accepted'?`<button onclick="openCreateJobFromProposal('${prop.id}')" class="btn-green text-xs py-1">+ Create Job</button>`:''}
+        <button onclick="deleteProposal('${prop.id}')" class="text-xs py-1 px-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition font-semibold">Delete</button>
       </div>
     </div>
     ${lineItemsHtml}
@@ -1890,6 +1891,16 @@ async function proposalAdminReply(proposalId) {
   const { data:{ user } } = await sb.auth.getUser();
   await sb.from('proposal_messages').insert({proposal_id:proposalId, sender_id:user.id, body});
   textEl.value = ''; openProposalDetail(proposalId);
+}
+
+async function deleteProposal(proposalId) {
+  if (!confirm('Delete this proposal? This cannot be undone.')) return;
+  await sb.from('proposal_line_items').delete().eq('proposal_id', proposalId);
+  await sb.from('proposal_messages').delete().eq('proposal_id', proposalId);
+  await sb.from('proposals').delete().eq('id', proposalId);
+  closeModal('proposalDetailModal');
+  toast('Proposal deleted');
+  await loadProposalsList();
 }
 
 function openCreateJobFromProposal(proposalId) {
