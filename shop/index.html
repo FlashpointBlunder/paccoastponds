@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pacific Coast Ponds Shop</title>
+  <meta name="description" content="Shop professional pond supplies — pumps, filters, aeration, treatments and more. Shipped USPS direct to your door.">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://js.stripe.com">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --teal:       #0f4c4c;
+      --teal-mid:   #1a7a6e;
+      --teal-light: #3aafa9;
+      --cream:      #faf8f5;
+      --g100: #f3f4f6; --g200: #e5e7eb; --g400: #9ca3af;
+      --g500: #6b7280; --g700: #374151; --g900: #111827;
+      --red:   #dc2626;
+      --green: #16a34a;
+      --rad:   .5rem;
+      --sh:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+      --sh-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.05);
+    }
+    html { font-size: 16px; -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      color: var(--g900); background: var(--cream); line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; height: auto; display: block; }
+    button { cursor: pointer; font-family: inherit; }
+    input, select, textarea { font-family: inherit; font-size: inherit; }
+
+    /* ── Layout ── */
+    .wrap    { max-width: 1200px; margin: 0 auto; padding: 0 1.25rem; }
+    .wrap-sm { max-width:  660px; margin: 0 auto; padding: 0 1.25rem; }
+
+    /* ── Promo bar ── */
+    #ssBar {
+      background: linear-gradient(90deg, #064e3b, #065f46);
+      color: #fff; text-align: center;
+      padding: .5rem 1rem; font-size: .8125rem; font-weight: 600;
+    }
+    #ssBar a { color: #6ee7b7; text-decoration: underline; }
+    #ssBar.hidden { display: none; }
+
+    /* ── Header ── */
+    #hdr {
+      background: var(--teal); position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 4px rgba(0,0,0,.2);
+    }
+    .hdr-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .875rem 1.25rem; max-width: 1200px; margin: 0 auto;
+    }
+    .logo { color: #fff; font-weight: 800; font-size: 1.125rem; letter-spacing: -.01em; }
+    .logo span { color: var(--teal-light); }
+    .hdr-nav { display: flex; align-items: center; gap: 1.5rem; }
+    .hdr-link { color: rgba(255,255,255,.8); font-size: .875rem; font-weight: 600; transition: color .15s; }
+    .hdr-link:hover { color: #fff; }
+    .cart-btn {
+      background: rgba(255,255,255,.1); border: none; color: #fff;
+      padding: .5rem .875rem; border-radius: var(--rad);
+      font-size: .875rem; font-weight: 700;
+      display: flex; align-items: center; gap: .375rem;
+      transition: background .15s;
+    }
+    .cart-btn:hover { background: rgba(255,255,255,.18); }
+    .cart-badge {
+      background: var(--teal-light); color: #fff;
+      font-size: .7rem; font-weight: 800;
+      width: 1.25rem; height: 1.25rem; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+
+    /* ── Page root ── */
+    #root { min-height: calc(100vh - 104px); }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, var(--teal) 0%, var(--teal-mid) 100%);
+      color: #fff; padding: 3.5rem 1.25rem; text-align: center;
+    }
+    .hero h1 { font-size: clamp(1.75rem, 4.5vw, 2.75rem); font-weight: 900; margin-bottom: .75rem; letter-spacing: -.02em; }
+    .hero p { font-size: 1.0625rem; color: rgba(255,255,255,.82); max-width: 520px; margin: 0 auto 1.75rem; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      display: inline-block; background: var(--teal-light); color: #fff;
+      padding: .75rem 1.75rem; border-radius: var(--rad);
+      font-weight: 700; font-size: .9375rem; border: none;
+      transition: filter .15s; cursor: pointer;
+    }
+    .btn-primary:hover { filter: brightness(1.08); }
+    .btn-primary:disabled { background: var(--g400); cursor: not-allowed; filter: none; }
+    .btn-outline {
+      display: inline-block; background: transparent;
+      border: 2px solid var(--teal); color: var(--teal);
+      padding: .625rem 1.5rem; border-radius: var(--rad);
+      font-weight: 600; font-size: .9375rem;
+      transition: background .15s, color .15s; cursor: pointer;
+    }
+    .btn-outline:hover { background: var(--teal); color: #fff; }
+
+    /* ── Section ── */
+    .sec { padding: 2.5rem 0; }
+    .sec-title { font-size: 1.375rem; font-weight: 800; color: var(--g900); margin-bottom: 1.25rem; }
+
+    /* ── Category grid ── */
+    .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1rem; }
+    .cat-card {
+      background: #fff; border-radius: .75rem; padding: 1.25rem 1rem;
+      text-align: center; box-shadow: var(--sh); border: 1px solid var(--g200);
+      cursor: pointer; transition: box-shadow .15s, transform .15s;
+    }
+    .cat-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+    .cat-icon { font-size: 1.875rem; margin-bottom: .5rem; }
+    .cat-card h3 { font-size: .8125rem; font-weight: 700; color: var(--g700); line-height: 1.3; }
+
+    /* ── Product grid ── */
+    .prod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1.25rem; }
+    .prod-card {
+      background: #fff; border-radius: .75rem; overflow: hidden;
+      box-shadow: var(--sh); border: 1px solid var(--g200);
+      cursor: pointer; transition: box-shadow .15s, transform .15s;
+      display: flex; flex-direction: column;
+    }
+    .prod-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+    .prod-img {
+      aspect-ratio: 1; background: var(--g100);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .prod-img img { width: 100%; height: 100%; object-fit: cover; }
+    .prod-img-ph { font-size: 2.25rem; color: var(--g400); }
+    .prod-body { padding: .875rem; flex: 1; display: flex; flex-direction: column; }
+    .prod-brand { font-size: .6875rem; text-transform: uppercase; color: var(--g500); font-weight: 700; letter-spacing: .05em; margin-bottom: .25rem; }
+    .prod-name { font-size: .9rem; font-weight: 600; color: var(--g900); line-height: 1.35; margin-bottom: auto; }
+    .prod-foot { display: flex; align-items: center; justify-content: space-between; margin-top: .75rem; padding-top: .625rem; border-top: 1px solid var(--g100); }
+    .prod-price { font-size: 1rem; font-weight: 800; color: var(--teal); }
+    .prod-price-ss { color: var(--green); }
+    .badge-ss {
+      background: #ecfdf5; color: var(--green);
+      font-size: .625rem; font-weight: 800; padding: .2rem .45rem;
+      border-radius: 999px; border: 1px solid #bbf7d0;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .badge-oos {
+      background: var(--g100); color: var(--g500);
+      font-size: .625rem; font-weight: 800; padding: .2rem .45rem;
+      border-radius: 999px;
+    }
+    .atc-sm {
+      background: var(--teal); color: #fff; border: none;
+      width: 1.875rem; height: 1.875rem; border-radius: 50%;
+      font-size: 1.25rem; font-weight: 300;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s; flex-shrink: 0; line-height: 1;
+    }
+    .atc-sm:hover { background: var(--teal-mid); }
+    .atc-sm:disabled { background: var(--g200); color: var(--g500); cursor: not-allowed; }
+
+    /* ── Breadcrumb ── */
+    .bc { display: flex; align-items: center; flex-wrap: wrap; gap: .375rem; font-size: .8125rem; color: var(--g500); margin-bottom: 1.25rem; }
+    .bc a { color: var(--g500); } .bc a:hover { color: var(--teal); }
+    .bc span { color: var(--g400); }
+
+    /* ── Product detail ── */
+    .pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; align-items: start; }
+    @media (max-width: 640px) { .pd-grid { grid-template-columns: 1fr; } }
+    .pd-img {
+      aspect-ratio: 1; background: var(--g100); border-radius: 1rem;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .pd-img img { width: 100%; height: 100%; object-fit: cover; }
+    .pd-img-ph { font-size: 5rem; color: var(--g400); }
+    .pd-brand { font-size: .8rem; text-transform: uppercase; color: var(--g500); font-weight: 700; letter-spacing: .05em; margin-bottom: .5rem; }
+    .pd-title { font-size: clamp(1.25rem, 2.5vw, 1.75rem); font-weight: 900; line-height: 1.2; margin-bottom: .75rem; letter-spacing: -.02em; }
+    .pd-price-row { display: flex; align-items: baseline; gap: .625rem; margin-bottom: 1rem; }
+    .pd-price { font-size: 1.75rem; font-weight: 900; color: var(--teal); }
+    .pd-price-ss { font-size: 1.75rem; font-weight: 900; color: var(--green); }
+    .pd-price-orig { font-size: 1rem; text-decoration: line-through; color: var(--g400); }
+    .ss-banner {
+      background: #ecfdf5; border: 1px solid #bbf7d0; border-radius: var(--rad);
+      padding: .625rem .875rem; font-size: .875rem; color: var(--green); font-weight: 600;
+      display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem;
+    }
+    .pd-desc { color: var(--g700); font-size: .9375rem; line-height: 1.75; margin-bottom: 1.5rem; white-space: pre-wrap; }
+    .qty-row { display: flex; align-items: center; gap: 1rem; margin-bottom: .875rem; }
+    .qty-label { font-size: .8rem; text-transform: uppercase; font-weight: 700; color: var(--g500); }
+    .qty-ctrl { display: flex; align-items: center; border: 1.5px solid var(--g200); border-radius: var(--rad); overflow: hidden; }
+    .qty-ctrl button { background: var(--g100); border: none; width: 2.25rem; height: 2.25rem; font-size: 1.125rem; font-weight: 700; color: var(--g700); transition: background .15s; }
+    .qty-ctrl button:hover { background: var(--g200); }
+    .qty-ctrl input { width: 2.75rem; border: none; text-align: center; font-size: .9375rem; font-weight: 700; outline: none; background: #fff; }
+    .btn-atc {
+      background: var(--teal); color: #fff; border: none;
+      padding: .875rem 2rem; border-radius: var(--rad);
+      font-size: 1rem; font-weight: 700; width: 100%;
+      transition: filter .15s;
+    }
+    .btn-atc:hover { filter: brightness(1.1); }
+    .btn-atc:disabled { background: var(--g200); color: var(--g500); cursor: not-allowed; }
+    .pd-meta { font-size: .8125rem; color: var(--g500); margin-top: .875rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    /* ── Cart ── */
+    .cart-empty { text-align: center; padding: 5rem 1rem; color: var(--g500); }
+    .cart-empty-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+    .cart-empty h2 { font-size: 1.25rem; font-weight: 800; color: var(--g700); margin-bottom: .5rem; }
+    .cart-layout { display: grid; grid-template-columns: 1fr 320px; gap: 2rem; align-items: start; }
+    @media (max-width: 768px) { .cart-layout { grid-template-columns: 1fr; } }
+    .cart-item { display: flex; align-items: center; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--g200); }
+    .cart-item-img { width: 4.5rem; height: 4.5rem; border-radius: var(--rad); background: var(--g100); overflow: hidden; flex-shrink: 0; }
+    .cart-item-img img { width: 100%; height: 100%; object-fit: cover; }
+    .cart-item-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .cart-item-info { flex: 1; min-width: 0; }
+    .cart-item-name { font-weight: 700; font-size: .9375rem; margin-bottom: .2rem; }
+    .cart-item-sub { font-size: .875rem; color: var(--g500); }
+    .cart-item-rm { background: none; border: none; color: var(--g400); font-size: .8125rem; text-decoration: underline; padding: 0; margin-top: .25rem; transition: color .15s; }
+    .cart-item-rm:hover { color: var(--red); }
+    .cart-item-total { font-weight: 800; font-size: 1rem; flex-shrink: 0; }
+    .order-box { background: #fff; border: 1px solid var(--g200); border-radius: .75rem; padding: 1.25rem; position: sticky; top: 5rem; }
+    .order-row { display: flex; justify-content: space-between; font-size: .9375rem; padding: .2rem 0; }
+    .order-row.discount { color: var(--green); }
+    .order-row.total { font-weight: 800; font-size: 1.125rem; border-top: 1px solid var(--g200); padding-top: .625rem; margin-top: .375rem; }
+
+    /* ── Form fields ── */
+    .fld {
+      width: 100%; padding: .65rem .875rem;
+      border: 1.5px solid var(--g200); border-radius: var(--rad);
+      font-size: .9375rem; transition: border-color .15s; background: #fff;
+    }
+    .fld:focus { outline: none; border-color: var(--teal-light); }
+    .fld-label { font-size: .775rem; font-weight: 700; text-transform: uppercase; color: var(--g500); letter-spacing: .04em; margin-bottom: .35rem; display: block; }
+    .fld-g { margin-bottom: .875rem; }
+    .fld-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    @media (max-width: 500px) { .fld-row { grid-template-columns: 1fr; } }
+
+    /* ── Checkout ── */
+    .co-steps { display: flex; align-items: center; gap: .5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .co-step { display: flex; align-items: center; gap: .375rem; font-size: .8125rem; font-weight: 700; color: var(--g400); }
+    .co-step.active { color: var(--teal); }
+    .co-step.done { color: var(--green); }
+    .co-step-n { width: 1.625rem; height: 1.625rem; border-radius: 50%; border: 2px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: .75rem; flex-shrink: 0; }
+    .co-sep { flex: 1; height: 1px; background: var(--g200); min-width: 1rem; }
+    .co-card { background: #fff; border-radius: .75rem; border: 1px solid var(--g200); padding: 1.5rem; margin-bottom: 1.25rem; }
+    .co-card h2 { font-size: 1.0625rem; font-weight: 800; margin-bottom: 1.25rem; }
+    .ship-opt {
+      display: flex; align-items: center; gap: .75rem; padding: .875rem;
+      border: 2px solid var(--g200); border-radius: var(--rad);
+      cursor: pointer; transition: border-color .15s, background .15s; margin-bottom: .5rem;
+    }
+    .ship-opt:has(input:checked) { border-color: var(--teal); background: #f0f9f8; }
+    .ship-opt input { accent-color: var(--teal); flex-shrink: 0; }
+    .ship-opt-name { font-weight: 700; font-size: .9375rem; }
+    .ship-opt-days { font-size: .8125rem; color: var(--g500); }
+    .ship-opt-price { margin-left: auto; font-weight: 800; color: var(--teal); flex-shrink: 0; }
+    #stripe-element { padding: .75rem; border: 1.5px solid var(--g200); border-radius: var(--rad); background: #fff; min-height: 44px; }
+
+    /* ── Account / Auth ── */
+    .auth-card { background: #fff; border-radius: .75rem; border: 1px solid var(--g200); padding: 2rem; max-width: 400px; margin: 2rem auto; }
+    .auth-tabs { display: flex; border-bottom: 2px solid var(--g200); margin-bottom: 1.5rem; }
+    .auth-tab { padding: .625rem 1rem; font-weight: 700; font-size: .9375rem; color: var(--g500); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+    .auth-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+    .order-card { background: #fff; border-radius: var(--rad); border: 1px solid var(--g200); padding: 1rem; margin-bottom: .75rem; }
+    .order-card-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: .375rem; }
+    .order-num { font-weight: 800; font-size: .9375rem; }
+    .status-badge { padding: .2rem .625rem; border-radius: 999px; font-size: .75rem; font-weight: 800; text-transform: uppercase; }
+    .s-pending   { background: #fef3c7; color: #92400e; }
+    .s-paid      { background: #dcfce7; color: #15803d; }
+    .s-fulfilled { background: #dbeafe; color: #1d4ed8; }
+    .s-cancelled { background: #fee2e2; color: #991b1b; }
+
+    /* ── Trust bar ── */
+    .trust-bar { background: #f0f9f8; padding: 2.5rem 0; }
+    .trust-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; text-align: center; }
+    .trust-icon { font-size: 2rem; margin-bottom: .5rem; }
+    .trust-title { font-weight: 800; margin-bottom: .25rem; }
+    .trust-sub { font-size: .875rem; color: var(--g500); }
+
+    /* ── Toast ── */
+    #toast-area { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; pointer-events: none; }
+    .toast { background: var(--g900); color: #fff; padding: .75rem 1.25rem; border-radius: var(--rad); font-size: .875rem; font-weight: 600; box-shadow: var(--sh-md); margin-top: .5rem; animation: slideIn .2s ease; }
+    .toast.err { background: var(--red); }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(.5rem); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Loading ── */
+    .ld { text-align: center; padding: 4rem 1rem; color: var(--g500); }
+    .spin { width: 2rem; height: 2rem; border: 3px solid var(--g200); border-top-color: var(--teal); border-radius: 50%; animation: rot .65s linear infinite; margin: 0 auto .875rem; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    /* ── Footer ── */
+    #ftr { background: var(--teal); color: rgba(255,255,255,.65); text-align: center; padding: 2rem 1rem; font-size: .875rem; margin-top: 3rem; }
+    #ftr a { color: rgba(255,255,255,.75); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .hdr-links { display: none; }
+      .cat-grid  { grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+      .prod-grid { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Promo bar -->
+<div id="ssBar">
+  Subscribe &amp; Save — get 5% off eligible products, free to join.
+  <a href="/account" data-nav="/account">Sign up →</a>
+</div>
+
+<!-- Header -->
+<header id="hdr">
+  <div class="hdr-inner">
+    <a href="/" data-nav="/" class="logo">Pacific Coast <span>Ponds</span></a>
+    <nav class="hdr-nav">
+      <div class="hdr-links" style="display:flex;gap:1.5rem;">
+        <a href="/collections" data-nav="/collections" class="hdr-link">Shop</a>
+        <a href="/account"     data-nav="/account"     class="hdr-link" id="acctLink">Account</a>
+      </div>
+      <button class="cart-btn" id="cartBtn">
+        🛒 Cart <span class="cart-badge" id="cartBadge">0</span>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<!-- Content -->
+<main id="root"></main>
+
+<!-- Footer -->
+<footer id="ftr">
+  <p>&copy; 2025 Pacific Coast Ponds &mdash; <a href="https://paccoastponds.com">paccoastponds.com</a></p>
+</footer>
+
+<div id="toast-area"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+// Replace with your actual values before deploying
+const SUPABASE_URL  = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON = 'YOUR_SUPABASE_ANON_KEY';
+const STRIPE_PK     = 'YOUR_STRIPE_PUBLISHABLE_KEY';
+const FN = '/.netlify/functions';
+
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let _user         = null;
+let _isSub        = false;
+let _cart         = JSON.parse(localStorage.getItem('pcp_cart') || '[]');
+let _stripe       = null;
+let _stripeEls    = null;
+let _coInfo       = null;
+let _rates        = [];
+let _selRate      = null;
+let _coOrder      = null;
+let _coStep       = 1;
+let _authMode     = 'login';
+
+// ─── CART HELPERS ─────────────────────────────────────────────────────────────
+function saveCart() {
+  localStorage.setItem('pcp_cart', JSON.stringify(_cart));
+  renderCartBadge();
+}
+function renderCartBadge() {
+  const n = _cart.reduce((s, i) => s + i.qty, 0);
+  document.getElementById('cartBadge').textContent = n;
+}
+function cartSubtotal() { return _cart.reduce((s, i) => s + i.price * i.qty, 0); }
+function cartDiscount() { return _cart.reduce((s, i) => s + (i.ss ? (i.origPrice - i.price) * i.qty : 0), 0); }
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function toast(msg, ok = true) {
+  const c = document.getElementById('toast-area');
+  const el = document.createElement('div');
+  el.className = 'toast' + (ok ? '' : ' err');
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function nav(path, replace = false) {
+  if (replace) history.replaceState({}, '', path);
+  else         history.pushState({}, '', path);
+  route();
+}
+
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-nav]');
+  if (a) { e.preventDefault(); nav(a.dataset.nav); }
+});
+
+window.addEventListener('popstate', route);
+
+document.getElementById('cartBtn').addEventListener('click', () => nav('/cart'));
+
+function route() {
+  const p = location.pathname;
+  const root = document.getElementById('root');
+  root.innerHTML = '<div class="ld"><div class="spin"></div><p>Loading…</p></div>';
+  renderCartBadge();
+
+  if (p === '/' || p === '')          return pgHome(root);
+  if (p === '/collections')           return pgCollections(root);
+  if (p.startsWith('/collections/'))  return pgCollection(root, p.replace('/collections/', '').replace(/\/$/, ''));
+  if (p.startsWith('/products/'))     return pgProduct(root, p.replace('/products/', '').replace(/\/$/, ''));
+  if (p === '/cart')                  return pgCart(root);
+  if (p === '/checkout')              return pgCheckout(root);
+  if (p === '/account')               return pgAccount(root);
+  if (p === '/order-confirm')         return pgOrderConfirm(root);
+  root.innerHTML = `<div class="wrap sec"><h1 style="font-size:2rem;font-weight:900">404</h1><p style="color:var(--g500);margin-top:.5rem">Page not found. <a href="/" data-nav="/" style="color:var(--teal)">← Home</a></p></div>`;
+}
+
+// ─── META ─────────────────────────────────────────────────────────────────────
+function setMeta(title, desc) {
+  document.title = title;
+  let m = document.querySelector('meta[name="description"]');
+  if (!m) { m = document.createElement('meta'); m.name = 'description'; document.head.appendChild(m); }
+  m.content = desc || '';
+}
+
+// ─── JSON-LD ──────────────────────────────────────────────────────────────────
+function ldInject(obj) {
+  let el = document.getElementById('ld');
+  if (!el) { el = document.createElement('script'); el.id = 'ld'; el.type = 'application/ld+json'; document.head.appendChild(el); }
+  el.textContent = JSON.stringify(obj);
+}
+function ldWebsite() {
+  ldInject({ '@context': 'https://schema.org', '@type': 'WebSite', name: 'Pacific Coast Ponds Shop', url: location.origin });
+}
+function ldProduct(p) {
+  ldInject({
+    '@context': 'https://schema.org', '@type': 'Product',
+    name: p.name,
+    description: p.shop_description || p.description || '',
+    image: p.image_url || undefined,
+    sku: p.sku || undefined,
+    brand: p.brand ? { '@type': 'Brand', name: p.brand } : undefined,
+    offers: {
+      '@type': 'Offer', priceCurrency: 'USD',
+      price: parseFloat(p.price).toFixed(2),
+      availability: p.stock_status === 'in_stock'
+        ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: location.href,
+      seller: { '@type': 'Organization', name: 'Pacific Coast Ponds' }
+    }
+  });
+}
+function ldBreadcrumb(items) {
+  ldInject({
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem', position: i + 1, name: it.name,
+      item: location.origin + it.url
+    }))
+  });
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+function catIcon(name) {
+  const map = [
+    ['Aerat','💨'], ['Filter','🔵'], ['UV','☀️'], ['Clean','🧹'],
+    ['Chem','🧪'], ['Pump','⚙️'], ['Fish','🐟'], ['Plumb','🔧'],
+    ['Handl','🪣'], ['Predator','🦅'], ['Construct','🏗'],
+    ['Water Feature','⛲'], ['Waterfall','💧'], ['Fountain','⛲'],
+    ['Liner','🪨'], ['Pond','🌊'],
+  ];
+  for (const [k, icon] of map) {
+    if (name.toLowerCase().includes(k.toLowerCase())) return icon;
+  }
+  return '📦';
+}
+const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+
+// ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
+function prodCard(p) {
+  const inStock = p.stock_status !== 'out_of_stock' && p.stock_status !== 'discontinued';
+  const ssPrice = (p.subscribe_save_eligible && _isSub) ? +(p.price * 0.95).toFixed(2) : null;
+  const url = `/products/${esc(p.slug || p.id)}`;
+  return `
+    <article class="prod-card" data-nav="${url}" style="cursor:pointer">
+      <div class="prod-img">
+        ${p.image_url
+          ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`
+          : `<div class="prod-img-ph">📦</div>`}
+      </div>
+      <div class="prod-body">
+        ${p.brand ? `<p class="prod-brand">${esc(p.brand)}</p>` : ''}
+        <p class="prod-name">${esc(p.name)}</p>
+        <div class="prod-foot">
+          <div>
+            <p class="prod-price ${ssPrice ? 'prod-price-ss' : ''}">
+              $${ssPrice ? ssPrice.toFixed(2) : parseFloat(p.price).toFixed(2)}
+            </p>
+            ${p.subscribe_save_eligible ? '<span class="badge-ss">S&S</span>' : ''}
+            ${!inStock ? '<span class="badge-oos">Out of Stock</span>' : ''}
+          </div>
+          <button class="atc-sm js-atc"
+            data-id="${esc(p.id)}" data-name="${esc(p.name)}"
+            data-price="${p.price}" data-img="${esc(p.image_url || '')}"
+            data-ss="${p.subscribe_save_eligible}"
+            ${inStock ? '' : 'disabled'}
+            title="${inStock ? 'Add to cart' : 'Out of stock'}"
+          >+</button>
+        </div>
+      </div>
+    </article>`;
+}
+
+// Use event delegation for add-to-cart buttons
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.js-atc');
+  if (!btn) return;
+  e.stopPropagation();
+  const ssEligible = btn.dataset.ss === 'true';
+  const origPrice  = parseFloat(btn.dataset.price);
+  const price      = (ssEligible && _isSub) ? +(origPrice * 0.95).toFixed(2) : origPrice;
+  const name       = btn.dataset.name;
+  const existing   = _cart.find(i => i.product_id === btn.dataset.id);
+  if (existing) existing.qty++;
+  else _cart.push({ product_id: btn.dataset.id, name, price, origPrice, image_url: btn.dataset.img, qty: 1, ss: ssEligible && _isSub });
+  saveCart();
+  toast(name + ' added to cart');
+});
+
+// ─── HOME ─────────────────────────────────────────────────────────────────────
+async function pgHome(el) {
+  setMeta('Pacific Coast Ponds Shop — Pond Supplies & Equipment',
+    'Professional pond supplies shipped direct. Pumps, filters, aeration, treatments & more.');
+  ldWebsite();
+
+  const [{ data: cats }, { data: featured }] = await Promise.all([
+    sb.from('product_categories').select('id, name, slug').is('parent_id', null).order('name'),
+    sb.from('products')
+      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible')
+      .eq('active', true).not('slug', 'is', null)
+      .order('created_at', { ascending: false }).limit(8),
+  ]);
+
+  el.innerHTML = `
+    <section class="hero">
+      <div class="wrap">
+        <h1>Your Pond, Perfectly Equipped</h1>
+        <p>Professional-grade pond supplies — pumps, filters, aeration, treatments &amp; more. Shipped USPS direct to your door.</p>
+        <a href="/collections" data-nav="/collections" class="btn-primary">Shop All Products</a>
+      </div>
+    </section>
+
+    ${cats?.length ? `
+    <section class="sec wrap">
+      <h2 class="sec-title">Shop by Category</h2>
+      <div class="cat-grid">
+        ${cats.map(c => `
+          <div class="cat-card" data-nav="/collections/${esc(c.slug || c.id)}">
+            <div class="cat-icon">${catIcon(c.name)}</div>
+            <h3>${esc(c.name)}</h3>
+          </div>`).join('')}
+      </div>
+    </section>` : ''}
+
+    ${featured?.length ? `
+    <section class="sec wrap">
+      <h2 class="sec-title">New Arrivals</h2>
+      <div class="prod-grid">${featured.map(prodCard).join('')}</div>
+    </section>` : ''}
+
+    <section class="trust-bar">
+      <div class="trust-items wrap">
+        <div>
+          <div class="trust-icon">🚢</div>
+          <p class="trust-title">USPS Shipping</p>
+          <p class="trust-sub">Real-time rates, every order</p>
+        </div>
+        <div>
+          <div class="trust-icon">🔒</div>
+          <p class="trust-title">Secure Checkout</p>
+          <p class="trust-sub">Powered by Stripe</p>
+        </div>
+        <div>
+          <div class="trust-icon">💚</div>
+          <p class="trust-title">Subscribe &amp; Save</p>
+          <p class="trust-sub">5% off eligible items — free to join</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+// ─── COLLECTIONS ──────────────────────────────────────────────────────────────
+async function pgCollections(el) {
+  setMeta('All Categories — Pacific Coast Ponds Shop', 'Browse all pond supply categories.');
+  const { data: cats } = await sb.from('product_categories')
+    .select('id, name, slug').is('parent_id', null).order('name');
+
+  el.innerHTML = `
+    <div class="wrap sec">
+      <nav class="bc">
+        <a href="/" data-nav="/">Home</a><span>›</span>
+        <span>All Categories</span>
+      </nav>
+      <h1 class="sec-title">All Categories</h1>
+      <div class="cat-grid">
+        ${(cats || []).map(c => `
+          <div class="cat-card" data-nav="/collections/${esc(c.slug || c.id)}">
+            <div class="cat-icon">${catIcon(c.name)}</div>
+            <h3>${esc(c.name)}</h3>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ─── COLLECTION ───────────────────────────────────────────────────────────────
+async function pgCollection(el, slug) {
+  const { data: cat } = await sb.from('product_categories')
+    .select('id, name, slug, parent_id')
+    .or(`slug.eq.${slug},id.eq.${slug}`).maybeSingle();
+  if (!cat) { el.innerHTML = '<div class="wrap sec"><p>Category not found.</p></div>'; return; }
+
+  setMeta(`${cat.name} — Pacific Coast Ponds Shop`, `Shop ${cat.name} pond supplies at Pacific Coast Ponds.`);
+  ldBreadcrumb([
+    { name: 'Home', url: '/' },
+    { name: 'Shop', url: '/collections' },
+    { name: cat.name, url: `/collections/${slug}` },
+  ]);
+
+  const { data: subs } = await sb.from('product_categories').select('id').eq('parent_id', cat.id);
+  const ids = [cat.id, ...(subs || []).map(s => s.id)];
+  const { data: products } = await sb.from('products')
+    .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible')
+    .in('category_id', ids).eq('active', true).order('name');
+
+  el.innerHTML = `
+    <div class="wrap sec">
+      <nav class="bc">
+        <a href="/" data-nav="/">Home</a><span>›</span>
+        <a href="/collections" data-nav="/collections">Shop</a><span>›</span>
+        <span>${esc(cat.name)}</span>
+      </nav>
+      <h1 class="sec-title">${esc(cat.name)}</h1>
+      ${!products?.length
+        ? '<p style="color:var(--g500)">No products in this category yet.</p>'
+        : `<div class="prod-grid">${products.map(prodCard).join('')}</div>`}
+    </div>`;
+}
+
+// ─── PRODUCT ──────────────────────────────────────────────────────────────────
+async function pgProduct(el, slug) {
+  const { data: p } = await sb.from('products')
+    .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id')
+    .or(`slug.eq.${slug},id.eq.${slug}`)
+    .eq('active', true).maybeSingle();
+  if (!p) { el.innerHTML = '<div class="wrap sec"><p>Product not found.</p></div>'; return; }
+
+  let cat = null;
+  if (p.category_id) {
+    const { data: c } = await sb.from('product_categories').select('id, name, slug').eq('id', p.category_id).maybeSingle();
+    cat = c;
+  }
+
+  setMeta(p.meta_title || `${p.name} — Pacific Coast Ponds Shop`,
+    p.meta_description || (p.shop_description || p.description || '').slice(0, 160));
+  ldProduct(p);
+  if (cat) ldBreadcrumb([
+    { name: 'Home', url: '/' },
+    { name: 'Shop', url: '/collections' },
+    { name: cat.name, url: `/collections/${cat.slug || cat.id}` },
+    { name: p.name, url: `/products/${p.slug}` },
+  ]);
+
+  const inStock = p.stock_status !== 'out_of_stock' && p.stock_status !== 'discontinued';
+  const ssPrice = (p.subscribe_save_eligible && _isSub) ? +(p.price * 0.95).toFixed(2) : null;
+  const displayDesc = p.shop_description || p.description || '';
+
+  el.innerHTML = `
+    <div class="wrap sec">
+      <nav class="bc">
+        <a href="/" data-nav="/">Home</a><span>›</span>
+        ${cat ? `<a href="/collections/${cat.slug || cat.id}" data-nav="/collections/${cat.slug || cat.id}">${esc(cat.name)}</a><span>›</span>` : ''}
+        <span>${esc(p.name)}</span>
+      </nav>
+      <div class="pd-grid">
+        <div class="pd-img">
+          ${p.image_url
+            ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}">`
+            : `<div class="pd-img-ph">📦</div>`}
+        </div>
+        <div>
+          ${p.brand ? `<p class="pd-brand">${esc(p.brand)}</p>` : ''}
+          <h1 class="pd-title">${esc(p.name)}</h1>
+          <div class="pd-price-row">
+            ${ssPrice
+              ? `<span class="pd-price-ss">$${ssPrice.toFixed(2)}</span>
+                 <span class="pd-price-orig">$${parseFloat(p.price).toFixed(2)}</span>`
+              : `<span class="pd-price">$${parseFloat(p.price).toFixed(2)}</span>`}
+          </div>
+          ${p.subscribe_save_eligible ? `
+            <div class="ss-banner">
+              💚 ${_isSub
+                ? `Subscribe &amp; Save applied — you save $${(p.price - ssPrice).toFixed(2)}`
+                : `Save 5% with Subscribe &amp; Save. <a href="/account" data-nav="/account" style="color:var(--green);text-decoration:underline;margin-left:.25rem">Join free →</a>`}
+            </div>` : ''}
+          ${displayDesc ? `<p class="pd-desc">${esc(displayDesc)}</p>` : ''}
+          ${inStock ? `
+            <div class="qty-row">
+              <span class="qty-label">Qty</span>
+              <div class="qty-ctrl">
+                <button type="button" id="qtyMinus">−</button>
+                <input type="number" id="qtyInput" value="1" min="1" max="99">
+                <button type="button" id="qtyPlus">+</button>
+              </div>
+            </div>
+            <button class="btn-atc" id="atcBtn">Add to Cart</button>
+          ` : `<p class="badge-oos" style="font-size:.9375rem;padding:.5rem 1rem;border-radius:var(--rad);display:inline-block;margin-bottom:1rem;">Out of Stock</p>`}
+          <div class="pd-meta">
+            ${inStock ? '<span>✓ In Stock</span>' : ''}
+            ${p.weight_oz ? `<span>Weight: ${p.weight_oz} oz</span>` : ''}
+            ${p.sku ? `<span>SKU: ${esc(p.sku)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  if (inStock) {
+    document.getElementById('qtyMinus').addEventListener('click', () => {
+      const inp = document.getElementById('qtyInput');
+      inp.value = Math.max(1, parseInt(inp.value || 1) - 1);
+    });
+    document.getElementById('qtyPlus').addEventListener('click', () => {
+      const inp = document.getElementById('qtyInput');
+      inp.value = Math.min(99, parseInt(inp.value || 1) + 1);
+    });
+    document.getElementById('atcBtn').addEventListener('click', () => {
+      const qty  = parseInt(document.getElementById('qtyInput').value || 1);
+      const price = (p.subscribe_save_eligible && _isSub) ? +(p.price * 0.95).toFixed(2) : parseFloat(p.price);
+      const existing = _cart.find(i => i.product_id === p.id);
+      if (existing) existing.qty += qty;
+      else _cart.push({ product_id: p.id, name: p.name, price, origPrice: parseFloat(p.price), image_url: p.image_url || '', qty, ss: p.subscribe_save_eligible && _isSub });
+      saveCart();
+      toast(p.name + ' added to cart');
+    });
+  }
+}
+
+// ─── CART ─────────────────────────────────────────────────────────────────────
+function pgCart(el) {
+  setMeta('Cart — Pacific Coast Ponds Shop', '');
+  if (!_cart.length) {
+    el.innerHTML = `
+      <div class="wrap">
+        <div class="cart-empty">
+          <div class="cart-empty-icon">🛒</div>
+          <h2>Your cart is empty</h2>
+          <p>Browse our pond supplies to get started.</p>
+          <a href="/collections" data-nav="/collections" class="btn-primary" style="margin-top:1.5rem;display:inline-block">Shop Now</a>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const sub  = cartSubtotal();
+  const disc = cartDiscount();
+
+  el.innerHTML = `
+    <div class="wrap sec">
+      <h1 class="sec-title">Your Cart</h1>
+      <div class="cart-layout">
+        <div id="cartItems">
+          ${_cart.map((item, i) => `
+            <div class="cart-item">
+              <div class="cart-item-img">
+                ${item.image_url
+                  ? `<img src="${esc(item.image_url)}" alt="${esc(item.name)}">`
+                  : `<div class="cart-item-ph">📦</div>`}
+              </div>
+              <div class="cart-item-info">
+                <p class="cart-item-name">${esc(item.name)}</p>
+                <p class="cart-item-sub">$${item.price.toFixed(2)} × ${item.qty}${item.ss ? ' <span class="badge-ss">S&S</span>' : ''}</p>
+                <button class="cart-item-rm js-rm" data-idx="${i}">Remove</button>
+              </div>
+              <p class="cart-item-total">$${(item.price * item.qty).toFixed(2)}</p>
+            </div>`).join('')}
+        </div>
+        <div>
+          <div class="order-box">
+            <h3 style="font-weight:800;margin-bottom:.875rem;">Order Summary</h3>
+            <div class="order-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+            ${disc > 0 ? `<div class="order-row discount"><span>S&S Discount</span><span>−$${disc.toFixed(2)}</span></div>` : ''}
+            <div class="order-row"><span>Shipping</span><span style="color:var(--g500)">Calculated at checkout</span></div>
+            <div class="order-row total"><span>Estimated Total</span><span>$${(sub - disc).toFixed(2)}</span></div>
+            <button class="btn-primary" id="checkoutBtn" style="width:100%;margin-top:1.25rem;padding:.875rem;text-align:center;">
+              Proceed to Checkout
+            </button>
+          </div>
+          ${!_isSub ? `
+          <div style="margin-top:1rem;padding:.875rem;background:#ecfdf5;border-radius:var(--rad);font-size:.875rem;">
+            <strong>💚 Subscribe &amp; Save</strong> — <a href="/account" data-nav="/account" style="color:var(--green)">Join free</a> for 5% off eligible items
+          </div>` : ''}
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('checkoutBtn').addEventListener('click', () => {
+    _coStep = 1; nav('/checkout');
+  });
+  document.getElementById('cartItems').addEventListener('click', e => {
+    const btn = e.target.closest('.js-rm');
+    if (!btn) return;
+    _cart.splice(parseInt(btn.dataset.idx), 1);
+    saveCart();
+    pgCart(el);
+  });
+}
+
+// ─── CHECKOUT ─────────────────────────────────────────────────────────────────
+function pgCheckout(el) {
+  if (!_cart.length) { nav('/cart'); return; }
+  setMeta('Checkout — Pacific Coast Ponds Shop', '');
+
+  const steps = [
+    { label: 'Contact & Address', n: 1 },
+    { label: 'Shipping',          n: 2 },
+    { label: 'Payment',           n: 3 },
+  ];
+
+  el.innerHTML = `
+    <div class="wrap-sm sec">
+      <div class="co-steps">
+        ${steps.map((s, i) => `
+          ${i > 0 ? '<div class="co-sep"></div>' : ''}
+          <div class="co-step ${_coStep === s.n ? 'active' : (_coStep > s.n ? 'done' : '')}">
+            <span class="co-step-n">${_coStep > s.n ? '✓' : s.n}</span>
+            ${s.label}
+          </div>`).join('')}
+      </div>
+      <div id="coContent"></div>
+    </div>`;
+
+  if (_coStep === 1) renderCoInfo();
+  else if (_coStep === 2) renderCoShipping();
+  else renderCoPayment();
+}
+
+function renderCoInfo() {
+  const el = document.getElementById('coContent');
+  const u  = _user;
+  el.innerHTML = `
+    <div class="co-card">
+      <h2>Contact Information</h2>
+      <div class="fld-g"><label class="fld-label">Full Name *</label>
+        <input class="fld" id="co_name" placeholder="Jane Smith" value="${esc(u?.user_metadata?.full_name || '')}"></div>
+      <div class="fld-g"><label class="fld-label">Email *</label>
+        <input class="fld" id="co_email" type="email" placeholder="you@example.com" value="${esc(u?.email || '')}"></div>
+    </div>
+    <div class="co-card">
+      <h2>Shipping Address</h2>
+      <div class="fld-g"><label class="fld-label">Street Address *</label>
+        <input class="fld" id="co_addr1" placeholder="123 Main St" value="${esc(_coInfo?.address1 || '')}"></div>
+      <div class="fld-g"><label class="fld-label">Apt / Suite</label>
+        <input class="fld" id="co_addr2" placeholder="Apt 4B (optional)" value="${esc(_coInfo?.address2 || '')}"></div>
+      <div class="fld-row fld-g">
+        <div><label class="fld-label">City *</label><input class="fld" id="co_city" value="${esc(_coInfo?.city || '')}"></div>
+        <div><label class="fld-label">State *</label>
+          <select class="fld" id="co_state">
+            ${US_STATES.map(s => `<option${(_coInfo?.state||'CA')===s?' selected':''}>${s}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="fld-row fld-g">
+        <div><label class="fld-label">ZIP *</label><input class="fld" id="co_zip" maxlength="10" placeholder="90210" value="${esc(_coInfo?.zip || '')}"></div>
+        <div><label class="fld-label">Phone</label><input class="fld" id="co_phone" type="tel" placeholder="(555) 555-5555" value="${esc(_coInfo?.phone || '')}"></div>
+      </div>
+    </div>
+    <button class="btn-primary" id="coBtn1" style="width:100%;padding:.875rem;text-align:center;">
+      Continue to Shipping
+    </button>`;
+
+  document.getElementById('coBtn1').addEventListener('click', async () => {
+    const name  = document.getElementById('co_name').value.trim();
+    const email = document.getElementById('co_email').value.trim();
+    const addr1 = document.getElementById('co_addr1').value.trim();
+    const city  = document.getElementById('co_city').value.trim();
+    const state = document.getElementById('co_state').value;
+    const zip   = document.getElementById('co_zip').value.trim();
+    const addr2 = document.getElementById('co_addr2').value.trim();
+    const phone = document.getElementById('co_phone').value.trim();
+
+    if (!name || !email || !addr1 || !city || !state || !zip) {
+      toast('Please fill in all required fields', false); return;
+    }
+    _coInfo = { name, email, address1: addr1, address2: addr2, city, state, zip, phone };
+
+    const btn = document.getElementById('coBtn1');
+    btn.textContent = 'Fetching rates…'; btn.disabled = true;
+
+    try {
+      const totalOz = _cart.reduce((s, i) => s + 16 * i.qty, 0);
+      const res  = await fetch(`${FN}/shop-shipping`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_address: { name, street1: addr1, city, state, zip, phone },
+          weight_oz: totalOz,
+        }),
+      });
+      const data = await res.json();
+      _rates   = data.rates || [];
+      _selRate = _rates[0] || null;
+      _coStep  = 2;
+      pgCheckout(document.getElementById('root'));
+    } catch {
+      toast('Could not fetch shipping rates. Please try again.', false);
+      btn.textContent = 'Continue to Shipping'; btn.disabled = false;
+    }
+  });
+}
+
+function renderCoShipping() {
+  const el = document.getElementById('coContent');
+  el.innerHTML = `
+    <div class="co-card">
+      <h2>Ship to</h2>
+      <p style="font-size:.875rem;color:var(--g500);margin-bottom:1.25rem;">
+        ${esc(_coInfo.address1)}${_coInfo.address2 ? ', ' + esc(_coInfo.address2) : ''},
+        ${esc(_coInfo.city)}, ${esc(_coInfo.state)} ${esc(_coInfo.zip)}
+        <button id="editAddrBtn" style="background:none;border:none;color:var(--teal);font-size:.8rem;font-weight:700;cursor:pointer;margin-left:.375rem;text-decoration:underline;">Edit</button>
+      </p>
+      <h3 style="font-weight:800;margin-bottom:.875rem;">Shipping Options</h3>
+      ${_rates.length
+        ? _rates.map((r, i) => `
+          <label class="ship-opt">
+            <input type="radio" name="rate" value="${i}" ${i === 0 ? 'checked' : ''}>
+            <div>
+              <p class="ship-opt-name">${esc(r.service)}</p>
+              <p class="ship-opt-days">${r.delivery_days ? r.delivery_days + ' business day' + (r.delivery_days !== 1 ? 's' : '') : 'Estimated delivery'}</p>
+            </div>
+            <span class="ship-opt-price">$${parseFloat(r.rate).toFixed(2)}</span>
+          </label>`).join('')
+        : '<p style="color:var(--g500)">No rates available.</p>'}
+    </div>
+    <button class="btn-primary" id="coBtn2" style="width:100%;padding:.875rem;text-align:center;">
+      Continue to Payment
+    </button>`;
+
+  document.getElementById('editAddrBtn')?.addEventListener('click', () => { _coStep = 1; pgCheckout(document.getElementById('root')); });
+
+  el.querySelectorAll('input[name="rate"]').forEach(inp => {
+    inp.addEventListener('change', () => { _selRate = _rates[parseInt(inp.value)]; });
+  });
+
+  document.getElementById('coBtn2').addEventListener('click', () => {
+    if (!_selRate && _rates.length) { toast('Please select a shipping option', false); return; }
+    _coStep = 3;
+    pgCheckout(document.getElementById('root'));
+  });
+}
+
+async function renderCoPayment() {
+  const el = document.getElementById('coContent');
+  el.innerHTML = '<div class="ld"><div class="spin"></div><p>Preparing payment…</p></div>';
+
+  let authToken = null;
+  if (_user) {
+    const { data: { session } } = await sb.auth.getSession();
+    authToken = session?.access_token;
+  }
+
+  const res = await fetch(`${FN}/shop-checkout`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: _cart.map(i => ({
+        product_id: i.product_id, product_name: i.name,
+        quantity: i.qty, unit_price: i.price,
+      })),
+      shipping_address: {
+        name: _coInfo.name, address1: _coInfo.address1, address2: _coInfo.address2,
+        city: _coInfo.city, state: _coInfo.state, zip: _coInfo.zip, phone: _coInfo.phone,
+      },
+      shipping_rate: _selRate,
+      customer_email: _coInfo.email,
+      customer_name:  _coInfo.name,
+      auth_token:     authToken,
+    }),
+  });
+  const co = await res.json();
+
+  if (co.error) {
+    el.innerHTML = `<div class="co-card"><p style="color:var(--red);font-weight:600;">${esc(co.error)}</p></div>`;
+    return;
+  }
+  _coOrder = co;
+
+  el.innerHTML = `
+    <div class="co-card">
+      <h2>Order Summary</h2>
+      <div class="order-row"><span>Subtotal</span><span>$${co.subtotal.toFixed(2)}</span></div>
+      ${co.discount > 0 ? `<div class="order-row discount"><span>S&S Discount</span><span>−$${co.discount.toFixed(2)}</span></div>` : ''}
+      <div class="order-row"><span>Shipping (${esc(_selRate?.service || '')})</span><span>$${co.shipping.toFixed(2)}</span></div>
+      <div class="order-row total"><span>Total</span><span>$${co.total.toFixed(2)}</span></div>
+    </div>
+    <div class="co-card">
+      <h2>Payment</h2>
+      <div id="stripe-element"></div>
+      <p id="stripe-err" style="color:var(--red);font-size:.875rem;margin-top:.5rem;display:none;"></p>
+      <button class="btn-primary" id="payBtn" style="width:100%;padding:.875rem;margin-top:1.25rem;text-align:center;">
+        Pay $${co.total.toFixed(2)}
+      </button>
+    </div>`;
+
+  _stripe  = Stripe(STRIPE_PK);
+  _stripeEls = _stripe.elements({
+    clientSecret: co.client_secret,
+    appearance: { theme: 'stripe', variables: { colorPrimary: '#1a7a6e', borderRadius: '8px' } },
+  });
+  const payEl = _stripeEls.create('payment');
+  payEl.mount('#stripe-element');
+
+  document.getElementById('payBtn').addEventListener('click', async () => {
+    const btn  = document.getElementById('payBtn');
+    const errEl = document.getElementById('stripe-err');
+    btn.textContent = 'Processing…'; btn.disabled = true; errEl.style.display = 'none';
+
+    const { error } = await _stripe.confirmPayment({
+      elements: _stripeEls,
+      confirmParams: {
+        return_url: location.origin + '/order-confirm',
+        receipt_email: _coInfo.email,
+      },
+    });
+
+    if (error) {
+      errEl.textContent = error.message; errEl.style.display = 'block';
+      btn.textContent = `Pay $${co.total.toFixed(2)}`; btn.disabled = false;
+    }
+    // On success Stripe redirects to /order-confirm
+  });
+}
+
+// ─── ORDER CONFIRM ────────────────────────────────────────────────────────────
+async function pgOrderConfirm(el) {
+  setMeta('Order Confirmed — Pacific Coast Ponds', '');
+  const p      = new URLSearchParams(location.search);
+  const piId   = p.get('payment_intent');
+  const status = p.get('redirect_status');
+
+  if (status === 'succeeded' && piId) {
+    // Mark order paid
+    await sb.from('shop_orders').update({ status: 'paid' }).eq('stripe_payment_intent_id', piId);
+    _cart = []; saveCart();
+  }
+
+  el.innerHTML = `
+    <div class="wrap-sm sec" style="text-align:center;padding-top:4rem;">
+      ${status === 'succeeded' ? `
+        <div style="font-size:4rem;margin-bottom:1rem;">✅</div>
+        <h1 style="font-size:1.75rem;font-weight:900;margin-bottom:.5rem;">Order Confirmed!</h1>
+        <p style="color:var(--g500);margin-bottom:2rem;">
+          Thank you for your order. A confirmation email will be sent to
+          <strong>${esc(_coInfo?.email || 'your email')}</strong>.
+        </p>
+        <a href="/" data-nav="/" class="btn-primary">Continue Shopping</a>
+      ` : `
+        <div style="font-size:4rem;margin-bottom:1rem;">❌</div>
+        <h1 style="font-size:1.75rem;font-weight:900;margin-bottom:.5rem;">Payment Incomplete</h1>
+        <p style="color:var(--g500);margin-bottom:2rem;">Your payment was not completed.</p>
+        <a href="/checkout" data-nav="/checkout" class="btn-primary">Try Again</a>
+      `}
+    </div>`;
+}
+
+// ─── ACCOUNT ──────────────────────────────────────────────────────────────────
+async function pgAccount(el) {
+  setMeta('My Account — Pacific Coast Ponds Shop', '');
+  if (_user) {
+    renderAcctDash(el);
+  } else {
+    renderAcctAuth(el);
+  }
+}
+
+function renderAcctAuth(el) {
+  el.innerHTML = `
+    <div class="wrap-sm sec">
+      <div class="auth-card">
+        <h1 style="font-size:1.25rem;font-weight:900;margin-bottom:1.25rem;">My Account</h1>
+        <div class="auth-tabs">
+          <div class="auth-tab ${_authMode==='login'?'active':''}" id="tabLogin">Sign In</div>
+          <div class="auth-tab ${_authMode==='register'?'active':''}" id="tabRegister">Create Account</div>
+        </div>
+        <div id="authBody">
+          ${_authMode === 'login' ? authLoginHtml() : authRegisterHtml()}
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('tabLogin').addEventListener('click', () => { _authMode = 'login'; renderAcctAuth(document.getElementById('root')); });
+  document.getElementById('tabRegister').addEventListener('click', () => { _authMode = 'register'; renderAcctAuth(document.getElementById('root')); });
+
+  if (_authMode === 'login') {
+    document.getElementById('authBtn').addEventListener('click', doLogin);
+    document.getElementById('auth_pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  } else {
+    document.getElementById('authBtn').addEventListener('click', doRegister);
+  }
+}
+
+function authLoginHtml() {
+  return `
+    <div class="fld-g"><label class="fld-label">Email</label><input class="fld" id="auth_email" type="email" placeholder="you@example.com"></div>
+    <div class="fld-g"><label class="fld-label">Password</label><input class="fld" id="auth_pass" type="password" placeholder="••••••••"></div>
+    <p id="authErr" style="color:var(--red);font-size:.875rem;margin-bottom:.75rem;display:none;"></p>
+    <button class="btn-primary" id="authBtn" style="width:100%;padding:.875rem;text-align:center;">Sign In</button>`;
+}
+function authRegisterHtml() {
+  return `
+    <div class="fld-g"><label class="fld-label">Full Name</label><input class="fld" id="auth_name" placeholder="Jane Smith"></div>
+    <div class="fld-g"><label class="fld-label">Email</label><input class="fld" id="auth_email" type="email" placeholder="you@example.com"></div>
+    <div class="fld-g"><label class="fld-label">Password</label><input class="fld" id="auth_pass" type="password" placeholder="Min 8 characters"></div>
+    <p id="authErr" style="color:var(--red);font-size:.875rem;margin-bottom:.75rem;display:none;"></p>
+    <button class="btn-primary" id="authBtn" style="width:100%;padding:.875rem;text-align:center;">Create Account</button>`;
+}
+
+async function doLogin() {
+  const email = document.getElementById('auth_email')?.value.trim();
+  const pass  = document.getElementById('auth_pass')?.value;
+  const errEl = document.getElementById('authErr');
+  const btn   = document.getElementById('authBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; return; }
+  _user = data.user; await checkSub();
+  toast('Signed in!'); document.getElementById('acctLink').textContent = 'My Account';
+  renderAcctDash(document.getElementById('root'));
+}
+
+async function doRegister() {
+  const name  = document.getElementById('auth_name')?.value.trim();
+  const email = document.getElementById('auth_email')?.value.trim();
+  const pass  = document.getElementById('auth_pass')?.value;
+  const errEl = document.getElementById('authErr');
+  const btn   = document.getElementById('authBtn');
+  btn.disabled = true; btn.textContent = 'Creating account…';
+  const { data, error } = await sb.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create Account'; return; }
+  _user = data.user; await checkSub();
+  toast('Account created! Check your email to confirm.');
+  renderAcctDash(document.getElementById('root'));
+}
+
+async function renderAcctDash(el) {
+  el.innerHTML = '<div class="ld"><div class="spin"></div><p>Loading…</p></div>';
+  const { data: orders } = await sb.from('shop_orders')
+    .select('id, order_number, total, status, created_at')
+    .eq('customer_id', _user.id).order('created_at', { ascending: false });
+
+  el.innerHTML = `
+    <div class="wrap-sm sec">
+      <h1 style="font-size:1.5rem;font-weight:900;margin-bottom:.375rem;">My Account</h1>
+      <p style="color:var(--g500);font-size:.875rem;margin-bottom:2rem;">${esc(_user.email)}</p>
+
+      <div class="co-card" style="margin-bottom:1.5rem;">
+        <h2 style="margin-bottom:.5rem;">Subscribe &amp; Save</h2>
+        <p style="font-size:.875rem;color:var(--g500);margin-bottom:1rem;">
+          Save 5% on eligible products automatically. Free to join, cancel any time.
+        </p>
+        ${_isSub
+          ? `<div class="ss-banner" style="margin-bottom:.75rem;">✓ Active — 5% off eligible items at checkout</div>
+             <button id="cancelSubBtn" style="background:none;border:none;color:var(--g500);font-size:.875rem;text-decoration:underline;cursor:pointer;">Cancel subscription</button>`
+          : `<button class="btn-primary" id="joinSubBtn">Join Subscribe &amp; Save — it's free</button>`}
+      </div>
+
+      <h2 style="font-weight:800;margin-bottom:1rem;">Order History</h2>
+      ${!orders?.length
+        ? `<p style="color:var(--g500)">No orders yet. <a href="/collections" data-nav="/collections" style="color:var(--teal)">Start shopping →</a></p>`
+        : orders.map(o => `
+          <div class="order-card">
+            <div class="order-card-hd">
+              <span class="order-num">${esc(o.order_number)}</span>
+              <span class="status-badge s-${o.status}">${o.status}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.875rem;color:var(--g500);">
+              <span>${fmtDate(o.created_at)}</span>
+              <span style="font-weight:700;color:var(--g900);">$${parseFloat(o.total).toFixed(2)}</span>
+            </div>
+          </div>`).join('')}
+
+      <button id="signOutBtn" style="margin-top:2rem;background:none;border:1.5px solid var(--g200);color:var(--g500);padding:.625rem 1.25rem;border-radius:var(--rad);font-size:.875rem;font-weight:700;cursor:pointer;">
+        Sign Out
+      </button>
+    </div>`;
+
+  document.getElementById('joinSubBtn')?.addEventListener('click', joinSub);
+  document.getElementById('cancelSubBtn')?.addEventListener('click', cancelSub);
+  document.getElementById('signOutBtn')?.addEventListener('click', signOut);
+}
+
+async function checkSub() {
+  if (!_user) { _isSub = false; return; }
+  const { data } = await sb.from('shop_subscribers').select('id').eq('user_id', _user.id).maybeSingle();
+  _isSub = !!data;
+}
+
+async function joinSub() {
+  const { error } = await sb.from('shop_subscribers').insert({ user_id: _user.id, email: _user.email });
+  if (error) { toast(error.message, false); return; }
+  _isSub = true; toast("You're now a subscriber — 5% off eligible items!");
+  document.getElementById('ssBar')?.remove();
+  renderAcctDash(document.getElementById('root'));
+}
+
+async function cancelSub() {
+  if (!confirm('Cancel your Subscribe & Save subscription?')) return;
+  await sb.from('shop_subscribers').delete().eq('user_id', _user.id);
+  _isSub = false; toast('Subscription cancelled');
+  renderAcctDash(document.getElementById('root'));
+}
+
+async function signOut() {
+  await sb.auth.signOut(); _user = null; _isSub = false;
+  document.getElementById('acctLink').textContent = 'Account';
+  toast('Signed out'); nav('/');
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+(async function init() {
+  const { data: { user } } = await sb.auth.getUser();
+  _user = user;
+  if (_user) {
+    await checkSub();
+    document.getElementById('acctLink').textContent = 'My Account';
+    if (_isSub) document.getElementById('ssBar')?.classList.add('hidden');
+  }
+  renderCartBadge();
+  route();
+})();
+  </script>
+</body>
+</html>
