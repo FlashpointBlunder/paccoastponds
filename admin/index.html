@@ -1863,7 +1863,7 @@ async function openProposalDetail(proposalId) {
         <button onclick="sendProposalEmail('${prop.id}')" class="btn-blue text-xs py-1">📧 Email</button>
         ${prop.status!=='accepted'&&prop.status!=='declined'?`<button onclick="openEditProposal('${prop.id}')" class="btn-outline text-xs py-1">Edit</button>`:''}
         ${prop.status==='accepted'?`<button onclick="openCreateJobFromProposal('${prop.id}')" class="btn-green text-xs py-1">+ Create Job</button>`:''}
-        <button onclick="deleteProposal('${prop.id}')" class="text-xs py-1 px-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition font-semibold">Delete</button>
+        <button onclick="deleteProposal('${prop.id}')" class="text-xs px-3 py-1 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Delete</button>
       </div>
     </div>
     ${lineItemsHtml}
