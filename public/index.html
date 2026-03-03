@@ -149,7 +149,7 @@
           <div class="grid grid-cols-3 gap-2">
             <input name="city" placeholder="City" class="px-3 py-3 border-2 border-[var(--brand-green)]"/>
             <input name="state" value="CA" class="px-3 py-3 border-2 border-[var(--brand-green)]"/>
-            <input id="zip" name="zip" placeholder="ZIP" required pattern="\d{5}" class="px-3 py-3 border-2 border-[var(--brand-green)]"/>
+            <input id="zip" name="zip" placeholder="ZIP" required pattern="[0-9]{5}" class="px-3 py-3 border-2 border-[var(--brand-green)]"/>
           </div>
           <select name="project_type" class="px-3 py-3 border-2 border-[var(--brand-green)] uppercase">
             <option>Koi Pond (new)</option>
@@ -256,7 +256,7 @@
         <div style="display:grid;grid-template-columns:1fr 3.5rem 5.5rem;gap:.5rem;">
           <input name="city" placeholder="City" style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;min-width:0;width:100%;" />
           <input name="state" value="CA" readonly style="padding:.75rem;border:2px solid #d1d5db;background:#f9fafb;color:#6b7280;box-sizing:border-box;min-width:0;text-align:center;width:100%;" />
-          <input required id="serviceZip" name="zip" placeholder="ZIP *" pattern="\d{5}" maxlength="5"
+          <input required id="serviceZip" name="zip" placeholder="ZIP *" pattern="[0-9]{5}" maxlength="5"
                  style="padding:.75rem;border:2px solid var(--brand-green);box-sizing:border-box;min-width:0;width:100%;" />
         </div>
         <div id="serviceFreqRow" style="display:none;">
