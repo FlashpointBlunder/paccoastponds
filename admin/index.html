@@ -2209,6 +2209,22 @@ async function renderProducts(el) {
               <input type="checkbox" name="subscribe_save_eligible" class="w-4 h-4 rounded accent-[var(--green)]" />
               Subscribe &amp; Save eligible (5% off for subscribers)
             </label>
+            <div class="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
+              <label class="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+                <input type="checkbox" name="drop_ship" class="w-4 h-4 rounded accent-[var(--teal)]" />
+                Drop Ship — supplier ships directly to customer
+              </label>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-xs font-semibold text-gray-500 uppercase">Vendor Name</label>
+                  <input name="vendor_name" placeholder="e.g. Matala USA" class="field mt-1" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-500 uppercase">Vendor Email</label>
+                  <input name="vendor_email" type="email" placeholder="orders@vendor.com" class="field mt-1" />
+                </div>
+              </div>
+            </div>
             <div>
               <label class="text-xs font-semibold text-gray-500 uppercase">Shop Description</label>
               <textarea name="shop_description" rows="3" placeholder="Detailed product description for the shop (supports line breaks)" class="field mt-1"></textarea>
@@ -2447,6 +2463,9 @@ async function openEditProduct(productId) {
   f.querySelector('[name=brand]').value            = p.brand || '';
   f.querySelector('[name=stock_status]').value     = p.stock_status || 'in_stock';
   f.querySelector('[name=subscribe_save_eligible]').checked = !!p.subscribe_save_eligible;
+  f.querySelector('[name=drop_ship]').checked       = !!p.drop_ship;
+  f.querySelector('[name=vendor_name]').value       = p.vendor_name  || '';
+  f.querySelector('[name=vendor_email]').value      = p.vendor_email || '';
   f.querySelector('[name=shop_description]').value = p.shop_description || '';
   f.querySelector('[name=meta_title]').value       = p.meta_title || '';
   f.querySelector('[name=meta_description]').value = p.meta_description || '';
@@ -2553,6 +2572,9 @@ function bindProductModalForm() {
       stock_status:            fd.get('stock_status') || 'in_stock',
       variant_attribute:       fd.get('variant_attribute') || null,
       subscribe_save_eligible: fd.get('subscribe_save_eligible') === 'on',
+      drop_ship:               fd.get('drop_ship') === 'on',
+      vendor_name:             fd.get('vendor_name') || null,
+      vendor_email:            fd.get('vendor_email') || null,
       shop_description:        fd.get('shop_description') || null,
       meta_title:              fd.get('meta_title') || null,
       meta_description:        fd.get('meta_description') || null,
