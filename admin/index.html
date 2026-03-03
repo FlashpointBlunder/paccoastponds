@@ -1451,10 +1451,8 @@ let _propImageFile    = null;
 let _propType         = 'service';
 
 async function renderProposals(el) {
-  if (!_jobsAccounts.length) {
-    const { data } = await sb.from('service_accounts').select('id,contact_name,address').order('contact_name');
-    _jobsAccounts = data||[];
-  }
+  const { data: _acctRefresh } = await sb.from('service_accounts').select('id,contact_name,address').order('contact_name');
+  _jobsAccounts = _acctRefresh||[];
   if (!_proposalProducts.length) {
     const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).order('name');
     _proposalProducts = prods||[];
