@@ -20,6 +20,112 @@
   <meta name="twitter:description" content="Custom koi pond design and pond construction in Orange County & SoCal. Free 3D renderings." />
   <meta name="twitter:image" content="https://paccoastponds.com/assets/render1.webp" />
 
+  <!-- FAQPage Schema — static so Googlebot reads it on first crawl -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much does a koi pond cost in Orange County?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Most backyard koi pond projects in Orange County start around $25,000 and scale based on size, depth, filtration, and design features. We provide free 3D renderings and fixed-price proposals."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer free koi pond design renderings?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! Every project includes a complimentary 3D rendering so you can visualize your pond design before construction begins."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which areas of Southern California do you serve?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We design and build ponds throughout Orange County, Los Angeles County, San Diego County, and Riverside County."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long does koi pond construction take?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Most pond builds take 2–4 weeks depending on size, complexity, and permitting requirements. We handle project management from start to finish."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can you remodel or upgrade an existing pond?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Absolutely. We specialize in pond remodels, filtration upgrades, and transforming outdated water features into modern koi-friendly systems."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will a koi pond increase my home's value?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, a professionally designed koi pond or water feature can increase property value and curb appeal. Many buyers see it as a luxury landscaping upgrade similar to a pool or outdoor kitchen."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are koi ponds high maintenance?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not when they're built correctly. Our systems use bottom drains, skimmers, and professional-grade filtration to keep water clear with minimal work. Most clients spend less than 15 minutes a week on maintenance."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do koi ponds attract mosquitos?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. A properly circulating pond with koi fish and filtration does not allow stagnant water where mosquitos breed. In fact, koi often eat mosquito larvae."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What kind of space do I need for a pond?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We can design ponds to fit nearly any yard. While larger spaces allow for deeper, multi-feature ponds, even small backyards can host a modern pondless waterfall or compact koi pond."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is a pond safe for children and pets?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, with the right design. We can add shallow zones, safety edging, and pondless systems (where water disappears underground) for families with small children or pets."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What kind of warranty do you provide?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "All pond construction includes a 5-year workmanship warranty. Equipment such as pumps and filters carry manufacturer warranties for additional peace of mind."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need a permit to build a pond?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "In most residential areas, small to medium ponds do not require permits. For larger projects or structural builds, we'll advise if permits are necessary and help guide you through the process."
+        }
+      }
+    ]
+  }
+  </script>
+
   <!-- Local Business Schema (with Nimbata number) -->
   <script type="application/ld+json">
   {
@@ -88,6 +194,7 @@
         <a href="#gallery" class="hover:text-[var(--brand-green)]">Gallery</a>
         <a href="#areas" class="hover:text-[var(--brand-green)]">Service Areas</a>
         <a href="#faq" class="hover:text-[var(--brand-green)]">FAQ</a>
+        <a href="/learn/" class="hover:text-[var(--brand-green)]">Learn</a>
       </nav>
       <a href="#quote" class="px-5 py-3 btn">Get a Quote</a>
     </div>
@@ -691,33 +798,6 @@
     <textarea name="details"></textarea>
   </form>
 
-  <!-- FAQ JSON-LD Auto-Updater -->
-  <script>
-    (function () {
-      const faqSection = document.getElementById('faq');
-      if (!faqSection) return;
-      const headings = Array.from(faqSection.querySelectorAll('h3'));
-      if (!headings.length) return;
-
-      const mainEntity = headings.map(h3 => {
-        const parts = [];
-        let node = h3.nextElementSibling;
-        while (node && node.tagName !== 'H3') {
-          if (node.matches('p, ul, ol, div')) {
-            const t = node.innerText.replace(/\s+/g,' ').trim();
-            if (t) parts.push(t);
-          }
-          node = node.nextElementSibling;
-        }
-        return { "@type":"Question", "name":h3.textContent.trim(), "acceptedAnswer":{ "@type":"Answer", "text": parts.join('\n\n') || "Contact us for more details." } };
-      }).filter(q => q.name);
-
-      const jsonld = { "@context":"https://schema.org", "@type":"FAQPage", "mainEntity": mainEntity };
-      let el = document.getElementById('faq-jsonld');
-      if (!el) { el = document.createElement('script'); el.type='application/ld+json'; el.id='faq-jsonld'; document.head.appendChild(el); }
-      el.textContent = JSON.stringify(jsonld);
-    })();
-  </script>
   <!-- Google Places autocomplete for address fields -->
   <script>
     function _addrComp(comps, type, short) {

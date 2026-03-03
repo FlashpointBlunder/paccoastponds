@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- SEO -->
+  <title>Koi Pond Learning Center | Pacific Coast Ponds</title>
+  <meta name="description" content="Expert guides on koi keeping, pond construction, water quality, and maintenance — written by the team at Pacific Coast Ponds." />
+  <link rel="canonical" href="https://paccoastponds.com/learn/" />
+
+  <!-- Social -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Koi Pond Learning Center | Pacific Coast Ponds" />
+  <meta property="og:description" content="Expert guides on koi keeping, pond construction, water quality, and maintenance — written by the team at Pacific Coast Ponds." />
+  <meta property="og:image" content="https://paccoastponds.com/assets/render1.webp" />
+  <meta property="og:url" content="https://paccoastponds.com/learn/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Koi Pond Learning Center | Pacific Coast Ponds" />
+  <meta name="twitter:description" content="Expert guides on koi keeping, pond construction, water quality, and maintenance." />
+  <meta name="twitter:image" content="https://paccoastponds.com/assets/render1.webp" />
+
+  <!-- Article (Hub) JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Koi Pond Learning Center",
+    "description": "Expert guides on koi keeping, pond construction, water quality, and maintenance — written by the team at Pacific Coast Ponds.",
+    "url": "https://paccoastponds.com/learn/",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Pacific Coast Ponds",
+      "url": "https://paccoastponds.com",
+      "logo": "https://paccoastponds.com/assets/logo.webp"
+    }
+  }
+  </script>
+
+  <!-- Fonts & Tailwind -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root{
+      --brand-green:#1E5E37;
+      --brand-blue:#2CA7DF;
+      --brand-cream:#F8FAF7;
+      --brand-dark:#0F1C12;
+    }
+    body{font-family:Inter,ui-sans-serif,system-ui}
+    h1,h2,h3{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.5px}
+    .btn{background:var(--brand-green);color:#fff;font-family:Oswald,sans-serif;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+    .btn:hover{background:var(--brand-dark)}
+    .cta-float{position:fixed;right:18px;bottom:18px;z-index:60;display:inline-flex;align-items:center;gap:.5rem;padding:.9rem 1.1rem;border-radius:8px;background:var(--brand-blue);color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.4px;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+    .cta-float:hover{filter:brightness(.95)}
+    html{scroll-behavior:smooth}
+
+    /* Mobile bottom bar */
+    .mobile-bar{backdrop-filter:saturate(140%) blur(8px); background:rgba(15,28,18,.8); padding-bottom: max(12px, env(safe-area-inset-bottom));}
+
+    /* Category pills */
+    .pill{border:2px solid var(--brand-green);color:var(--brand-green);padding:.4rem 1rem;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;transition:all .2s;white-space:nowrap;background:transparent}
+    .pill.active,.pill:hover{background:var(--brand-green);color:#fff}
+
+    /* Category badge colors */
+    .badge-koi{background:#d1fae5;color:#065f46}
+    .badge-construction{background:#dbeafe;color:#1e40af}
+    .badge-maintenance{background:#fef3c7;color:#92400e}
+    .badge-water{background:#e0f2fe;color:#075985}
+    .badge-equipment{background:#f3e8ff;color:#6b21a8}
+    .badge-design{background:#fce7f3;color:#9d174d}
+
+    /* Coming soon card */
+    .coming-soon{opacity:.5;pointer-events:none}
+  </style>
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- HEADER -->
+  <header class="w-full border-b-4 border-[var(--brand-green)] sticky top-0 z-50 bg-white">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="https://paccoastponds.com">
+          <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds logo" class="h-16 w-auto" />
+        </a>
+        <div>
+          <p class="text-2xl font-bold uppercase">Pacific Coast Ponds</p>
+          <p class="text-xs text-gray-500">Orange County • Los Angeles • San Diego • Riverside</p>
+        </div>
+      </div>
+      <nav class="hidden md:flex items-center gap-6 text-sm font-semibold uppercase">
+        <a href="https://paccoastponds.com/#services" class="hover:text-[var(--brand-green)]">Services</a>
+        <a href="https://paccoastponds.com/#reasons" class="hover:text-[var(--brand-green)]">Why Us</a>
+        <a href="https://paccoastponds.com/#process" class="hover:text-[var(--brand-green)]">Process</a>
+        <a href="https://paccoastponds.com/#gallery" class="hover:text-[var(--brand-green)]">Gallery</a>
+        <a href="https://paccoastponds.com/#areas" class="hover:text-[var(--brand-green)]">Service Areas</a>
+        <a href="https://paccoastponds.com/#faq" class="hover:text-[var(--brand-green)]">FAQ</a>
+        <a href="/learn/" class="text-[var(--brand-green)] border-b-2 border-[var(--brand-green)]">Learn</a>
+      </nav>
+      <a href="https://paccoastponds.com/#quote" class="px-5 py-3 btn">Get a Quote</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="bg-[var(--brand-dark)] text-white py-16">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      <p class="text-sm font-semibold uppercase tracking-widest text-[var(--brand-blue)] mb-3">Resource Library</p>
+      <h1 class="text-4xl md:text-6xl font-extrabold">Koi &amp; Pond Learning Center</h1>
+      <p class="mt-4 text-lg text-gray-300 max-w-2xl mx-auto">Expert guides on koi keeping, construction, water quality, and pond maintenance — written by the Pacific Coast Ponds team.</p>
+    </div>
+  </section>
+
+  <!-- CATEGORY FILTER BAR -->
+  <section class="border-b border-gray-200 bg-white sticky top-[88px] z-40">
+    <div class="max-w-7xl mx-auto px-6 py-4 overflow-x-auto">
+      <div class="flex gap-3 min-w-max" id="pillBar">
+        <button class="pill active" data-filter="all">All</button>
+        <button class="pill" data-filter="koi-keeping">Koi Keeping</button>
+        <button class="pill" data-filter="construction">Construction</button>
+        <button class="pill" data-filter="maintenance">Maintenance</button>
+        <button class="pill" data-filter="water-quality">Water Quality</button>
+        <button class="pill" data-filter="equipment">Equipment</button>
+        <button class="pill" data-filter="design">Design</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARTICLE GRID -->
+  <section class="py-16 bg-[var(--brand-cream)]">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="grid md:grid-cols-3 gap-6" id="articleGrid">
+
+        <!-- Card 1: Koi Pond Cost OC (live) -->
+        <article class="bg-white shadow-md hover:shadow-xl transition p-6 flex flex-col" data-category="construction">
+          <span class="inline-block badge-construction text-xs font-bold uppercase tracking-wide px-2 py-1 rounded mb-3 self-start">Construction</span>
+          <h2 class="text-xl font-bold leading-snug mb-2">
+            <a href="/learn/koi-pond-cost-orange-county" class="hover:text-[var(--brand-green)]">How Much Does a Koi Pond Cost in Orange County?</a>
+          </h2>
+          <p class="text-gray-600 text-sm flex-grow">Koi pond costs in Orange County range from $15,000 to $80,000+. See what drives pricing and how to budget for your project.</p>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
+            <span>8 min read</span>
+            <a href="/learn/koi-pond-cost-orange-county" class="text-[var(--brand-green)] font-bold hover:underline">Read →</a>
+          </div>
+        </article>
+
+        <!-- Card 2: Koi Keeping — coming soon -->
+        <article class="bg-white shadow-md p-6 flex flex-col coming-soon" data-category="koi-keeping">
+          <span class="inline-block badge-koi text-xs font-bold uppercase tracking-wide px-2 py-1 rounded mb-3 self-start">Koi Keeping</span>
+          <h2 class="text-xl font-bold leading-snug mb-2">Koi Fish 101: Species, Sizing, and Stocking Density</h2>
+          <p class="text-gray-600 text-sm flex-grow">Everything you need to know about selecting koi varieties, understanding their growth potential, and stocking your pond safely.</p>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
+            <span>6 min read · Coming Soon</span>
+          </div>
+        </article>
+
+        <!-- Card 3: Maintenance — coming soon -->
+        <article class="bg-white shadow-md p-6 flex flex-col coming-soon" data-category="maintenance">
+          <span class="inline-block badge-maintenance text-xs font-bold uppercase tracking-wide px-2 py-1 rounded mb-3 self-start">Maintenance</span>
+          <h2 class="text-xl font-bold leading-snug mb-2">Monthly Koi Pond Maintenance Checklist (Southern California)</h2>
+          <p class="text-gray-600 text-sm flex-grow">A month-by-month guide to keeping your koi pond clear, healthy, and thriving in the Southern California climate.</p>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
+            <span>7 min read · Coming Soon</span>
+          </div>
+        </article>
+
+        <!-- Card 4: Water Quality — coming soon -->
+        <article class="bg-white shadow-md p-6 flex flex-col coming-soon" data-category="water-quality">
+          <span class="inline-block badge-water text-xs font-bold uppercase tracking-wide px-2 py-1 rounded mb-3 self-start">Water Quality</span>
+          <h2 class="text-xl font-bold leading-snug mb-2">Understanding Pond Water Chemistry: pH, Ammonia & Nitrates</h2>
+          <p class="text-gray-600 text-sm flex-grow">Learn what the numbers mean on your test kit and how to adjust water chemistry to keep your koi healthy year-round.</p>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
+            <span>9 min read · Coming Soon</span>
+          </div>
+        </article>
+
+        <!-- Card 5: Equipment — coming soon -->
+        <article class="bg-white shadow-md p-6 flex flex-col coming-soon" data-category="equipment">
+          <span class="inline-block badge-equipment text-xs font-bold uppercase tracking-wide px-2 py-1 rounded mb-3 self-start">Equipment</span>
+          <h2 class="text-xl font-bold leading-snug mb-2">Best Koi Pond Filters & Pumps for Orange County Ponds</h2>
+          <p class="text-gray-600 text-sm flex-grow">Our picks for the most reliable pond filtration systems and pumps for Southern California's climate and water conditions.</p>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
+            <span>8 min read · Coming Soon</span>
+          </div>
+        </article>
+
+        <!-- Card 6: Design — coming soon -->
+        <article class="bg-white shadow-md p-6 flex flex-col coming-soon" data-category="design">
+          <span class="inline-block badge-design text-xs font-bold uppercase tracking-wide px-2 py-1 rounded mb-3 self-start">Design</span>
+          <h2 class="text-xl font-bold leading-snug mb-2">Koi Pond Design Ideas: Natural vs. Modern Styles</h2>
+          <p class="text-gray-600 text-sm flex-grow">Explore the most popular koi pond design styles and learn how to choose the right aesthetic for your backyard and home.</p>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
+            <span>5 min read · Coming Soon</span>
+          </div>
+        </article>
+
+      </div>
+
+      <!-- Empty state (shown when filter has no live results) -->
+      <p class="hidden text-center text-gray-500 mt-10 py-8" id="emptyMsg">More articles in this category coming soon. <a href="/learn/" class="underline text-[var(--brand-green)]">View all guides →</a></p>
+    </div>
+  </section>
+
+  <!-- CTA BANNER -->
+  <section class="bg-[var(--brand-green)] py-14 text-white text-center">
+    <div class="max-w-3xl mx-auto px-6">
+      <h2 class="text-3xl md:text-4xl font-extrabold">Ready to Build Your Dream Pond?</h2>
+      <p class="mt-3 text-lg text-white/80">Get a free 3D rendering and fixed-price proposal from our team.</p>
+      <a href="/thank-you" class="mt-6 inline-block px-8 py-4 bg-white text-[var(--brand-green)] font-bold uppercase tracking-wide hover:bg-gray-100 transition">Schedule Free Estimate</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="py-12 bg-[var(--brand-green)] text-white">
+    <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-8">
+      <address class="not-italic">
+        <strong class="uppercase">Pacific Coast Ponds</strong><br />
+        Orange County, CA • Serving Southern California<br />
+        Phone: <a class="underline" href="tel:+19495414903">(949) 541-4903</a><br />
+        Email: <a class="underline" href="mailto:build@paccoastponds.com">build@paccoastponds.com</a><br />
+        CA Licensed Contractor #1137057
+      </address>
+      <div class="md:text-right">
+        <a href="https://paccoastponds.com/#quote" class="btn px-6 py-3 inline-block">Start Your Project</a>
+        <p class="text-xs text-white/80 mt-2">© <span id="yr"></span> Pacific Coast Ponds. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Floating Calendly CTA (desktop only) -->
+  <a href="/thank-you" class="cta-float hidden md:inline-flex" aria-label="Schedule free estimate">Schedule Free Estimate</a>
+
+  <!-- Mobile bottom bar -->
+  <div class="mobile-bar fixed inset-x-0 bottom-0 z-50 md:hidden">
+    <div class="max-w-7xl mx-auto px-3 pb-2 pt-2 grid grid-cols-2 gap-3">
+      <a href="tel:+19495414903"
+         class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-green)] text-white shadow-lg"
+         aria-label="Call Pacific Coast Ponds now">
+         📞 Call Now
+      </a>
+      <a href="/thank-you"
+         class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-blue)] text-white shadow-lg"
+         aria-label="Schedule your free estimate">
+         Schedule
+      </a>
+    </div>
+  </div>
+
+  <!-- Spacer so mobile bar doesn't cover content -->
+  <div class="h-20 md:hidden"></div>
+
+  <!-- SCRIPTS -->
+  <script>
+    // Footer year
+    const yr = document.getElementById('yr');
+    if (yr) yr.textContent = new Date().getFullYear();
+
+    // Category filter
+    const pills   = document.querySelectorAll('.pill');
+    const cards   = document.querySelectorAll('#articleGrid article');
+    const emptyMsg = document.getElementById('emptyMsg');
+
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        // Update active pill
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+
+        const filter = pill.dataset.filter;
+        let visibleCount = 0;
+
+        cards.forEach(card => {
+          const cat = card.dataset.category;
+          const match = filter === 'all' || cat === filter;
+          card.style.display = match ? '' : 'none';
+          if (match) visibleCount++;
+        });
+
+        // Show empty state if only coming-soon cards are in category
+        const liveVisible = Array.from(cards).filter(c => {
+          const cat = c.dataset.category;
+          const match = filter === 'all' || cat === filter;
+          return match && !c.classList.contains('coming-soon');
+        });
+
+        emptyMsg.classList.toggle('hidden', liveVisible.length > 0 || filter === 'all');
+      });
+    });
+  </script>
+
+<!--Start of Tawk.to Script-->
+<script type="text/javascript">
+var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+Tawk_API.onLoad=function(){
+  Tawk_API.customStyle({
+    visibility:{
+      mobile:{position:'br',xOffset:15,yOffset:80}
+    }
+  });
+};
+(function(){
+var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+s1.async=true;
+s1.src='https://embed.tawk.to/6992b5a373d8cb1c357e2888/default';
+s1.charset='UTF-8';
+s1.setAttribute('crossorigin','*');
+s0.parentNode.insertBefore(s1,s0);
+})();
+</script>
+<!--End of Tawk.to Script-->
+</body>
+</html>
