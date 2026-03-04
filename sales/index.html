@@ -42,7 +42,6 @@
     .annotation { position:absolute; background:rgba(30,94,55,.92); color:#fff; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:600; line-height:1.4; z-index:20; max-width:180px; }
     .annotation::after { content:''; position:absolute; width:8px; height:8px; background:rgba(30,94,55,.92); transform:rotate(45deg); }
     @media (min-width:640px) { .tab-btn { font-size:14px; } }
-    .pac-container { z-index:9999 !important; border-radius:8px; margin-top:2px; font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif; }
   </style>
 </head>
 <body>
@@ -145,8 +144,8 @@ const _c = {               // current contract being built
 const FREQ_DEFAULTS = { weekly: 450, biweekly: 265, monthly: 195 };
 const MAPS_KEY = 'AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4';
 
-// ── Google Places ─────────────────────────────────────────────
-let _mapsPromise = null;
+// ── Google Places (AutocompleteService — no widget injected) ──
+let _mapsPromise = null, _acSvc = null, _acToken = null, _acTimer = null, _acPreds = [];
 function loadMaps() {
   if (_mapsPromise) return _mapsPromise;
   _mapsPromise = new Promise(resolve => {
@@ -160,15 +159,40 @@ function loadMaps() {
   return _mapsPromise;
 }
 function initPlaces() {
+  if (!window.google?.maps?.places) return;
+  _acSvc   = new google.maps.places.AutocompleteService();
+  _acToken = new google.maps.places.AutocompleteSessionToken();
+}
+function onAddressInput(val) {
+  clearTimeout(_acTimer);
+  if (val.length < 3) { hideAddressDrop(); return; }
+  _acTimer = setTimeout(() => {
+    _acSvc?.getPlacePredictions(
+      { input: val, sessionToken: _acToken, componentRestrictions: { country: 'us' }, types: ['address'] },
+      (preds, status) => {
+        _acPreds = (status === google.maps.places.PlacesServiceStatus.OK ? preds : []) || [];
+        const drop = document.getElementById('s1_addr_drop');
+        if (!drop || !_acPreds.length) { hideAddressDrop(); return; }
+        drop.innerHTML = _acPreds.map((p, i) => `
+          <div class="px-3 py-2.5 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-0" onmousedown="selectAddress(${i})">
+            <p class="text-sm font-medium text-gray-800">${escHtml(p.structured_formatting?.main_text || p.description)}</p>
+            <p class="text-xs text-gray-400">${escHtml(p.structured_formatting?.secondary_text || '')}</p>
+          </div>`).join('');
+        drop.classList.remove('hidden');
+      }
+    );
+  }, 280);
+}
+function hideAddressDrop() {
+  document.getElementById('s1_addr_drop')?.classList.add('hidden');
+}
+function selectAddress(i) {
+  const p = _acPreds[i]; if (!p) return;
   const inp = document.getElementById('s1_address');
-  if (!inp || !window.google?.maps?.places) return;
-  const ac = new google.maps.places.Autocomplete(inp, {
-    types: ['address'], componentRestrictions: { country: 'us' }, fields: ['formatted_address'],
-  });
-  ac.addListener('place_changed', () => {
-    const p = ac.getPlace();
-    if (p?.formatted_address) { _c.customer_address = p.formatted_address; inp.value = p.formatted_address; }
-  });
+  if (inp) inp.value = p.description;
+  _c.customer_address = p.description;
+  hideAddressDrop();
+  _acToken = new google.maps.places.AutocompleteSessionToken();
 }
 
 // ── Auth ──────────────────────────────────────────────────────
@@ -390,9 +414,10 @@ function renderStep1() {
           <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Phone</label>
           <input id="s1_phone" type="tel" class="field" placeholder="(714) 555-0100" value="${escHtml(_c.customer_phone)}" />
         </div>
-        <div>
+        <div class="relative">
           <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Service Address *</label>
-          <input id="s1_address" class="field" placeholder="123 Pond Lane, Irvine, CA 92620" value="${escHtml(_c.customer_address)}" autocomplete="off" />
+          <input id="s1_address" class="field" placeholder="123 Pond Lane, Irvine, CA 92620" value="${escHtml(_c.customer_address)}" autocomplete="off" oninput="onAddressInput(this.value)" onblur="setTimeout(hideAddressDrop,150)" />
+          <div id="s1_addr_drop" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden"></div>
         </div>
       </div>
       <div id="s1_err" class="hidden mt-3 text-red-600 text-sm"></div>
