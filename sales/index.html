@@ -363,7 +363,7 @@ function renderStep1() {
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Service Address *</label>
-          <input id="s1_address" class="field" placeholder="123 Pond Lane, Irvine, CA 92620" value="${escHtml(_c.customer_address)}" autocomplete="street-address" />
+          <input id="s1_address" class="field" placeholder="123 Pond Lane, Irvine, CA 92620" value="${escHtml(_c.customer_address)}" autocomplete="off" />
         </div>
       </div>
       <div id="s1_err" class="hidden mt-3 text-red-600 text-sm"></div>
