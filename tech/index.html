@@ -333,11 +333,22 @@
       if (!job) { el.innerHTML = '<p class="text-red-500 text-sm p-4">Job not found.</p>'; return; }
       const requiresInvoice = job.job_types?.requires_invoice && job.status === 'in_progress';
       const showWaterParams = !job.job_types?.requires_invoice && ['in_progress','completed'].includes(job.status);
-      let existingInvoice = null;
-      if (requiresInvoice) {
-        const { data: inv } = await sb.from('service_invoices').select('id,status').eq('job_id', jobId).maybeSingle();
-        existingInvoice = inv;
-      }
+
+      // Fetch existing invoice + customer-requested basket items in parallel
+      const [invRes, custRes] = await Promise.all([
+        requiresInvoice ? sb.from('service_invoices').select('id,status').eq('job_id', jobId).maybeSingle() : Promise.resolve({ data: null }),
+        sb.from('basket_items')
+          .select('id, product_id, variant_name, quantity, unit_price, tech_confirmed, products(name)')
+          .eq('service_account_id', job.service_account_id)
+          .eq('requested_by', 'customer')
+          .eq('billed', false)
+          .order('created_at'),
+      ]);
+      const existingInvoice = invRes.data;
+      const custItems = custRes.data || [];
+
+      const showItemsCard   = custItems.length > 0 && job.status === 'in_progress';
+      const hasUnconfirmed  = showItemsCard && custItems.some(b => b.tech_confirmed === null);
       if (!_techProducts.length) {
         const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).eq('tech_visible',true).order('name');
         _techProducts = prods||[];
@@ -348,6 +359,21 @@
       const next  = nextStatus[job.status];
       const color = job.job_types?.color||'#1E5E37';
       const addr  = encodeURIComponent(job.address||job.service_accounts?.address||'');
+      const isRoutine = !job.job_types?.requires_invoice;
+
+      // Build action button cleanly to avoid deeply nested ternaries
+      let actionBtn;
+      if (requiresInvoice && !existingInvoice) {
+        actionBtn = `<button onclick="techStartInvoice('${jobId}')" class="flex-1 py-3 bg-[var(--green)] text-white text-sm font-bold rounded-lg">Invoice Job</button>`;
+      } else if (requiresInvoice && existingInvoice) {
+        actionBtn = `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">${existingInvoice.status === 'pending_approval' ? 'Invoice Pending Approval' : 'Invoice Submitted'} &#10003;</div>`;
+      } else if (hasUnconfirmed) {
+        actionBtn = `<div class="flex-1 py-3 bg-amber-50 text-amber-700 text-xs font-bold text-center rounded-lg border border-amber-200">&#9757; Confirm items above first</div>`;
+      } else if (next) {
+        actionBtn = `<button onclick="techAdvanceJob('${jobId}','${next}','${tEsc(job.service_accounts?.phone||'')}',${job.service_accounts?.sms_opted_in?'true':'false'},${isRoutine?'true':'false'})" class="flex-1 py-3 text-white text-sm font-bold rounded-lg ${actionCls[job.status]}">${actionLbl[job.status]}</button>`;
+      } else {
+        actionBtn = `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">Completed &#10003;</div>`;
+      }
       el.innerHTML = `
         <button onclick="renderJobs(document.getElementById('pageContent'))" class="text-[var(--green)] text-sm font-semibold mb-4 block">&#8592; Jobs</button>
         <div class="bg-white rounded-xl border overflow-hidden mb-4">
@@ -370,16 +396,34 @@
             <div class="flex gap-2">
               <a href="https://maps.google.com/?q=${addr}" target="_blank"
                  class="flex-1 py-3 bg-[var(--blue)] text-white text-sm font-bold text-center rounded-lg">Navigate</a>
-              ${requiresInvoice && !existingInvoice
-                ? `<button onclick="techStartInvoice('${jobId}')" class="flex-1 py-3 bg-[var(--green)] text-white text-sm font-bold rounded-lg">Invoice Job</button>`
-                : requiresInvoice && existingInvoice
-                  ? `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">${existingInvoice.status === 'pending_approval' ? 'Invoice Pending Approval' : 'Invoice Submitted'} &#10003;</div>`
-                  : next
-                    ? `<button onclick="techAdvanceJob('${jobId}','${next}','${tEsc(job.service_accounts?.phone||'')}',${job.service_accounts?.sms_opted_in?'true':'false'},${!job.job_types?.requires_invoice?'true':'false'})" class="flex-1 py-3 text-white text-sm font-bold rounded-lg ${actionCls[job.status]}">${actionLbl[job.status]}</button>`
-                    : `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">Completed &#10003;</div>`}
+              ${actionBtn}
             </div>
           </div>
         </div>
+        ${showItemsCard ? `
+        <div class="bg-white rounded-xl border overflow-hidden mb-4">
+          <div class="flex items-center justify-between px-4 pt-4 pb-2">
+            <p class="font-bold text-sm">Items to Deliver</p>
+            ${hasUnconfirmed ? '<p class="text-xs text-amber-600 font-semibold">Confirm each item below</p>' : '<p class="text-xs text-green-600 font-semibold">&#10003; All confirmed</p>'}
+          </div>
+          <div class="divide-y">
+            ${custItems.map(b => {
+              const name = tEsc(b.products?.name || '—') + (b.variant_name ? ' <span class="text-gray-400 font-normal">— ' + tEsc(b.variant_name) + '</span>' : '');
+              const price = b.unit_price ? '$' + parseFloat(b.unit_price).toFixed(2) : '';
+              if (b.tech_confirmed === true) {
+                return '<div class="flex items-center px-4 py-3 gap-3">'
+                  + '<div class="flex-1 min-w-0"><p class="text-sm font-semibold">' + name + '</p><p class="text-xs text-gray-400">× ' + b.quantity + (price ? ' · ' + price + ' each' : '') + '</p></div>'
+                  + '<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">&#10003; Delivered</span>'
+                  + '</div>';
+              }
+              return '<div class="flex items-center px-4 py-3 gap-3">'
+                + '<div class="flex-1 min-w-0"><p class="text-sm font-semibold">' + name + '</p><p class="text-xs text-gray-400">× ' + b.quantity + (price ? ' · ' + price + ' each' : '') + '</p></div>'
+                + '<button onclick="techRejectItem(\'' + b.id + '\',\'' + jobId + '\')" class="w-9 h-9 rounded-full bg-red-50 border-2 border-red-200 text-red-500 font-extrabold text-lg flex items-center justify-center hover:bg-red-100 transition mr-1">&#10005;</button>'
+                + '<button onclick="techConfirmItem(\'' + b.id + '\',\'' + jobId + '\')" class="w-9 h-9 rounded-full bg-green-50 border-2 border-green-200 text-green-600 font-extrabold text-lg flex items-center justify-center hover:bg-green-100 transition">&#10003;</button>'
+                + '</div>';
+            }).join('')}
+          </div>
+        </div>` : ''}
         ${showWaterParams ? `
         <div class="bg-white rounded-xl border p-4 mb-4">
           <p class="font-bold text-sm mb-3">Water Parameters <span class="text-gray-400 font-normal">(optional)</span></p>
@@ -527,6 +571,16 @@
         if (error) { if (msg) { msg.textContent = '✕ Error saving'; msg.className = 'text-xs text-red-500 font-semibold'; msg.classList.remove('hidden'); } return; }
         if (msg) { msg.textContent = '✓ Saved'; msg.className = 'text-xs text-green-600 font-semibold'; msg.classList.remove('hidden'); }
       }
+    }
+
+    async function techConfirmItem(itemId, jobId) {
+      await sb.from('basket_items').update({ tech_confirmed: true, job_id: jobId }).eq('id', itemId);
+      await openTechJobDetail(jobId);
+    }
+
+    async function techRejectItem(itemId, jobId) {
+      await sb.from('basket_items').delete().eq('id', itemId);
+      await openTechJobDetail(jobId);
     }
 
     async function techBillItem(jobId, serviceAccountId) {

@@ -59,12 +59,16 @@ async function billAccount(stripe, sb, account, periodStart, periodEnd, periodLa
     .maybeSingle();
   if (existing) return { skipped: true, reason: 'Invoice already exists for this period' };
 
-  // Unbilled basket items
-  const { data: basket } = await sb
+  // Unbilled basket items — tech-added items always included;
+  // customer-requested items only if tech confirmed delivery (tech_confirmed = true)
+  const { data: allBasket } = await sb
     .from('basket_items')
-    .select('id, product_id, quantity, notes, unit_price, products(name, price)')
+    .select('id, product_id, quantity, notes, unit_price, requested_by, tech_confirmed, products(name, price)')
     .eq('service_account_id', account.id)
     .eq('billed', false);
+  const basket = (allBasket || []).filter(b =>
+    b.requested_by === 'tech' || b.tech_confirmed === true
+  );
 
   // Create Stripe invoice draft
   const stripeInvoice = await stripe.invoices.create({
