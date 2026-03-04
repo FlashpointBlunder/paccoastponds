@@ -2308,6 +2308,10 @@ async function renderProducts(el) {
               <input id="vf_sku" placeholder="Optional" class="field mt-1" />
             </div>
           </div>
+          <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-500 uppercase block mb-1">Vendor MPN / ALU</label>
+            <input id="vf_mpn" placeholder="Manufacturer part number for drop-ship (e.g. HK-40L)" class="field" />
+          </div>
           <div class="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label class="text-xs font-semibold text-gray-500 uppercase">Price *</label>
@@ -2495,6 +2499,7 @@ async function openEditProduct(productId) {
   f.querySelector('[name=width_in]').value          = p.width_in  || '';
   f.querySelector('[name=height_in]').value         = p.height_in || '';
   f.querySelector('[name=variant_attribute]').value = p.variant_attribute || '';
+  f.querySelector('[name=mpn]').value               = p.mpn || '';
   // Image
   f.querySelector('[name=image_url]').value  = p.image_url || '';
   document.getElementById('productImageFile').value = '';
@@ -2593,6 +2598,7 @@ function bindProductModalForm() {
       brand:                   fd.get('brand') || null,
       stock_status:            fd.get('stock_status') || 'in_stock',
       variant_attribute:       fd.get('variant_attribute') || null,
+      mpn:                     fd.get('mpn') || null,
       subscribe_save_eligible: fd.get('subscribe_save_eligible') === 'on',
       drop_ship:               fd.get('drop_ship') === 'on',
       vendor_name:             fd.get('vendor_name') || null,
@@ -2660,7 +2666,7 @@ async function loadVariants() {
   el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
 
   const { data: variants, error } = await sb.from('product_variants')
-    .select('id, value, sku, price, stock_status, weight_oz, image_url, sort_order, active')
+    .select('id, value, sku, mpn, price, stock_status, weight_oz, image_url, sort_order, active')
     .eq('product_id', _variantProductId)
     .order('sort_order').order('value');
 
@@ -2674,22 +2680,22 @@ async function loadVariants() {
       <thead><tr class="text-xs text-gray-400 uppercase border-b">
         <th class="text-left py-1.5 pr-2">Value</th>
         <th class="text-left py-1.5 pr-2">SKU</th>
+        <th class="text-left py-1.5 pr-2">MPN</th>
         <th class="text-left py-1.5 pr-2">Price</th>
         <th class="text-left py-1.5 pr-2">Stock</th>
-        <th class="text-left py-1.5 pr-2">Weight</th>
         <th class="text-right py-1.5">Actions</th>
       </tr></thead>
       <tbody>
         ${variants.map(v => `<tr class="border-b border-gray-50 ${v.active?'':'opacity-50'}">
           <td class="py-1.5 pr-2 font-semibold">${escHtml(v.value)}</td>
           <td class="py-1.5 pr-2 text-gray-400">${escHtml(v.sku||'—')}</td>
+          <td class="py-1.5 pr-2 text-gray-400 font-mono text-xs">${escHtml(v.mpn||'—')}</td>
           <td class="py-1.5 pr-2">${fmtMoney(v.price)}</td>
           <td class="py-1.5 pr-2">
             <span class="badge ${v.stock_status==='in_stock'?'badge-green':v.stock_status==='out_of_stock'?'badge-gray':'badge-gray'}">
               ${v.stock_status==='in_stock'?'In Stock':v.stock_status==='out_of_stock'?'Out of Stock':'Discontinued'}
             </span>
           </td>
-          <td class="py-1.5 pr-2 text-gray-500">${v.weight_oz?v.weight_oz+'oz':'—'}</td>
           <td class="py-1.5 text-right">
             <div class="flex justify-end gap-1.5">
               <button class="btn-outline text-xs px-2 py-0.5" onclick="openEditVariant('${v.id}')">Edit</button>
@@ -2707,6 +2713,7 @@ function openAddVariant() {
   document.getElementById('variantSaveBtn').textContent   = 'Save Variant';
   document.getElementById('vf_value').value  = '';
   document.getElementById('vf_sku').value    = '';
+  document.getElementById('vf_mpn').value    = '';
   document.getElementById('vf_price').value  = '';
   document.getElementById('vf_stock').value  = 'in_stock';
   document.getElementById('vf_weight').value = '';
@@ -2725,6 +2732,7 @@ async function openEditVariant(variantId) {
   document.getElementById('variantSaveBtn').textContent   = 'Save Changes';
   document.getElementById('vf_value').value  = v.value      || '';
   document.getElementById('vf_sku').value    = v.sku        || '';
+  document.getElementById('vf_mpn').value    = v.mpn        || '';
   document.getElementById('vf_price').value  = v.price      || '';
   document.getElementById('vf_stock').value  = v.stock_status || 'in_stock';
   document.getElementById('vf_weight').value = v.weight_oz  || '';
@@ -2751,6 +2759,7 @@ async function saveVariant() {
     product_id:   _variantProductId,
     value,
     sku:          document.getElementById('vf_sku').value.trim() || null,
+    mpn:          document.getElementById('vf_mpn').value.trim() || null,
     price,
     stock_status: document.getElementById('vf_stock').value,
     weight_oz:    document.getElementById('vf_weight').value ? parseFloat(document.getElementById('vf_weight').value) : null,
@@ -4060,7 +4069,7 @@ async function renderBilling(el) {
                 <td><span class="badge ${cls}">${i.status.replace('_',' ')}</span></td>
                 <td class="text-right">
                   <button onclick="openSvcInvoiceDetail('${i.id}')" class="text-xs text-blue-600 underline mr-2">View</button>
-                  ${i.status === 'pending_approval' ? `<button onclick="approveServiceInvoice('${i.id}')" class="text-xs text-green-700 font-semibold underline">Approve</button>` : ''}
+                  ${i.status === 'pending_approval' ? '<button onclick="approveServiceInvoice(\'' + i.id + '\')" class="text-xs text-green-700 font-semibold underline">Approve</button>' : ''}
                 </td>
               </tr>`;
             }).join('')}
@@ -4092,13 +4101,13 @@ async function renderBilling(el) {
                     <td class="text-gray-400 text-sm">${fmtDate(i.sent_at || i.created_at)}</td>
                     <td class="text-right whitespace-nowrap">
                       ${i.stripe_invoice_id
-                        ? `<a href="https://dashboard.stripe.com/test/invoices/${i.stripe_invoice_id}" target="_blank" class="text-xs text-blue-600 underline mr-2">View ↗</a>`
+                        ? '<a href="https://dashboard.stripe.com/test/invoices/' + i.stripe_invoice_id + '" target="_blank" class="text-xs text-blue-600 underline mr-2">View ↗</a>'
                         : ''}
-                      ${isFailed ? `
-                        <button onclick="retryMonthlyInvoice('${i.id}')" class="text-xs text-green-700 font-semibold underline mr-2">Retry</button>
-                        <button onclick="resendMonthlyInvoiceEmail('${i.id}')" class="text-xs text-blue-600 font-semibold underline mr-2">Email</button>
-                        <button onclick="voidMonthlyInvoice('${i.id}')" class="text-xs text-red-500 font-semibold underline">Void</button>
-                      ` : ''}
+                      ${isFailed
+                        ? '<button onclick="retryMonthlyInvoice(\'' + i.id + '\')" class="text-xs text-green-700 font-semibold underline mr-2">Retry</button>'
+                          + '<button onclick="resendMonthlyInvoiceEmail(\'' + i.id + '\')" class="text-xs text-blue-600 font-semibold underline mr-2">Email</button>'
+                          + '<button onclick="voidMonthlyInvoice(\'' + i.id + '\')" class="text-xs text-red-500 font-semibold underline">Void</button>'
+                        : ''}
                     </td>
                   </tr>`;
                 }).join('')}
