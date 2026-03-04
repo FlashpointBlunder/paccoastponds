@@ -141,7 +141,7 @@ const _c = {               // current contract being built
   total_monthly: 265,
   contract_id: null, contract_number: null, client_secret: null,
 };
-const FREQ_DEFAULTS = { weekly: 325, biweekly: 265, monthly: 195 };
+const FREQ_DEFAULTS = { weekly: 450, biweekly: 265, monthly: 195 };
 
 // ── Auth ──────────────────────────────────────────────────────
 async function init() {
@@ -374,17 +374,27 @@ function renderStep1() {
 function renderStep2() {
   const addonCards = _addons.map(a => {
     const sel = _c.addons.find(x => x.addon_id === a.id);
-    return `<div class="addon-card ${sel ? 'selected' : ''}" onclick="toggleAddon('${a.id}','${escHtml(a.name)}',${a.monthly_price})" id="ac_${a.id}">
-      <div class="flex items-start justify-between gap-2">
+    const isEditable = a.name === 'Two Annual Cleanouts';
+    const displayPrice = sel ? sel.monthly_price : a.monthly_price;
+    return `<div class="addon-card ${sel ? 'selected' : ''}" id="ac_${a.id}">
+      <div class="flex items-start justify-between gap-2 cursor-pointer" onclick="toggleAddon('${a.id}','${escHtml(a.name)}',${a.monthly_price})">
         <div>
           <p class="font-semibold text-gray-800 text-sm">${escHtml(a.name)}</p>
           <p class="text-xs text-gray-500 mt-0.5">${escHtml(a.description||'')}</p>
         </div>
         <div class="text-right flex-shrink-0">
-          <p class="font-bold text-sm ${sel ? 'text-[var(--green)]' : 'text-gray-700'}">+${fmtMoney(a.monthly_price)}/mo</p>
+          ${isEditable ? '' : `<p class="font-bold text-sm ${sel ? 'text-[var(--green)]' : 'text-gray-700'}">+${fmtMoney(a.monthly_price)}/mo</p>`}
           <div class="w-5 h-5 rounded mt-1 ml-auto border-2 flex items-center justify-center text-xs font-bold ${sel ? 'bg-[var(--green)] border-[var(--green)] text-white' : 'border-gray-300 text-transparent'}">✓</div>
         </div>
       </div>
+      ${isEditable ? `<div class="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2">
+        <span class="text-xs text-gray-500 flex-1">Monthly price</span>
+        <div class="relative w-28">
+          <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-sm">$</span>
+          <input type="number" min="0" step="5" id="ac_price_${a.id}" value="${displayPrice}" ${sel ? '' : 'disabled'} onclick="event.stopPropagation()" oninput="updateEditableAddonPrice('${a.id}',this.value)" class="field pl-6 py-1.5 text-sm ${sel ? '' : 'opacity-40'}" />
+        </div>
+        <span class="text-xs text-gray-500">/mo</span>
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -430,21 +440,23 @@ function renderStep2() {
         <div class="mt-4 pt-4 border-t border-gray-100">
           <div class="flex items-center justify-between mb-2">
             <span class="text-sm font-semibold text-gray-700">Initiation Fee</span>
-            <label class="flex items-center gap-1.5 cursor-pointer">
+            <button onclick="document.getElementById('initFeeOptions').classList.toggle('hidden')" class="text-xs text-gray-400 hover:text-gray-600 underline">Options</button>
+          </div>
+          <div id="initFeeOptions" class="hidden mb-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <label class="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" id="s2_waive" ${_c.initiation_fee_waived?'checked':''} onchange="toggleWaive(this.checked)" class="rounded" />
-              <span class="text-xs text-gray-500">Waive</span>
+              <span class="text-sm text-gray-600 font-medium">Waive initiation fee</span>
             </label>
+            <input id="s2_waiveNote" class="field text-sm mt-2 ${_c.initiation_fee_waived ? '' : 'hidden'}" placeholder="Reason (optional)" value="${escHtml(_c.initiation_fee_note)}" />
           </div>
           <div id="initFeeRow" class="${_c.initiation_fee_waived ? 'hidden' : ''}">
             <div class="relative">
               <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
               <input id="s2_initfee" type="number" min="0" step="5" class="field pl-7" value="${_c.initiation_fee}" oninput="updateInitFee(this.value)" />
             </div>
-            <p class="text-xs text-gray-400 mt-1">Default = monthly total. You can discount or waive.</p>
           </div>
           <div id="initFeeWaived" class="${_c.initiation_fee_waived ? '' : 'hidden'}">
             <p class="text-sm font-bold text-amber-600">Initiation fee waived</p>
-            <input id="s2_waiveNote" class="field text-sm mt-1" placeholder="Reason (optional)" value="${escHtml(_c.initiation_fee_note)}" />
           </div>
         </div>
       </div>
@@ -703,17 +715,26 @@ function toggleWaive(checked) {
   _c.initiation_fee_waived = checked;
   document.getElementById('initFeeRow').classList.toggle('hidden', checked);
   document.getElementById('initFeeWaived').classList.toggle('hidden', !checked);
+  const noteInp = document.getElementById('s2_waiveNote');
+  if (noteInp) noteInp.classList.toggle('hidden', !checked);
   if (!checked) { _c.initiation_fee = _c.total_monthly; document.getElementById('s2_initfee').value = _c.total_monthly; }
 }
 
 function toggleAddon(id, name, price) {
   const idx = _c.addons.findIndex(a => a.addon_id === id);
   if (idx >= 0) _c.addons.splice(idx, 1); else _c.addons.push({ addon_id: id, name, monthly_price: price });
+  const nowSelected = idx < 0;
   const card = document.getElementById('ac_' + id);
-  card.classList.toggle('selected', idx < 0);
+  card.classList.toggle('selected', nowSelected);
   const check = card.querySelector('.rounded');
-  if (check) { check.classList.toggle('bg-[var(--green)]', idx < 0); check.classList.toggle('border-[var(--green)]', idx < 0); check.classList.toggle('text-white', idx < 0); check.classList.toggle('border-gray-300', idx >= 0); }
+  if (check) { check.classList.toggle('bg-[var(--green)]', nowSelected); check.classList.toggle('border-[var(--green)]', nowSelected); check.classList.toggle('text-white', nowSelected); check.classList.toggle('border-gray-300', !nowSelected); }
+  const priceInp = document.getElementById('ac_price_' + id);
+  if (priceInp) { priceInp.disabled = !nowSelected; priceInp.classList.toggle('opacity-40', !nowSelected); }
   updatePriceSummary();
+}
+function updateEditableAddonPrice(id, val) {
+  const addon = _c.addons.find(a => a.addon_id === id);
+  if (addon) { addon.monthly_price = parseFloat(val) || 0; updatePriceSummary(); }
 }
 
 function updatePriceSummary() {
