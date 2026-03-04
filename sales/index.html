@@ -537,8 +537,7 @@ function afterStepRender() {
   if (_contractStep === 2) updatePriceSummary();
   if (_contractStep === 3) initSigCanvas();
   if (_contractStep === 4) initStripe();
-  // Google Places autocomplete on step 1
-  if (_contractStep === 1 && window._gmReady) initPlaces();
+  // address is plain text — no Places autocomplete
 }
 
 // ── Step logic ────────────────────────────────────────────────
@@ -766,26 +765,7 @@ function initStripe() {
   window._stripe = stripe; window._paymentEl = elements;
 }
 
-// ── Google Places autocomplete ────────────────────────────────
-window._gmReady = false;
-function _salesGmReady() {
-  window._gmReady = true;
-  if (_contractStep === 1) initPlaces();
-}
-function initPlaces() {
-  const inp = document.getElementById('s1_address');
-  if (!inp || !window.google?.maps?.places) return;
-  const ac = new google.maps.places.Autocomplete(inp, { types: ['address'], componentRestrictions: { country: 'us' } });
-  ac.addListener('place_changed', () => {
-    const p = ac.getPlace();
-    if (p?.formatted_address) { _c.customer_address = p.formatted_address; inp.value = p.formatted_address; }
-  });
-}
-(function() {
-  const s = document.createElement('script');
-  s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4&libraries=places&callback=_salesGmReady';
-  s.async = true; document.head.appendChild(s);
-})();
+// Google Places removed — plain text address input used instead
 
 // ══════════════════════════════════════════════════════════════
 // MY CONTRACTS
