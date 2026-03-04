@@ -163,24 +163,27 @@ function initPlaces() {
   _acSvc   = new google.maps.places.AutocompleteService();
   _acToken = new google.maps.places.AutocompleteSessionToken();
 }
-function onAddressInput(val) {
+async function onAddressInput(val) {
   clearTimeout(_acTimer);
   if (val.length < 3) { hideAddressDrop(); return; }
-  _acTimer = setTimeout(() => {
-    _acSvc?.getPlacePredictions(
-      { input: val, sessionToken: _acToken, componentRestrictions: { country: 'us' }, types: ['address'] },
-      (preds, status) => {
-        _acPreds = (status === google.maps.places.PlacesServiceStatus.OK ? preds : []) || [];
-        const drop = document.getElementById('s1_addr_drop');
-        if (!drop || !_acPreds.length) { hideAddressDrop(); return; }
-        drop.innerHTML = _acPreds.map((p, i) => `
-          <div class="px-3 py-2.5 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-0" onmousedown="selectAddress(${i})">
-            <p class="text-sm font-medium text-gray-800">${escHtml(p.structured_formatting?.main_text || p.description)}</p>
-            <p class="text-xs text-gray-400">${escHtml(p.structured_formatting?.secondary_text || '')}</p>
-          </div>`).join('');
-        drop.classList.remove('hidden');
-      }
-    );
+  if (!_acSvc) { await loadMaps(); initPlaces(); }
+  if (!_acSvc) return;
+  _acTimer = setTimeout(async () => {
+    try {
+      const result = await _acSvc.getPlacePredictions({
+        input: val, sessionToken: _acToken,
+        componentRestrictions: { country: 'us' }, types: ['address'],
+      });
+      _acPreds = result?.predictions || [];
+      const drop = document.getElementById('s1_addr_drop');
+      if (!drop || !_acPreds.length) { hideAddressDrop(); return; }
+      drop.innerHTML = _acPreds.map((p, i) => `
+        <div class="px-3 py-2.5 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-0" onmousedown="selectAddress(${i})">
+          <p class="text-sm font-medium text-gray-800">${escHtml(p.structured_formatting?.main_text || p.description)}</p>
+          <p class="text-xs text-gray-400">${escHtml(p.structured_formatting?.secondary_text || '')}</p>
+        </div>`).join('');
+      drop.classList.remove('hidden');
+    } catch(e) { hideAddressDrop(); }
   }, 280);
 }
 function hideAddressDrop() {
