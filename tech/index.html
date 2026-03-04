@@ -324,11 +324,15 @@
     async function openTechJobDetail(jobId) {
       const el = document.getElementById('pageContent');
       el.innerHTML = '<p class="text-gray-400 text-sm p-4">Loading...</p>';
-      const { data: job } = await sb.from('jobs')
-        .select('*,service_accounts(id,contact_name,address,phone,sms_opted_in,equipment_notes),job_types(id,name,color,requires_invoice)')
-        .eq('id', jobId).single();
+      const [{ data: job }, { data: wReading }] = await Promise.all([
+        sb.from('jobs')
+          .select('*,service_accounts(id,contact_name,address,phone,sms_opted_in,equipment_notes),job_types(id,name,color,requires_invoice)')
+          .eq('id', jobId).single(),
+        sb.from('water_readings').select('*').eq('job_id', jobId).maybeSingle(),
+      ]);
       if (!job) { el.innerHTML = '<p class="text-red-500 text-sm p-4">Job not found.</p>'; return; }
       const requiresInvoice = job.job_types?.requires_invoice && job.status === 'in_progress';
+      const showWaterParams = !job.job_types?.requires_invoice && ['in_progress','completed'].includes(job.status);
       let existingInvoice = null;
       if (requiresInvoice) {
         const { data: inv } = await sb.from('service_invoices').select('id,status').eq('job_id', jobId).maybeSingle();
@@ -376,6 +380,47 @@
             </div>
           </div>
         </div>
+        ${showWaterParams ? `
+        <div class="bg-white rounded-xl border p-4 mb-4">
+          <p class="font-bold text-sm mb-3">Water Parameters <span class="text-gray-400 font-normal">(optional)</span></p>
+          <div class="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">pH</label>
+              <input id="wp_ph" type="number" step="0.1" min="0" max="14" placeholder="7.4"
+                     value="${wReading?.ph ?? ''}"
+                     class="w-full px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">KH (ppm)</label>
+              <input id="wp_kh" type="number" step="1" min="0" placeholder="100"
+                     value="${wReading?.kh ?? ''}"
+                     class="w-full px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Nitrite (ppm)</label>
+              <input id="wp_nitrite" type="number" step="0.01" min="0" placeholder="0.0"
+                     value="${wReading?.nitrite ?? ''}"
+                     class="w-full px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Ammonia (ppm)</label>
+              <input id="wp_ammonia" type="number" step="0.01" min="0" placeholder="0.0"
+                     value="${wReading?.ammonia ?? ''}"
+                     class="w-full px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">Salt (%)</label>
+              <input id="wp_salt" type="number" step="0.01" min="0" max="1" placeholder="0.10"
+                     value="${wReading?.salt ?? ''}"
+                     class="w-full px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
+            </div>
+            <div class="flex items-end">
+              <button onclick="techSaveWaterParams('${jobId}')"
+                      class="w-full py-2 bg-[var(--green)] text-white text-sm font-bold rounded-lg">Save</button>
+            </div>
+          </div>
+          ${wReading ? '<p id="wpSavedMsg" class="text-xs text-green-600 font-semibold">&#10003; Saved</p>' : '<p id="wpSavedMsg" class="text-xs text-gray-400 hidden">&#10003; Saved</p>'}
+        </div>` : ''}
         ${job.status!=='completed'?`
         <div class="bg-white rounded-xl border p-4 mb-4">
           <p class="font-bold text-sm mb-3">Bill to this Job</p>
@@ -440,6 +485,23 @@
         }
       }
       await openTechJobDetail(jobId);
+    }
+
+    async function techSaveWaterParams(jobId) {
+      const btn = document.querySelector('[onclick^="techSaveWaterParams"]');
+      if (btn) { btn.disabled = true; btn.textContent = '…'; }
+      const val = id => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? null : v; };
+      const { error } = await sb.from('water_readings').upsert({
+        job_id: jobId,
+        ph: val('wp_ph'), kh: val('wp_kh'),
+        nitrite: val('wp_nitrite'), ammonia: val('wp_ammonia'),
+        salt: val('wp_salt'),
+        recorded_at: new Date().toISOString(),
+      }, { onConflict: 'job_id' });
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      const msg = document.getElementById('wpSavedMsg');
+      if (error) { if (msg) { msg.textContent = '✕ Error saving'; msg.className = 'text-xs text-red-500 font-semibold'; msg.classList.remove('hidden'); } return; }
+      if (msg) { msg.textContent = '✓ Saved'; msg.className = 'text-xs text-green-600 font-semibold'; msg.classList.remove('hidden'); }
     }
 
     async function techBillItem(jobId, serviceAccountId) {
