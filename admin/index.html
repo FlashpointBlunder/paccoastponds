@@ -1865,6 +1865,7 @@ async function openProposalDetail(proposalId) {
         ${sb2(prop.status)}
         <button onclick="sendProposalEmail('${prop.id}')" class="btn-blue text-xs py-1">📧 Email</button>
         ${prop.status!=='accepted'&&prop.status!=='declined'?`<button onclick="openEditProposal('${prop.id}')" class="btn-outline text-xs py-1">Edit</button>`:''}
+        ${prop.status!=='accepted'&&prop.status!=='declined'?`<button onclick="adminApproveProposal('${prop.id}')" class="btn-green text-xs py-1">&#10003; Approve</button>`:''}
         ${prop.status==='accepted'?`<button onclick="openCreateJobFromProposal('${prop.id}')" class="btn-green text-xs py-1">+ Create Job</button>`:''}
         <button onclick="deleteProposal('${prop.id}')" class="text-xs px-3 py-1 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Delete</button>
       </div>
@@ -1904,6 +1905,16 @@ async function deleteProposal(proposalId) {
   closeModal('proposalDetailModal');
   toast('Proposal deleted');
   await loadProposalsList();
+}
+
+async function adminApproveProposal(proposalId) {
+  if (!confirm('Mark this proposal as accepted? This simulates customer approval.')) return;
+  const { error } = await sb.from('proposals').update({
+    status: 'accepted', updated_at: new Date().toISOString(),
+  }).eq('id', proposalId);
+  if (error) { toast(error.message, false); return; }
+  toast('Proposal approved');
+  openProposalDetail(proposalId);
 }
 
 function openCreateJobFromProposal(proposalId) {
@@ -3977,15 +3988,21 @@ function convertReqToCustomer() {
 async function renderBilling(el) {
   el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
 
-  const { data: invoices, error } = await sb
-    .from('monthly_invoices')
-    .select('id, period_start, period_end, status, total_amount, stripe_invoice_id, sent_at, paid_at, created_at, service_accounts(id, contact_name, profiles(full_name))')
-    .order('created_at', { ascending: false });
+  const [{ data: invoices, error }, { data: svcInvoices }] = await Promise.all([
+    sb.from('monthly_invoices')
+      .select('id, period_start, period_end, status, total_amount, stripe_invoice_id, sent_at, paid_at, created_at, service_accounts(id, contact_name, profiles(full_name))')
+      .order('created_at', { ascending: false }),
+    sb.from('service_invoices')
+      .select('id, status, total_amount, created_at, approved_at, service_accounts(id, contact_name), jobs(id, scheduled_date, job_types(name))')
+      .order('created_at', { ascending: false }),
+  ]);
 
   if (error) { el.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`; return; }
 
-  const failed = (invoices || []).filter(i => i.status === 'failed');
-  const statusBadgeClass = { paid: 'badge-green', failed: 'badge-red', pending_charge: 'badge-yellow', open: 'badge-blue', void: 'badge-gray' };
+  const failed  = (invoices || []).filter(i => i.status === 'failed');
+  const pending = (svcInvoices || []).filter(i => i.status === 'pending_approval');
+  const monthlyBadge = { paid: 'badge-green', failed: 'badge-red', pending_charge: 'badge-yellow', open: 'badge-blue', void: 'badge-gray' };
+  const svcBadge     = { pending_approval: 'badge-yellow', approved: 'badge-green', sent: 'badge-blue', paid: 'badge-green' };
 
   el.innerHTML = `
     <div class="flex items-start justify-between mb-6 flex-wrap gap-3">
@@ -3995,45 +4012,152 @@ async function renderBilling(el) {
       </div>
     </div>
 
+    ${pending.length ? `
+    <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-4 mb-6">
+      <p class="font-bold text-yellow-800 mb-3">&#128196; ${pending.length} Service Invoice${pending.length > 1 ? 's' : ''} Pending Approval</p>
+      ${pending.map(i => {
+        const name    = i.service_accounts?.contact_name || '—';
+        const jobType = i.jobs?.job_types?.name || '—';
+        const date    = fmtDate(i.jobs?.scheduled_date || i.created_at);
+        return `<div class="flex items-center justify-between gap-3 py-1.5 border-t border-yellow-200 first:border-0">
+          <span class="text-sm text-yellow-900"><strong>${escHtml(name)}</strong> &nbsp;·&nbsp; ${escHtml(jobType)} &nbsp;·&nbsp; ${date} &nbsp;·&nbsp; ${fmtMoney(i.total_amount)}</span>
+          <div class="flex gap-2 shrink-0">
+            <button onclick="openSvcInvoiceDetail('${i.id}')" class="text-xs px-3 py-1.5 bg-white border border-yellow-400 text-yellow-800 font-semibold rounded-lg hover:bg-yellow-50">View</button>
+            <button onclick="approveServiceInvoice('${i.id}')" class="text-xs px-3 py-1.5 bg-[var(--green)] text-white font-semibold rounded-lg hover:bg-green-700">Approve</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+
     ${failed.length ? `
     <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-      <p class="font-bold text-red-700 mb-2">⚠ ${failed.length} Failed Payment${failed.length > 1 ? 's' : ''}</p>
+      <p class="font-bold text-red-700 mb-2">&#9888; ${failed.length} Failed Payment${failed.length > 1 ? 's' : ''}</p>
       ${failed.map(i => {
         const name = i.service_accounts?.profiles?.full_name || i.service_accounts?.contact_name || '—';
         return `<p class="text-sm text-red-600">${escHtml(name)} — ${fmtDate(i.period_start)} &nbsp;·&nbsp; ${fmtMoney(i.total_amount)}</p>`;
       }).join('')}
     </div>` : ''}
 
-    ${!(invoices?.length)
-      ? `<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No invoices yet. Billing runs automatically on the 1st of each month.</div>`
-      : `<div class="bg-white rounded-xl border overflow-hidden">
-          <table>
-            <thead><tr>
-              <th>Customer</th><th>Period</th><th>Total</th><th>Status</th><th>Billed</th><th class="text-right">Stripe</th>
-            </tr></thead>
-            <tbody>
-              ${invoices.map(i => {
-                const name   = i.service_accounts?.profiles?.full_name || i.service_accounts?.contact_name || '—';
-                const period = `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}`;
-                const cls    = statusBadgeClass[i.status] || 'badge-gray';
-                return `<tr class="${i.status === 'failed' ? 'bg-red-50' : ''}">
-                  <td class="font-semibold">${escHtml(name)}</td>
-                  <td class="text-gray-500 text-sm">${period}</td>
-                  <td class="font-semibold">${fmtMoney(i.total_amount)}</td>
-                  <td><span class="badge ${cls}">${i.status.replace('_',' ')}</span></td>
-                  <td class="text-gray-400 text-sm">${fmtDate(i.sent_at || i.created_at)}</td>
-                  <td class="text-right">
-                    ${i.stripe_invoice_id
-                      ? `<a href="https://dashboard.stripe.com/test/invoices/${i.stripe_invoice_id}" target="_blank" class="text-xs text-blue-600 underline">View ↗</a>`
-                      : '—'}
-                  </td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>`
-    }
+    ${svcInvoices?.length ? `
+    <div class="mb-8">
+      <h2 class="text-xl font-extrabold mb-3">Service Invoices</h2>
+      <div class="bg-white rounded-xl border overflow-hidden">
+        <table>
+          <thead><tr>
+            <th>Customer</th><th>Job Type</th><th>Date</th><th>Total</th><th>Status</th><th class="text-right">Actions</th>
+          </tr></thead>
+          <tbody>
+            ${svcInvoices.map(i => {
+              const name    = i.service_accounts?.contact_name || '—';
+              const jobType = i.jobs?.job_types?.name || '—';
+              const cls     = svcBadge[i.status] || 'badge-gray';
+              return `<tr class="${i.status === 'pending_approval' ? 'bg-yellow-50' : ''}">
+                <td class="font-semibold">${escHtml(name)}</td>
+                <td class="text-gray-500 text-sm">${escHtml(jobType)}</td>
+                <td class="text-gray-500 text-sm">${fmtDate(i.jobs?.scheduled_date || i.created_at)}</td>
+                <td class="font-semibold">${fmtMoney(i.total_amount)}</td>
+                <td><span class="badge ${cls}">${i.status.replace('_',' ')}</span></td>
+                <td class="text-right">
+                  <button onclick="openSvcInvoiceDetail('${i.id}')" class="text-xs text-blue-600 underline mr-2">View</button>
+                  ${i.status === 'pending_approval' ? `<button onclick="approveServiceInvoice('${i.id}')" class="text-xs text-green-700 font-semibold underline">Approve</button>` : ''}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    <div class="mb-3">
+      <h2 class="text-xl font-extrabold mb-3">Monthly Invoices</h2>
+      ${!(invoices?.length)
+        ? `<div class="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">No invoices yet. Billing runs automatically on the 1st of each month.</div>`
+        : `<div class="bg-white rounded-xl border overflow-hidden">
+            <table>
+              <thead><tr>
+                <th>Customer</th><th>Period</th><th>Total</th><th>Status</th><th>Billed</th><th class="text-right">Stripe</th>
+              </tr></thead>
+              <tbody>
+                ${invoices.map(i => {
+                  const name   = i.service_accounts?.profiles?.full_name || i.service_accounts?.contact_name || '—';
+                  const period = `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}`;
+                  const cls    = monthlyBadge[i.status] || 'badge-gray';
+                  return `<tr class="${i.status === 'failed' ? 'bg-red-50' : ''}">
+                    <td class="font-semibold">${escHtml(name)}</td>
+                    <td class="text-gray-500 text-sm">${period}</td>
+                    <td class="font-semibold">${fmtMoney(i.total_amount)}</td>
+                    <td><span class="badge ${cls}">${i.status.replace('_',' ')}</span></td>
+                    <td class="text-gray-400 text-sm">${fmtDate(i.sent_at || i.created_at)}</td>
+                    <td class="text-right">
+                      ${i.stripe_invoice_id
+                        ? `<a href="https://dashboard.stripe.com/test/invoices/${i.stripe_invoice_id}" target="_blank" class="text-xs text-blue-600 underline">View ↗</a>`
+                        : '—'}
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`
+      }
+    </div>
   `;
+}
+
+async function approveServiceInvoice(invoiceId) {
+  const { error } = await sb.from('service_invoices').update({
+    status: 'approved',
+    approved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', invoiceId);
+  if (error) { toast(error.message, false); return; }
+  toast('Invoice approved');
+  renderBilling(document.getElementById('pageContent'));
+}
+
+async function openSvcInvoiceDetail(invoiceId) {
+  const { data: inv } = await sb.from('service_invoices')
+    .select('*, service_accounts(contact_name, address), jobs(id, scheduled_date, notes, job_types(name))')
+    .eq('id', invoiceId).single();
+  const { data: items } = await sb.from('service_invoice_line_items')
+    .select('*').eq('invoice_id', invoiceId).order('sort_order');
+
+  if (!inv) { toast('Invoice not found', false); return; }
+  const svcBadge = { pending_approval: 'badge-yellow', approved: 'badge-green', sent: 'badge-blue', paid: 'badge-green' };
+  const total = (items||[]).reduce((s, i) => s + parseFloat(i.quantity||0) * parseFloat(i.unit_price||0), 0);
+
+  document.getElementById('svcInvoiceModalBody').innerHTML = `
+    <div class="space-y-4">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p class="font-bold text-lg">${escHtml(inv.service_accounts?.contact_name||'—')}</p>
+          <p class="text-sm text-gray-500">${escHtml(inv.jobs?.job_types?.name||'—')} &nbsp;·&nbsp; ${fmtDate(inv.jobs?.scheduled_date||inv.created_at)}</p>
+          ${inv.service_accounts?.address ? `<p class="text-sm text-gray-500">${escHtml(inv.service_accounts.address)}</p>` : ''}
+        </div>
+        <span class="badge ${svcBadge[inv.status]||'badge-gray'}">${inv.status.replace('_',' ')}</span>
+      </div>
+      ${items?.length ? `
+      <div class="border rounded-lg overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr><th class="text-left p-2">Description</th><th class="text-right p-2">Qty</th><th class="text-right p-2">Unit Price</th><th class="text-right p-2">Total</th></tr>
+          </thead>
+          <tbody>
+            ${items.map(i => `<tr class="border-t">
+              <td class="p-2">${escHtml(i.description)}</td>
+              <td class="p-2 text-right">${parseFloat(i.quantity)}</td>
+              <td class="p-2 text-right">${fmtMoney(i.unit_price)}</td>
+              <td class="p-2 text-right font-semibold">${fmtMoney(parseFloat(i.quantity)*parseFloat(i.unit_price))}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot class="bg-gray-50 border-t">
+            <tr><td colspan="3" class="p-2 font-bold text-right">Total</td><td class="p-2 font-bold text-right">${fmtMoney(total)}</td></tr>
+          </tfoot>
+        </table>
+      </div>` : '<p class="text-gray-400 text-sm">No line items.</p>'}
+      ${inv.status === 'pending_approval' ? `
+      <button onclick="approveServiceInvoice('${inv.id}');closeModal('svcInvoiceModal')" class="w-full py-2.5 bg-[var(--green)] text-white font-bold rounded-lg">Approve Invoice</button>` : ''}
+    </div>`;
+  openModal('svcInvoiceModal');
 }
 
 async function adminCreateStripeCustomer(accountId) {
@@ -4518,5 +4642,17 @@ init();
     </div>
   </div>
 </div>
+
+<!-- ── Service Invoice Detail Modal ───────────────────────────────── -->
+<div id="svcInvoiceModal" class="modal-bg hidden">
+  <div class="modal" style="max-width:38rem">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold">Service Invoice</h2>
+      <button onclick="closeModal('svcInvoiceModal')" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+    </div>
+    <div id="svcInvoiceModalBody"></div>
+  </div>
+</div>
+
 </body>
 </html>
