@@ -74,7 +74,7 @@
       </div>
       <div class="bg-white text-black p-6 shadow-2xl" id="quote" aria-labelledby="quote-heading">
         <h2 id="quote-heading" class="text-2xl font-bold uppercase">Start Your Project</h2>
-        <form id="leadForm" name="pond-lead" method="POST" data-netlify="true" netlify netlify-honeypot="bot-field" accept-charset="UTF-8" action="/thank-you" class="mt-5 grid gap-4" onsubmit="return handleLeadSubmit(event)">
+        <form id="leadForm" name="pond-lead" method="POST" data-netlify="true" netlify netlify-honeypot="bot-field" accept-charset="UTF-8" action="/thank-you" class="mt-5 grid gap-4" onsubmit="return handleLeadSubmit(event)" novalidate>
           <input type="hidden" name="form-name" value="pond-lead" /><input type="text" name="bot-field" style="display:none" tabindex="-1" autocomplete="off" />
           <input required name="name" class="px-3 py-3 border-2 border-[var(--brand-green)]" placeholder="Full Name" />
           <input required name="phone" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(###) ###-####" class="px-3 py-3 border-2 border-[var(--brand-green)]" />
