@@ -164,6 +164,8 @@ exports.handler = async (event) => {
       <p style="margin:0;font-size:12px;color:#9ca3af;">Questions? Log in to your portal at <a href="https://my.paccoastponds.com" style="color:#1E5E37;text-decoration:none;font-weight:600;">my.paccoastponds.com</a></p>
     </div>
   </div>
+  <!-- Open tracking pixel -->
+  <img src="https://paccoastponds.com/.netlify/functions/track-email-open?id=${prop.id}" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" alt="">
 </body></html>`;
 
   if (!process.env.RESEND_API_KEY) {

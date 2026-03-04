@@ -1563,7 +1563,7 @@ async function renderProposals(el) {
 async function loadProposalsList() {
   const el = document.getElementById('proposalsList'); if (!el) return;
   const { data: proposals } = await sb.from('proposals')
-    .select('id,title,status,updated_at,service_accounts(contact_name)').order('updated_at',{ascending:false});
+    .select('id,title,status,updated_at,email_opened_at,service_accounts(contact_name)').order('updated_at',{ascending:false});
   const sb2 = s => {
     const m = {draft:'badge-gray',sent:'badge-blue',accepted:'badge-green',changes_requested:'badge-yellow',declined:'badge-red'};
     return `<span class="badge ${m[s]||'badge-gray'}">${s.replace('_',' ')}</span>`;
@@ -1572,12 +1572,15 @@ async function loadProposalsList() {
   el.innerHTML = `
     <div class="bg-white rounded-xl border overflow-hidden">
       <table>
-        <thead><tr><th>Customer</th><th>Title</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+        <thead><tr><th>Customer</th><th>Title</th><th>Status</th><th>Opened</th><th>Updated</th><th></th></tr></thead>
         <tbody>
           ${proposals.map(p => `
             <tr class="cursor-pointer" onclick="openProposalDetail('${p.id}')">
               <td class="font-semibold">${escHtml(p.service_accounts?.contact_name||'—')}</td>
               <td>${escHtml(p.title)}</td><td>${sb2(p.status)}</td>
+              <td>${p.email_opened_at
+                ? `<span class="badge badge-green" title="${new Date(p.email_opened_at).toLocaleString()}">Opened</span>`
+                : `<span class="text-gray-300 text-xs">—</span>`}</td>
               <td class="text-gray-400 text-xs">${fmtDate(p.updated_at)}</td>
               <td class="text-right"><button class="text-xs text-[var(--green)] font-semibold hover:underline">Open</button></td>
             </tr>`).join('')}
