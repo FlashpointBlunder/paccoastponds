@@ -2156,6 +2156,7 @@ async function renderProducts(el) {
           <input type="hidden" name="product_id" />
           <input name="name" placeholder="Product Name *" required class="field" />
           <input name="sku" placeholder="SKU (optional)" class="field" />
+          <input name="mpn" placeholder="Vendor MPN / ALU (manufacturer part number for drop-ship)" class="field" />
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-xs font-semibold text-gray-500 uppercase">Category</label>
@@ -4075,23 +4076,29 @@ async function renderBilling(el) {
         : `<div class="bg-white rounded-xl border overflow-hidden">
             <table>
               <thead><tr>
-                <th>Customer</th><th>Period</th><th>Total</th><th>Status</th><th>Billed</th><th class="text-right">Stripe</th>
+                <th>Customer</th><th>Period</th><th>Total</th><th>Status</th><th>Billed</th><th class="text-right">Actions</th>
               </tr></thead>
               <tbody>
                 ${invoices.map(i => {
                   const name   = i.service_accounts?.profiles?.full_name || i.service_accounts?.contact_name || '—';
                   const period = `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}`;
                   const cls    = monthlyBadge[i.status] || 'badge-gray';
-                  return `<tr class="${i.status === 'failed' ? 'bg-red-50' : ''}">
+                  const isFailed = i.status === 'failed';
+                  return `<tr class="${isFailed ? 'bg-red-50' : ''}">
                     <td class="font-semibold">${escHtml(name)}</td>
                     <td class="text-gray-500 text-sm">${period}</td>
                     <td class="font-semibold">${fmtMoney(i.total_amount)}</td>
                     <td><span class="badge ${cls}">${i.status.replace('_',' ')}</span></td>
                     <td class="text-gray-400 text-sm">${fmtDate(i.sent_at || i.created_at)}</td>
-                    <td class="text-right">
+                    <td class="text-right whitespace-nowrap">
                       ${i.stripe_invoice_id
-                        ? `<a href="https://dashboard.stripe.com/test/invoices/${i.stripe_invoice_id}" target="_blank" class="text-xs text-blue-600 underline">View ↗</a>`
-                        : '—'}
+                        ? `<a href="https://dashboard.stripe.com/test/invoices/${i.stripe_invoice_id}" target="_blank" class="text-xs text-blue-600 underline mr-2">View ↗</a>`
+                        : ''}
+                      ${isFailed ? `
+                        <button onclick="retryMonthlyInvoice('${i.id}')" class="text-xs text-green-700 font-semibold underline mr-2">Retry</button>
+                        <button onclick="resendMonthlyInvoiceEmail('${i.id}')" class="text-xs text-blue-600 font-semibold underline mr-2">Email</button>
+                        <button onclick="voidMonthlyInvoice('${i.id}')" class="text-xs text-red-500 font-semibold underline">Void</button>
+                      ` : ''}
                     </td>
                   </tr>`;
                 }).join('')}
@@ -4208,6 +4215,58 @@ async function sendServiceInvoiceEmail(invoiceId) {
   } else {
     toast(json.error || json.reason || 'Failed to send email', false);
     btn.disabled = false; btn.textContent = 'Send Invoice Email';
+  }
+}
+
+async function retryMonthlyInvoice(invoiceId) {
+  const btn = event.target; btn.disabled = true; btn.textContent = '…';
+  const { data: { session } } = await sb.auth.getSession();
+  const res  = await fetch('/.netlify/functions/stripe-admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ action: 'retry_invoice', invoice_id: invoiceId }),
+  });
+  const json = await res.json();
+  if (json.paid) {
+    toast('Payment succeeded ✓');
+    renderBilling(document.getElementById('pageContent'));
+  } else {
+    toast(json.error || 'Payment failed — card declined', false);
+    btn.disabled = false; btn.textContent = 'Retry';
+  }
+}
+
+async function resendMonthlyInvoiceEmail(invoiceId) {
+  const btn = event.target; btn.disabled = true; btn.textContent = '…';
+  const { data: { session } } = await sb.auth.getSession();
+  const res  = await fetch('/.netlify/functions/stripe-admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ action: 'send_invoice_email', invoice_id: invoiceId }),
+  });
+  const json = await res.json();
+  if (json.sent) {
+    toast('Invoice emailed to customer ✓');
+  } else {
+    toast(json.error || json.reason || 'Failed to send email', false);
+  }
+  btn.disabled = false; btn.textContent = 'Email';
+}
+
+async function voidMonthlyInvoice(invoiceId) {
+  if (!confirm('Void this invoice? This will also void it in Stripe and cannot be undone.')) return;
+  const { data: { session } } = await sb.auth.getSession();
+  const res  = await fetch('/.netlify/functions/stripe-admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ action: 'void_invoice', invoice_id: invoiceId }),
+  });
+  const json = await res.json();
+  if (json.voided) {
+    toast('Invoice voided');
+    renderBilling(document.getElementById('pageContent'));
+  } else {
+    toast(json.error || 'Failed to void invoice', false);
   }
 }
 
