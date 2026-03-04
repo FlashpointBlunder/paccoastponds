@@ -813,14 +813,30 @@
     }
 
     // ── Shop state ──────────────────────────────────────────
-    let _shopAccountId = null;
-    let _shopCart      = {};   // { product_id: quantity } — in-memory until Submit
-    let _shopProducts  = [];
-    let _shopCats      = [];
-    let _shopBasket    = [];   // basket_items from DB (billed=false)
+    let _shopAccountId      = null;
+    let _shopCart           = {};   // { 'productId:variantId': qty }
+    let _shopProducts       = [];
+    let _shopCats           = [];
+    let _shopBasket         = [];   // basket_items from DB (billed=false)
+    let _shopSelVariant     = {};   // { product_id: variant_id } — selected variant per product
+
+    function _cartKey(pid, vid)  { return pid + ':' + (vid || ''); }
+    function _cartParts(key)     { const [pid, vid] = key.split(':'); return { pid, vid: vid || null }; }
+    function _cartPrice(pid, vid) {
+      const p = _shopProducts.find(x => x.id === pid);
+      if (!p) return 0;
+      if (vid) { const v = (p.product_variants||[]).find(v => v.id === vid); return v ? parseFloat(v.price) : 0; }
+      return parseFloat(p.price) || 0;
+    }
+    function _cartLabel(pid, vid) {
+      const p = _shopProducts.find(x => x.id === pid);
+      if (!p) return '';
+      if (vid) { const v = (p.product_variants||[]).find(v => v.id === vid); return p.name + (v ? ' — ' + v.value : ''); }
+      return p.name;
+    }
 
     async function renderShop(el) {
-      _shopCart = {};
+      _shopCart = {}; _shopSelVariant = {};
       el.innerHTML = '<p class="text-gray-400 text-sm">Loading...</p>';
       const { data: { user } } = await sb.auth.getUser();
       const { data: account } = await sb.from('service_accounts').select('id').eq('customer_id', user.id).single();
@@ -829,14 +845,19 @@
 
       const [{ data: cats }, { data: prods }, { data: basket }] = await Promise.all([
         sb.from('product_categories').select('*').order('sort_order'),
-        sb.from('products').select('id, name, description, price, sku, category_id, image_url').eq('active', true).eq('customer_visible', true).order('name'),
+        sb.from('products')
+          .select('id, name, description, price, sku, category_id, image_url, variant_attribute, product_variants(id, value, price, active, sort_order)')
+          .eq('active', true).eq('customer_visible', true).order('name'),
         sb.from('basket_items')
-          .select('id, product_id, quantity, requested_by, products(name, price)')
+          .select('id, product_id, variant_id, variant_name, quantity, requested_by, unit_price, products(name, price)')
           .eq('service_account_id', account.id)
-          .eq('billed', false)
+          .eq('billed', false),
       ]);
       _shopCats     = cats    || [];
-      _shopProducts = prods   || [];
+      _shopProducts = (prods  || []).map(p => ({
+        ...p,
+        product_variants: (p.product_variants || []).filter(v => v.active !== false).sort((a,b) => a.sort_order - b.sort_order),
+      }));
       _shopBasket   = basket  || [];
       _shopRender(el);
     }
@@ -863,9 +884,9 @@
 
       // Cart summary
       const cartEntries = Object.entries(_shopCart).filter(([,q]) => q > 0);
-      const cartTotal   = cartEntries.reduce((s, [pid, q]) => {
-        const p = _shopProducts.find(x => x.id === pid);
-        return s + (p ? p.price * q : 0);
+      const cartTotal   = cartEntries.reduce((s, [key, q]) => {
+        const { pid, vid } = _cartParts(key);
+        return s + _cartPrice(pid, vid) * q;
       }, 0);
 
       // Basket split: tech-queued vs customer requests
@@ -883,16 +904,16 @@
             ${techItems.map(b => `
               <div class="flex items-center px-4 py-3 gap-3">
                 <div class="flex-1 min-w-0">
-                  <p class="font-semibold text-sm">${pEsc(b.products?.name)}</p>
-                  <p class="text-xs text-gray-400">Added by your tech · ${fmt(b.products?.price || 0)} each</p>
+                  <p class="font-semibold text-sm">${pEsc(b.products?.name)}${b.variant_name ? ' <span class="text-gray-400 font-normal">— ' + pEsc(b.variant_name) + '</span>' : ''}</p>
+                  <p class="text-xs text-gray-400">Added by your tech · ${fmt(b.unit_price || b.products?.price || 0)} each</p>
                 </div>
                 <span class="text-sm font-bold text-gray-700">× ${b.quantity}</span>
               </div>`).join('')}
             ${custItems.map(b => `
               <div class="flex items-center px-4 py-3 gap-3">
                 <div class="flex-1 min-w-0">
-                  <p class="font-semibold text-sm">${pEsc(b.products?.name)}</p>
-                  <p class="text-xs text-[var(--green)]">Your request · ${fmt(b.products?.price || 0)} each</p>
+                  <p class="font-semibold text-sm">${pEsc(b.products?.name)}${b.variant_name ? ' <span class="text-gray-400 font-normal">— ' + pEsc(b.variant_name) + '</span>' : ''}</p>
+                  <p class="text-xs text-[var(--green)]">Your request · ${fmt(b.unit_price || b.products?.price || 0)} each</p>
                 </div>
                 <span class="text-sm font-bold text-gray-700 mr-1">× ${b.quantity}</span>
                 <button onclick="shopRemoveItem('${b.id}')" title="Cancel request"
@@ -905,23 +926,25 @@
         <div class="mb-6">
           <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Your Cart</p>
           <div class="bg-white rounded-xl border divide-y">
-            ${cartEntries.map(([pid, qty]) => {
-              const p = _shopProducts.find(x => x.id === pid);
-              if (!p) return '';
+            ${cartEntries.map(([key, qty]) => {
+              const { pid, vid } = _cartParts(key);
+              const label = _cartLabel(pid, vid);
+              const price = _cartPrice(pid, vid);
+              if (!label) return '';
               return `
                 <div class="flex items-center px-4 py-3 gap-3">
                   <div class="flex-1 min-w-0">
-                    <p class="font-semibold text-sm">${pEsc(p.name)}</p>
-                    <p class="text-xs text-gray-400">${fmt(p.price)} each</p>
+                    <p class="font-semibold text-sm">${pEsc(label)}</p>
+                    <p class="text-xs text-gray-400">${fmt(price)} each</p>
                   </div>
                   <div class="flex items-center gap-1.5">
-                    <button onclick="shopAdjust('${pid}',-1)"
+                    <button onclick="shopAdjust('${key}',-1)"
                             class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-red-400 transition">−</button>
                     <span class="w-6 text-center text-sm font-bold">${qty}</span>
-                    <button onclick="shopAdjust('${pid}',1)"
+                    <button onclick="shopAdjust('${key}',1)"
                             class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-[var(--green)] transition">+</button>
                   </div>
-                  <span class="text-sm font-bold w-16 text-right">${fmt(p.price * qty)}</span>
+                  <span class="text-sm font-bold w-16 text-right">${fmt(price * qty)}</span>
                 </div>`;
             }).join('')}
             <div class="px-4 py-3 flex items-center justify-between">
@@ -968,33 +991,59 @@
     }
 
     function _shopProductCard(p) {
-      const fmt = n => '$' + Number(n).toFixed(2);
-      const qty = _shopCart[p.id] || 0;
+      const fmt     = n => '$' + Number(n).toFixed(2);
+      const variants = p.product_variants || [];
+      const hasVars  = variants.length > 0;
+      const selVid   = hasVars ? (_shopSelVariant[p.id] || null) : null;
+      const selVar   = selVid ? variants.find(v => v.id === selVid) : null;
+      const key      = _cartKey(p.id, selVid);
+      const qty      = _shopCart[key] || 0;
+      const price    = selVar ? parseFloat(selVar.price) : (hasVars ? null : parseFloat(p.price));
+      const priceStr = price != null ? fmt(price) : ('from ' + fmt(Math.min(...variants.map(v => parseFloat(v.price)))));
+
+      const variantPills = hasVars ? `
+        <div class="flex flex-wrap gap-1.5 mt-2 mb-1">
+          ${variants.map(v => {
+            const isSel = v.id === selVid;
+            return '<button onclick="shopSelectVariant(\'' + p.id + '\',\'' + v.id + '\')"'
+              + ' class="px-2.5 py-1 rounded-lg text-xs font-semibold border-2 transition '
+              + (isSel ? 'border-[var(--green)] bg-[var(--green)] text-white' : 'border-gray-200 text-gray-600 hover:border-[var(--green)]') + '">'
+              + pEsc(v.value) + '</button>';
+          }).join('')}
+        </div>` : '';
+
+      const controls = hasVars && !selVid
+        ? `<button disabled class="w-7 h-7 rounded-full bg-gray-100 text-gray-300 font-bold text-base flex items-center justify-center cursor-not-allowed">+</button>`
+        : (qty > 0
+          ? `<button onclick="shopAdjust('${key}',-1)" class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-red-400 transition">−</button>
+             <span class="w-6 text-center text-sm font-bold">${qty}</span>
+             <button onclick="shopAdjust('${key}',1)" class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-[var(--green)] transition">+</button>`
+          : `<button onclick="shopAdjust('${key}',1)" class="w-7 h-7 rounded-full bg-[var(--green)] text-white font-bold text-base flex items-center justify-center hover:bg-[var(--dark)] transition">+</button>`);
+
       return `
-        <div class="bg-white rounded-xl border flex items-center gap-3 overflow-hidden">
-          ${p.image_url ? `<img src="${pEsc(p.image_url)}" alt="${pEsc(p.name)}" class="w-20 h-20 object-cover shrink-0" />` : ''}
-          <div class="flex-1 min-w-0 py-3 ${p.image_url ? '' : 'pl-4'}">
-            <p class="font-semibold text-sm">${pEsc(p.name)}</p>
-            ${p.description ? `<p class="text-xs text-gray-400 mt-0.5">${pEsc(p.description)}</p>` : ''}
-            <p class="text-sm font-bold text-[var(--green)] mt-1">${fmt(p.price)}</p>
-          </div>
-          <div class="flex items-center gap-1.5 shrink-0 pr-4">
-            ${qty > 0 ? `
-              <button onclick="shopAdjust('${p.id}',-1)"
-                      class="w-7 h-7 rounded-full border-2 border-gray-300 font-bold text-base flex items-center justify-center hover:border-red-400 transition">−</button>
-              <span class="w-6 text-center text-sm font-bold">${qty}</span>
-            ` : ''}
-            <button onclick="shopAdjust('${p.id}',1)"
-                    class="w-7 h-7 rounded-full font-bold text-base flex items-center justify-center transition
-                           ${qty > 0 ? 'border-2 border-gray-300 hover:border-[var(--green)]' : 'bg-[var(--green)] text-white hover:bg-[var(--dark)]'}">+</button>
+        <div class="bg-white rounded-xl border overflow-hidden">
+          <div class="flex items-center gap-3">
+            ${p.image_url ? `<img src="${pEsc(p.image_url)}" alt="${pEsc(p.name)}" class="w-20 h-20 object-cover shrink-0" />` : ''}
+            <div class="flex-1 min-w-0 py-3 ${p.image_url ? '' : 'pl-4'}">
+              <p class="font-semibold text-sm">${pEsc(p.name)}</p>
+              ${p.description ? `<p class="text-xs text-gray-400 mt-0.5 leading-snug">${pEsc(p.description)}</p>` : ''}
+              ${variantPills}
+              <p class="text-sm font-bold text-[var(--green)] mt-1">${priceStr}</p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0 pr-4">${controls}</div>
           </div>
         </div>`;
     }
 
-    function shopAdjust(productId, delta) {
-      const qty = (_shopCart[productId] || 0) + delta;
-      if (qty <= 0) delete _shopCart[productId];
-      else _shopCart[productId] = qty;
+    function shopSelectVariant(productId, variantId) {
+      _shopSelVariant[productId] = variantId;
+      _shopRender(document.getElementById('tabContent'));
+    }
+
+    function shopAdjust(key, delta) {
+      const qty = (_shopCart[key] || 0) + delta;
+      if (qty <= 0) delete _shopCart[key];
+      else _shopCart[key] = qty;
       _shopRender(document.getElementById('tabContent'));
     }
 
@@ -1008,19 +1057,28 @@
     async function shopSubmit() {
       const cartEntries = Object.entries(_shopCart).filter(([,q]) => q > 0);
       if (!cartEntries.length) return;
-      const inserts = cartEntries.map(([product_id, quantity]) => ({
-        service_account_id: _shopAccountId,
-        product_id,
-        quantity,
-        requested_by: 'customer',
-        billed: false
-      }));
+      const inserts = cartEntries.map(([key, quantity]) => {
+        const { pid, vid } = _cartParts(key);
+        const price = _cartPrice(pid, vid);
+        const p = _shopProducts.find(x => x.id === pid);
+        const varName = vid ? (p?.product_variants||[]).find(v => v.id === vid)?.value || null : null;
+        return {
+          service_account_id: _shopAccountId,
+          product_id: pid,
+          variant_id: vid || null,
+          variant_name: varName,
+          quantity,
+          unit_price: price,
+          requested_by: 'customer',
+          billed: false,
+        };
+      });
       const { data, error } = await sb.from('basket_items')
         .insert(inserts)
-        .select('id, product_id, quantity, requested_by, products(name, price)');
+        .select('id, product_id, variant_id, variant_name, quantity, requested_by, unit_price, products(name, price)');
       if (error) { alert(error.message); return; }
       _shopBasket = [..._shopBasket, ...(data || [])];
-      _shopCart   = {};
+      _shopCart   = {}; _shopSelVariant = {};
       _shopRender(document.getElementById('tabContent'));
     }
 
