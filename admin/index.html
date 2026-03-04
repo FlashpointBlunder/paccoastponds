@@ -3888,11 +3888,13 @@ async function loadReqTable() {
 }
 
 let _currentReqId = null;
+let _currentReq   = null;
 
 async function openReqDetail(id) {
   const { data: r } = await sb.from('service_requests').select('*').eq('id', id).single();
   if (!r) return;
   _currentReqId = r.id;
+  _currentReq   = r;
 
   const typeLabel = { routine_maintenance:'Routine Maintenance', one_time_cleaning:'One-Time Cleaning', install:'Install / Build', other:'Other' };
   const typeBadge = { routine_maintenance:'badge-blue', one_time_cleaning:'badge-green', install:'badge-yellow', other:'badge-gray' };
@@ -3940,16 +3942,26 @@ async function saveReqChanges() {
 }
 
 function convertReqToCustomer() {
-  if (!_currentReqId) return;
-  // Switch to Customers page and pre-focus the invite form
+  if (!_currentReq) return;
+  const r = _currentReq;
   closeModal('reqModal');
   loadPage('customers');
-  // Wait for customers page to render then click invite
-  setTimeout(() => {
-    const inviteBtn = document.querySelector('[onclick="openInviteModal()"]');
-    if (inviteBtn) inviteBtn.click();
-    // Pre-fill will need to be done manually — a future enhancement
-  }, 400);
+
+  // renderCustomers sets innerHTML synchronously before any await,
+  // so addCustomerModal is in the DOM immediately after loadPage returns.
+  openModal('addCustomerModal');
+
+  const f = document.getElementById('addCustomerForm');
+  f.querySelector('[name=contact_name]').value  = r.full_name || '';
+  f.querySelector('[name=contact_email]').value = r.email     || '';
+  f.querySelector('[name=contact_phone]').value = r.phone     || '';
+
+  const addrParts = [r.address, r.city, r.zip ? 'CA ' + r.zip : 'CA'].filter(Boolean);
+  f.querySelector('[name=address]').value = addrParts.join(', ');
+
+  if (r.message) {
+    f.querySelector('[name=pond_notes]').value = r.message;
+  }
 }
 
 async function renderBilling(el) {
