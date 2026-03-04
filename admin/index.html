@@ -1454,8 +1454,20 @@ async function renderProposals(el) {
   const { data: _acctRefresh } = await sb.from('service_accounts').select('id,contact_name,address').order('contact_name');
   _jobsAccounts = _acctRefresh||[];
   if (!_proposalProducts.length) {
-    const { data: prods } = await sb.from('products').select('id,name,price').eq('active',true).order('name');
-    _proposalProducts = prods||[];
+    const { data: prods } = await sb.from('products')
+      .select('id,name,price,variant_attribute,product_variants(id,value,price,active,sort_order)')
+      .eq('active',true).order('name');
+    _proposalProducts = [];
+    for (const p of (prods||[])) {
+      const variants = (p.product_variants||[]).filter(v=>v.active!==false).sort((a,b)=>a.sort_order-b.sort_order);
+      if (variants.length) {
+        for (const v of variants) {
+          _proposalProducts.push({ id: 'var_'+v.id, name: p.name+' — '+v.value, price: v.price });
+        }
+      } else {
+        _proposalProducts.push({ id: p.id, name: p.name, price: p.price });
+      }
+    }
   }
   el.innerHTML = `
     <div class="flex items-center justify-between mb-6">
@@ -1590,7 +1602,7 @@ async function loadProposalsList() {
 }
 
 function openCreateProposal() {
-  _editingProposalId = null; _proposalLineItems = []; _propType = 'service';
+  _editingProposalId = null; _proposalLineItems = []; _propType = 'service'; _proposalProducts = [];
   document.getElementById('propModalTitle').textContent = 'New Proposal';
   document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
     _jobsAccounts.map(a => `<option value="${a.id}">${escHtml(a.contact_name||'—')}</option>`).join('');
