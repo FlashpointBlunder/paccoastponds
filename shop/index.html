@@ -678,7 +678,7 @@ async function pgCollection(el, slug) {
 
   const { data: products } = await sb.from('products')
     .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
-    .in('category_id', ids).eq('active', true).order('name');
+    .in('category_id', ids).eq('active', true).eq('shop_visible', true).order('name');
 
   ldBreadcrumb([
     { name: 'Home', url: '/' },
@@ -717,7 +717,7 @@ async function pgProduct(el, slug) {
   const { data: p } = await sb.from('products')
     .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id, variant_attribute')
     .eq(col, slug)
-    .eq('active', true).maybeSingle();
+    .eq('active', true).eq('shop_visible', true).maybeSingle();
   if (!p) { el.innerHTML = '<div class="wrap sec"><p>Product not found.</p></div>'; return; }
 
   // Fetch variants if product has a variant attribute

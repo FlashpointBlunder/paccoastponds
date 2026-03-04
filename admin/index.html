@@ -2176,7 +2176,11 @@ async function renderProducts(el) {
             </label>
             <label class="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
               <input type="checkbox" name="customer_visible" class="w-4 h-4 rounded accent-[var(--green)]" />
-              Show in customer shop
+              Show in customer shop (my.paccoastponds.com)
+            </label>
+            <label class="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+              <input type="checkbox" name="shop_visible" class="w-4 h-4 rounded accent-[var(--green)]" />
+              Show in web shop (shop.paccoastponds.com)
             </label>
           </div>
           <!-- Shop Fields -->
@@ -2377,7 +2381,7 @@ async function loadCategoryPills() {
 
 async function loadProductTable(filter) {
   let query = sb.from('products')
-    .select('id, name, sku, price, description, active, customer_visible, tech_visible, category_id, image_url, product_categories(id, name, parent_id, product_categories(name))')
+    .select('id, name, sku, price, description, active, customer_visible, tech_visible, shop_visible, category_id, image_url, product_categories(id, name, parent_id, product_categories(name))')
     .order('name');
 
   if (filter === 'uncategorized') query = query.is('category_id', null);
@@ -2414,8 +2418,9 @@ async function loadProductTable(filter) {
           <td>
             <div class="flex flex-wrap gap-1">
               ${p.tech_visible ? '<span class="badge badge-blue">Tech</span>' : ''}
-              ${p.customer_visible ? '<span class="badge badge-green">Shop</span>' : ''}
-              ${!p.tech_visible && !p.customer_visible ? '<span class="badge badge-gray">Admin only</span>' : ''}
+              ${p.customer_visible ? '<span class="badge badge-green">Portal</span>' : ''}
+              ${p.shop_visible !== false ? '<span class="badge badge-green">Web Shop</span>' : ''}
+              ${!p.tech_visible && !p.customer_visible && p.shop_visible === false ? '<span class="badge badge-gray">Admin only</span>' : ''}
             </div>
           </td>
           <td><span class="badge ${p.active ? 'badge-green' : 'badge-gray'}">${p.active ? 'Active' : 'Inactive'}</span></td>
@@ -2458,6 +2463,7 @@ async function openEditProduct(productId) {
   f.querySelector('[name=description]').value    = p.description || '';
   f.querySelector('[name=tech_visible]').checked     = !!p.tech_visible;
   f.querySelector('[name=customer_visible]').checked = !!p.customer_visible;
+  f.querySelector('[name=shop_visible]').checked     = p.shop_visible !== false;
   // Shop fields
   f.querySelector('[name=slug]').value             = p.slug || '';
   f.querySelector('[name=brand]').value            = p.brand || '';
@@ -2566,6 +2572,7 @@ function bindProductModalForm() {
       category_id:             fd.get('category_id') || null,
       tech_visible:            fd.get('tech_visible') === 'on',
       customer_visible:        fd.get('customer_visible') === 'on',
+      shop_visible:            fd.get('shop_visible') === 'on',
       image_url:               imageUrl,
       slug:                    slug || null,
       brand:                   fd.get('brand') || null,
