@@ -375,7 +375,7 @@
                 : requiresInvoice && existingInvoice
                   ? `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">${existingInvoice.status === 'pending_approval' ? 'Invoice Pending Approval' : 'Invoice Submitted'} &#10003;</div>`
                   : next
-                    ? `<button onclick="techAdvanceJob('${jobId}','${next}','${tEsc(job.service_accounts?.phone||'')}',${job.service_accounts?.sms_opted_in?'true':'false'})" class="flex-1 py-3 text-white text-sm font-bold rounded-lg ${actionCls[job.status]}">${actionLbl[job.status]}</button>`
+                    ? `<button onclick="techAdvanceJob('${jobId}','${next}','${tEsc(job.service_accounts?.phone||'')}',${job.service_accounts?.sms_opted_in?'true':'false'},${!job.job_types?.requires_invoice?'true':'false'})" class="flex-1 py-3 text-white text-sm font-bold rounded-lg ${actionCls[job.status]}">${actionLbl[job.status]}</button>`
                     : `<div class="flex-1 py-3 bg-gray-100 text-gray-400 text-sm font-bold text-center rounded-lg">Completed &#10003;</div>`}
             </div>
           </div>
@@ -414,12 +414,15 @@
                      value="${wReading?.salt ?? ''}"
                      class="w-full px-2 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)] text-center" />
             </div>
-            <div class="flex items-end">
-              <button onclick="techSaveWaterParams('${jobId}')"
-                      class="w-full py-2 bg-[var(--green)] text-white text-sm font-bold rounded-lg">Save</button>
-            </div>
           </div>
-          ${wReading ? '<p id="wpSavedMsg" class="text-xs text-green-600 font-semibold">&#10003; Saved</p>' : '<p id="wpSavedMsg" class="text-xs text-gray-400 hidden">&#10003; Saved</p>'}
+          <div class="mt-2">
+            <label class="text-xs text-gray-500 block mb-1">Tech Notes for Customer (optional)</label>
+            <textarea id="wp_notes" rows="2" placeholder="e.g. Cleaned filter pads, topped off pond, fish look healthy…"
+                      class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:border-[var(--green)]">${wReading?.notes ?? ''}</textarea>
+          </div>
+          <button onclick="techSaveWaterParams('${jobId}')"
+                  class="mt-2 w-full py-2 bg-[var(--green)] text-white text-sm font-bold rounded-lg">Save</button>
+          ${wReading ? '<p id="wpSavedMsg" class="text-xs text-green-600 font-semibold mt-1">&#10003; Saved</p>' : '<p id="wpSavedMsg" class="text-xs text-gray-400 hidden mt-1">&#10003; Saved</p>'}
         </div>` : ''}
         ${job.status!=='completed'?`
         <div class="bg-white rounded-xl border p-4 mb-4">
@@ -439,7 +442,7 @@
       `;
     }
 
-    async function techAdvanceJob(jobId, newStatus, customerPhone, smsOptedIn) {
+    async function techAdvanceJob(jobId, newStatus, customerPhone, smsOptedIn, isRoutine = false) {
       const now = new Date().toISOString();
       const updates = {status:newStatus, updated_at:now};
       if (newStatus==='on_the_way') updates.on_the_way_at = now;
@@ -457,6 +460,19 @@
             body: JSON.stringify({to:customerPhone, message:'Your Pacific Coast Ponds technician is on the way and will arrive shortly!'}),
           });
         } catch(e) { console.warn('SMS failed:', e); }
+      }
+
+      if (newStatus==='completed' && isRoutine) {
+        // Auto-save water params (silent) then send visit summary email
+        await techSaveWaterParams(jobId, true);
+        try {
+          const { data:{ session } } = await sb.auth.getSession();
+          await fetch('/.netlify/functions/send-visit-summary-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ job_id: jobId }),
+          });
+        } catch(e) { console.warn('Visit summary email failed:', e); }
       }
 
       if (newStatus==='completed') {
@@ -487,21 +503,30 @@
       await openTechJobDetail(jobId);
     }
 
-    async function techSaveWaterParams(jobId) {
-      const btn = document.querySelector('[onclick^="techSaveWaterParams"]');
-      if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    async function techSaveWaterParams(jobId, silent = false) {
+      if (!silent) {
+        const btn = document.querySelector('[onclick^="techSaveWaterParams"]');
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
+      }
       const val = id => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? null : v; };
+      const notes = document.getElementById('wp_notes')?.value?.trim() || null;
+      const hasAny = ['wp_ph','wp_kh','wp_nitrite','wp_ammonia','wp_salt'].some(id => document.getElementById(id)?.value !== '');
+      if (!hasAny && !notes) { return; }  // nothing to save
       const { error } = await sb.from('water_readings').upsert({
         job_id: jobId,
         ph: val('wp_ph'), kh: val('wp_kh'),
         nitrite: val('wp_nitrite'), ammonia: val('wp_ammonia'),
         salt: val('wp_salt'),
+        notes,
         recorded_at: new Date().toISOString(),
       }, { onConflict: 'job_id' });
-      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
-      const msg = document.getElementById('wpSavedMsg');
-      if (error) { if (msg) { msg.textContent = '✕ Error saving'; msg.className = 'text-xs text-red-500 font-semibold'; msg.classList.remove('hidden'); } return; }
-      if (msg) { msg.textContent = '✓ Saved'; msg.className = 'text-xs text-green-600 font-semibold'; msg.classList.remove('hidden'); }
+      if (!silent) {
+        const btn = document.querySelector('[onclick^="techSaveWaterParams"]');
+        if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+        const msg = document.getElementById('wpSavedMsg');
+        if (error) { if (msg) { msg.textContent = '✕ Error saving'; msg.className = 'text-xs text-red-500 font-semibold'; msg.classList.remove('hidden'); } return; }
+        if (msg) { msg.textContent = '✓ Saved'; msg.className = 'text-xs text-green-600 font-semibold'; msg.classList.remove('hidden'); }
+      }
     }
 
     async function techBillItem(jobId, serviceAccountId) {
