@@ -42,6 +42,7 @@
     .annotation { position:absolute; background:rgba(30,94,55,.92); color:#fff; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:600; line-height:1.4; z-index:20; max-width:180px; }
     .annotation::after { content:''; position:absolute; width:8px; height:8px; background:rgba(30,94,55,.92); transform:rotate(45deg); }
     @media (min-width:640px) { .tab-btn { font-size:14px; } }
+    .pac-container { z-index:9999 !important; border-radius:8px; margin-top:2px; font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif; }
   </style>
 </head>
 <body>
@@ -142,6 +143,33 @@ const _c = {               // current contract being built
   contract_id: null, contract_number: null, client_secret: null,
 };
 const FREQ_DEFAULTS = { weekly: 450, biweekly: 265, monthly: 195 };
+const MAPS_KEY = 'AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4';
+
+// ── Google Places ─────────────────────────────────────────────
+let _mapsPromise = null;
+function loadMaps() {
+  if (_mapsPromise) return _mapsPromise;
+  _mapsPromise = new Promise(resolve => {
+    if (window.google?.maps?.places) { resolve(); return; }
+    window._salesGmReady = resolve;
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&callback=_salesGmReady`;
+    s.async = true; s.defer = true;
+    document.head.appendChild(s);
+  });
+  return _mapsPromise;
+}
+function initPlaces() {
+  const inp = document.getElementById('s1_address');
+  if (!inp || !window.google?.maps?.places) return;
+  const ac = new google.maps.places.Autocomplete(inp, {
+    types: ['address'], componentRestrictions: { country: 'us' }, fields: ['formatted_address'],
+  });
+  ac.addListener('place_changed', () => {
+    const p = ac.getPlace();
+    if (p?.formatted_address) { _c.customer_address = p.formatted_address; inp.value = p.formatted_address; }
+  });
+}
 
 // ── Auth ──────────────────────────────────────────────────────
 async function init() {
@@ -189,6 +217,7 @@ function showApp() {
   document.getElementById('setupScreen').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
   loadAddons().then(() => switchTab('dashboard', document.querySelector('[data-tab="dashboard"]')));
+  loadMaps(); // pre-load in background so Places is ready when New Contract opens
 }
 
 async function doLogin() {
@@ -549,7 +578,7 @@ function afterStepRender() {
   if (_contractStep === 2) updatePriceSummary();
   if (_contractStep === 3) initSigCanvas();
   if (_contractStep === 4) initStripe();
-  // address is plain text — no Places autocomplete
+  if (_contractStep === 1) loadMaps().then(initPlaces);
 }
 
 // ── Step logic ────────────────────────────────────────────────
