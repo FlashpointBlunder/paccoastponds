@@ -33,12 +33,14 @@ exports.handler = async (event) => {
 
   const { email, full_name, phone, role, service_account_id } = body;
 
-  if (!email || !['customer', 'tech'].includes(role)) {
+  if (!email || !['customer', 'tech', 'salesperson'].includes(role)) {
     return { statusCode: 400, body: JSON.stringify({ error: 'email and role are required' }) };
   }
 
   // Send Supabase invite email — redirect to the correct portal based on role
-  const redirectTo = role === 'tech' ? 'https://tech.paccoastponds.com' : 'https://my.paccoastponds.com';
+  const redirectTo = role === 'tech' ? 'https://tech.paccoastponds.com'
+                   : role === 'salesperson' ? 'https://sales.paccoastponds.com'
+                   : 'https://my.paccoastponds.com';
   const { data: invited, error: inviteErr } = await sb.auth.admin.inviteUserByEmail(email, {
     data: { role, full_name: full_name || email },
     redirectTo,

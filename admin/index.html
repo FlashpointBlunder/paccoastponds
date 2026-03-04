@@ -118,6 +118,8 @@
       <div class="sidebar-link" data-page="map">🗺 &nbsp;Map</div>
       <div class="sidebar-link" data-page="build">🏗 &nbsp;Build</div>
       <div class="sidebar-link" data-page="shoporders">🛒 &nbsp;Shop Orders</div>
+      <div class="sidebar-link" data-page="salespeople">🤝 &nbsp;Salespeople</div>
+      <div class="sidebar-link" data-page="contracts">📄 &nbsp;Contracts</div>
     </nav>
     <div class="p-3 border-t border-white/10">
       <div id="logoutBtn" class="sidebar-link">→ &nbsp;Sign Out</div>
@@ -272,6 +274,8 @@ function loadPage(page) {
     messages:   renderMessages,
     map:        renderMap,
     shoporders: renderShopOrders,
+    salespeople: renderSalespeople,
+    contracts:  renderContracts,
   };
   const el = document.getElementById('pageContent');
   if (pages[page]) pages[page](el);
@@ -4727,6 +4731,164 @@ document.addEventListener('click', e => {
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 init();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SALESPEOPLE PAGE
+// ══════════════════════════════════════════════════════════════════════════════
+async function renderSalespeople(el) {
+  el.innerHTML = '<p class="text-gray-400">Loading…</p>';
+  const { data: people } = await sb.from('profiles')
+    .select('id, full_name, email, created_at')
+    .eq('role', 'salesperson')
+    .order('created_at', { ascending: false });
+
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold">Salespeople</h2>
+      <button onclick="openInviteSalesperson()" class="px-4 py-2 bg-[var(--green)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--dark)] transition">+ Invite Salesperson</button>
+    </div>
+    ${(!people || people.length === 0) ? '<p class="text-gray-400 text-sm">No salespeople yet. Invite one to get started.</p>' : ''}
+    <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <table class="w-full">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            <th class="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Name</th>
+            <th class="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Email</th>
+            <th class="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Added</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          ${(people||[]).map(p => `
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 font-semibold text-gray-800 text-sm">${escHtml(p.full_name || '—')}</td>
+              <td class="px-4 py-3 text-gray-600 text-sm">${escHtml(p.email || '—')}</td>
+              <td class="px-4 py-3 text-gray-400 text-sm">${p.created_at ? new Date(p.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Invite Modal -->
+    <div id="inviteSalesModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-lg">Invite Salesperson</h3>
+          <button onclick="document.getElementById('inviteSalesModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <div id="inviteSalesErr" class="hidden text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2 mb-3"></div>
+        <div class="mb-3">
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Full Name</label>
+          <input id="invSalesName" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--green)]" placeholder="Jane Smith" />
+        </div>
+        <div class="mb-5">
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Email</label>
+          <input id="invSalesEmail" type="email" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--green)]" placeholder="jane@example.com" />
+        </div>
+        <button id="invSalesBtn" onclick="doInviteSalesperson()" class="w-full py-2.5 bg-[var(--green)] text-white font-semibold rounded-lg hover:bg-[var(--dark)] transition text-sm">Send Invite</button>
+      </div>
+    </div>`;
+}
+
+function openInviteSalesperson() {
+  document.getElementById('inviteSalesModal')?.classList.remove('hidden');
+  document.getElementById('invSalesName').value = '';
+  document.getElementById('invSalesEmail').value = '';
+  document.getElementById('inviteSalesErr')?.classList.add('hidden');
+}
+
+async function doInviteSalesperson() {
+  const name  = document.getElementById('invSalesName').value.trim();
+  const email = document.getElementById('invSalesEmail').value.trim();
+  const btn   = document.getElementById('invSalesBtn');
+  const err   = document.getElementById('inviteSalesErr');
+  if (!email) { err.textContent = 'Email is required.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.textContent = 'Sending…'; err.classList.add('hidden');
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch('/.netlify/functions/invite-user', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, full_name: name || email, role: 'salesperson' }),
+  });
+  const j = await res.json();
+  if (!res.ok) { err.textContent = j.error || 'Invite failed.'; err.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Send Invite'; return; }
+  document.getElementById('inviteSalesModal').classList.add('hidden');
+  renderSalespeople(document.getElementById('pageContent'));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONTRACTS PAGE
+// ══════════════════════════════════════════════════════════════════════════════
+let _contractFilter = 'all';
+
+async function renderContracts(el) {
+  el.innerHTML = '<p class="text-gray-400">Loading…</p>';
+
+  const { data: raw } = await sb.from('contracts')
+    .select('id,contract_number,customer_name,customer_email,customer_address,frequency,monthly_price,total_monthly,initiation_fee,initiation_fee_waived,status,created_at,signed_at,signature_data_url,service_account_id,profiles(full_name,email),contract_selected_addons(monthly_price,contract_addons(name))')
+    .order('created_at', { ascending: false });
+
+  const all = raw || [];
+  const filtered = _contractFilter === 'all' ? all : all.filter(c => c.status === _contractFilter);
+
+  const filters = ['all','draft','active','cancelled'];
+  const filterHtml = filters.map(f => `
+    <button onclick="adminSetContractFilter('${f}')" class="px-3 py-1.5 rounded-full text-xs font-semibold border transition ${_contractFilter === f ? 'bg-[var(--green)] text-white border-[var(--green)]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">${f.charAt(0).toUpperCase()+f.slice(1)} ${f === 'all' ? '('+all.length+')' : '('+all.filter(c=>c.status===f).length+')'}</button>`).join('');
+
+  const freqLabel = f => ({ weekly:'Weekly', biweekly:'Bi-Weekly', monthly:'Monthly' }[f] || f);
+  const fmtMoney  = n => '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const badgeCls  = s => ({ draft:'bg-amber-100 text-amber-800', active:'bg-green-100 text-green-800', cancelled:'bg-red-100 text-red-800' }[s] || 'bg-gray-100 text-gray-700');
+
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-2xl font-bold">Contracts</h2>
+      <p class="text-sm text-gray-400">${all.length} total</p>
+    </div>
+    <div class="flex gap-2 flex-wrap mb-5">${filterHtml}</div>
+
+    ${filtered.length === 0 ? '<p class="text-gray-400 text-sm">No contracts match this filter.</p>' : ''}
+
+    <div class="space-y-2">
+      ${filtered.map(c => {
+        const addons = c.contract_selected_addons || [];
+        const salesperson = c.profiles;
+        return `<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div class="px-5 py-4 flex items-center gap-4 cursor-pointer" onclick="this.closest('.bg-white').querySelector('.cdetails').classList.toggle('hidden')">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <p class="font-semibold text-gray-800">${escHtml(c.customer_name)}</p>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${badgeCls(c.status)}">${c.status}</span>
+              </div>
+              <p class="text-xs text-gray-400">${c.contract_number} &bull; ${fmtDate(c.created_at)} &bull; ${freqLabel(c.frequency)}</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <p class="font-bold text-gray-800">${fmtMoney(c.total_monthly)}/mo</p>
+              ${addons.length ? `<p class="text-xs text-gray-400">${addons.length} add-on${addons.length>1?'s':''}</p>` : ''}
+            </div>
+          </div>
+          <div class="cdetails hidden border-t border-gray-50 px-5 py-4 bg-gray-50 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div><span class="text-gray-400">Email:</span> <span class="font-medium text-gray-700">${escHtml(c.customer_email)}</span></div>
+            <div><span class="text-gray-400">Address:</span> <span class="font-medium text-gray-700">${escHtml(c.customer_address)}</span></div>
+            <div><span class="text-gray-400">Base rate:</span> <span class="font-medium text-gray-700">${fmtMoney(c.monthly_price)}/mo</span></div>
+            <div><span class="text-gray-400">Initiation fee:</span> <span class="font-medium text-gray-700">${c.initiation_fee_waived ? 'Waived' : fmtMoney(c.initiation_fee)}</span></div>
+            ${addons.length ? `<div class="col-span-2"><span class="text-gray-400">Add-ons:</span> <span class="font-medium text-gray-700">${addons.map(a => escHtml(a.contract_addons?.name||'')+'  +'+fmtMoney(a.monthly_price)).join(', ')}</span></div>` : ''}
+            ${salesperson ? `<div><span class="text-gray-400">Salesperson:</span> <span class="font-medium text-gray-700">${escHtml(salesperson.full_name||salesperson.email||'—')}</span></div>` : ''}
+            ${c.signed_at ? `<div><span class="text-gray-400">Signed:</span> <span class="font-medium text-gray-700">${fmtDate(c.signed_at)}</span></div>` : ''}
+            ${c.service_account_id ? `<div><span class="text-gray-400">Customer:</span> <button onclick="loadPage('customers')" class="text-[var(--green)] font-semibold hover:underline text-sm">View Account →</button></div>` : ''}
+            ${c.signature_data_url ? `<div class="col-span-2 mt-1"><span class="text-gray-400 block mb-1">Signature:</span><img src="${escHtml(c.signature_data_url)}" alt="Signature" class="h-12 border border-gray-200 rounded bg-white p-1" /></div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function adminSetContractFilter(f) {
+  _contractFilter = f;
+  renderContracts(document.getElementById('pageContent'));
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+// (boot is above, this closes the script)
 </script>
 
 <!-- Invoice Modal -->

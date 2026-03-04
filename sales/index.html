@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0F1C12" />
+  <title>PCP Sales</title>
+  <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    :root { --green:#1E5E37; --dark:#0F1C12; --light-green:#f0fdf4; }
+    * { box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif; background:#f3f4f6; min-height:100vh; }
+    .field { display:block; width:100%; border:1px solid #d1d5db; border-radius:8px; padding:10px 12px; font-size:15px; color:#111827; background:#fff; outline:none; }
+    .field:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(30,94,55,.12); }
+    .btn-primary { background:var(--green); color:#fff; font-weight:700; border-radius:8px; padding:12px 20px; border:none; cursor:pointer; font-size:15px; transition:opacity .15s; }
+    .btn-primary:hover { opacity:.9; }
+    .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-outline { background:#fff; color:#374151; font-weight:600; border-radius:8px; padding:10px 16px; border:2px solid #e5e7eb; cursor:pointer; font-size:14px; transition:border-color .15s; }
+    .btn-outline:hover { border-color:#9ca3af; }
+    .tab-btn { flex:1; py:12px; text-align:center; font-size:13px; font-weight:600; color:#9ca3af; border-bottom:2px solid transparent; cursor:pointer; padding:12px 4px; transition:all .15s; background:none; border-top:none; border-left:none; border-right:none; border-bottom:2px solid transparent; }
+    .tab-btn.active { color:var(--green); border-bottom-color:var(--green); }
+    .card { background:#fff; border-radius:12px; border:1px solid #e5e7eb; }
+    .step-dot { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; border:2px solid #e5e7eb; color:#9ca3af; flex-shrink:0; }
+    .step-dot.active { border-color:var(--green); color:var(--green); background:var(--light-green); }
+    .step-dot.done { border-color:var(--green); background:var(--green); color:#fff; }
+    .addon-card { border:2px solid #e5e7eb; border-radius:10px; padding:14px; cursor:pointer; transition:all .15s; background:#fff; }
+    .addon-card.selected { border-color:var(--green); background:var(--light-green); }
+    .freq-pill { border:2px solid #e5e7eb; border-radius:20px; padding:8px 16px; font-size:14px; font-weight:600; cursor:pointer; color:#6b7280; background:#fff; transition:all .15s; }
+    .freq-pill.active { border-color:var(--green); color:var(--green); background:var(--light-green); }
+    #sigCanvas { touch-action:none; cursor:crosshair; border-radius:8px; }
+    .status-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+    .badge-draft { background:#fef3c7; color:#92400e; }
+    .badge-active { background:#dcfce7; color:#166534; }
+    .badge-cancelled { background:#fee2e2; color:#991b1b; }
+    .demo-tab-btn { flex:1; text-align:center; font-size:13px; font-weight:600; color:#9ca3af; padding:10px 4px; cursor:pointer; border-bottom:2px solid transparent; background:none; border-top:none; border-left:none; border-right:none; transition:all .15s; }
+    .demo-tab-btn.active { color:var(--green); border-bottom-color:var(--green); }
+    .annotation { position:absolute; background:rgba(30,94,55,.92); color:#fff; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:600; line-height:1.4; z-index:20; max-width:180px; }
+    .annotation::after { content:''; position:absolute; width:8px; height:8px; background:rgba(30,94,55,.92); transform:rotate(45deg); }
+    @media (min-width:640px) { .tab-btn { font-size:14px; } }
+  </style>
+</head>
+<body>
+
+<!-- ── Login Screen ────────────────────────────────────────── -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center px-4 py-8">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-14 mx-auto mb-3" />
+      <p class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Sales Portal</p>
+    </div>
+    <div class="card p-6 shadow-sm">
+      <div id="loginErr" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4"></div>
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Email</label>
+        <input id="loginEmail" type="email" class="field" placeholder="you@example.com" autocomplete="email" />
+      </div>
+      <div class="mb-5">
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Password</label>
+        <input id="loginPass" type="password" class="field" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button id="loginBtn" onclick="doLogin()" class="btn-primary w-full">Sign In</button>
+      <button onclick="showForgot()" class="w-full text-center text-sm text-gray-400 hover:text-gray-600 mt-3">Forgot password?</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Setup Screen (invite / password reset) ─────────────── -->
+<div id="setupScreen" class="hidden min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-14 mx-auto mb-3" />
+      <p class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Set Your Password</p>
+    </div>
+    <div class="card p-6 shadow-sm">
+      <div id="setupErr" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4"></div>
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">New Password</label>
+        <input id="setupPass" type="password" class="field" placeholder="Choose a strong password" />
+      </div>
+      <div class="mb-5">
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Confirm Password</label>
+        <input id="setupPass2" type="password" class="field" placeholder="Confirm password" />
+      </div>
+      <button id="setupBtn" onclick="doSetup()" class="btn-primary w-full">Set Password & Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Shell ───────────────────────────────────────────── -->
+<div id="appShell" class="hidden min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-[#0F1C12] px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow">
+    <div class="flex items-center gap-2.5">
+      <img src="https://paccoastponds.com/assets/logo.webp" alt="PCP" class="h-8" />
+      <div>
+        <p class="text-white text-sm font-bold leading-tight">Pacific Coast Ponds</p>
+        <p class="text-white/50 text-xs leading-none" id="salesRep">Sales</p>
+      </div>
+    </div>
+    <button onclick="doLogout()" class="text-white/50 hover:text-white text-xs font-medium">Sign Out</button>
+  </header>
+
+  <!-- Tab Nav -->
+  <nav class="bg-white border-b sticky top-[52px] z-20">
+    <div class="max-w-2xl mx-auto flex">
+      <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard',this)">Dashboard</button>
+      <button class="tab-btn" data-tab="new" onclick="switchTab('new',this)">New Contract</button>
+      <button class="tab-btn" data-tab="contracts" onclick="switchTab('contracts',this)">My Contracts</button>
+      <button class="tab-btn" data-tab="demo" onclick="switchTab('demo',this)">Demo</button>
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main class="flex-1 max-w-2xl w-full mx-auto px-4 py-6">
+    <div id="pageContent"></div>
+  </main>
+</div>
+
+<script>
+// ── Supabase ─────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://wxrifqyqhgkllslprtai.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4cmlmcXlxaGdrbGxzbHBydGFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNzUxMzMsImV4cCI6MjA4NzY1MTEzM30.Rnfg9eIQkvnyHMMyYn1GS1LYuZFJ32mxR1qWieS4RkA';
+const STRIPE_PK     = 'pk_test_51T5LDt2FcIjayQS7xfHkkNaACF95tBNYtcYpDCFs0KMSTJtPZpE0hssTU6tERABayJGkubweuQHOWOHEIc51rFpI006igi4dxJ';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── State ─────────────────────────────────────────────────────
+let _user = null, _profile = null;
+let _addons = [];          // available add-ons from DB
+let _contractStep = 1;
+const _c = {               // current contract being built
+  customer_name: '', customer_email: '', customer_phone: '', customer_address: '',
+  frequency: 'biweekly', monthly_price: 265, addons: [],
+  initiation_fee: 265, initiation_fee_waived: false, initiation_fee_note: '',
+  total_monthly: 265,
+  contract_id: null, contract_number: null, client_secret: null,
+};
+const FREQ_DEFAULTS = { weekly: 325, biweekly: 265, monthly: 195 };
+
+// ── Auth ──────────────────────────────────────────────────────
+async function init() {
+  const hash  = new URLSearchParams(window.location.hash.substring(1));
+  const query = new URLSearchParams(window.location.search);
+  const type  = hash.get('type') || query.get('type');
+  if (type === 'invite' || type === 'recovery') {
+    await new Promise(r => setTimeout(r, 300));
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) { window.history.replaceState(null,'',window.location.pathname); showSetup(); return; }
+  }
+  checkAuth();
+}
+
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showLogin(); return; }
+  _user = session.user;
+  const { data: p } = await sb.from('profiles').select('role,full_name').eq('id', _user.id).single();
+  _profile = p;
+  if (p?.role === 'salesperson' || p?.role === 'admin') {
+    document.getElementById('salesRep').textContent = p.full_name || _user.email;
+    showApp();
+  } else {
+    await sb.auth.signOut();
+    showLogin('Your account does not have sales access.');
+  }
+}
+
+function showLogin(err) {
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.add('hidden');
+  if (err) { const e = document.getElementById('loginErr'); e.textContent = err; e.classList.remove('hidden'); }
+}
+
+function showSetup() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('setupScreen').classList.remove('hidden');
+  document.getElementById('appShell').classList.add('hidden');
+}
+
+function showApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
+  loadAddons().then(() => switchTab('dashboard', document.querySelector('[data-tab="dashboard"]')));
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const btn   = document.getElementById('loginBtn');
+  const err   = document.getElementById('loginErr');
+  btn.disabled = true; btn.textContent = 'Signing in…'; err.classList.add('hidden');
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { err.textContent = error.message; err.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Sign In'; return; }
+  checkAuth();
+}
+
+async function doSetup() {
+  const pass  = document.getElementById('setupPass').value;
+  const pass2 = document.getElementById('setupPass2').value;
+  const btn   = document.getElementById('setupBtn');
+  const err   = document.getElementById('setupErr');
+  if (pass !== pass2) { err.textContent = 'Passwords do not match.'; err.classList.remove('hidden'); return; }
+  if (pass.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { error } = await sb.auth.updateUser({ password: pass });
+  if (error) { err.textContent = error.message; err.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Set Password & Sign In'; return; }
+  checkAuth();
+}
+
+async function showForgot() {
+  const email = prompt('Enter your email address:');
+  if (!email) return;
+  await sb.auth.resetPasswordForEmail(email, { redirectTo: 'https://sales.paccoastponds.com' });
+  alert('Check your email for a password reset link.');
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  showLogin();
+}
+
+// ── Add-ons loader ────────────────────────────────────────────
+async function loadAddons() {
+  const { data } = await sb.from('contract_addons').select('*').eq('active', true).order('sort_order');
+  _addons = data || [];
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(tab, btnEl) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  const el = document.getElementById('pageContent');
+  if (tab === 'dashboard') renderDashboard(el);
+  else if (tab === 'new')   renderNewContract(el);
+  else if (tab === 'contracts') renderMyContracts(el);
+  else if (tab === 'demo')  renderDemo(el);
+}
+
+// ── helpers ───────────────────────────────────────────────────
+const escHtml = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmtMoney = n => '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fmtDate  = d => { const dt = new Date(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
+
+// ══════════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════════
+async function renderDashboard(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data: { session } } = await sb.auth.getSession();
+  const { data: all } = await sb.from('contracts').select('id,contract_number,customer_name,total_monthly,status,created_at').eq('salesperson_id', _user.id).order('created_at', { ascending: false });
+  const contracts = all || [];
+  const today = new Date().toDateString();
+  const week  = new Date(Date.now() - 7*24*60*60*1000);
+  const todayCount  = contracts.filter(c => new Date(c.created_at).toDateString() === today && c.status === 'active').length;
+  const weekCount   = contracts.filter(c => new Date(c.created_at) >= week && c.status === 'active').length;
+  const activeCount = contracts.filter(c => c.status === 'active').length;
+  const recent = contracts.slice(0, 6);
+
+  el.innerHTML = `
+    <h2 class="text-lg font-bold text-gray-800 mb-4">Dashboard</h2>
+    <div class="grid grid-cols-3 gap-3 mb-6">
+      <div class="card p-4 text-center">
+        <p class="text-2xl font-black text-[var(--green)]">${todayCount}</p>
+        <p class="text-xs text-gray-500 font-medium mt-0.5">Signed Today</p>
+      </div>
+      <div class="card p-4 text-center">
+        <p class="text-2xl font-black text-[var(--green)]">${weekCount}</p>
+        <p class="text-xs text-gray-500 font-medium mt-0.5">This Week</p>
+      </div>
+      <div class="card p-4 text-center">
+        <p class="text-2xl font-black text-[var(--green)]">${activeCount}</p>
+        <p class="text-xs text-gray-500 font-medium mt-0.5">Total Active</p>
+      </div>
+    </div>
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-gray-700">Recent Contracts</h3>
+      <button onclick="switchTab('new',document.querySelector('[data-tab=new]'))" class="text-sm font-semibold text-[var(--green)]">+ New Contract</button>
+    </div>
+    ${recent.length === 0 ? '<p class="text-gray-400 text-sm text-center py-8">No contracts yet. Tap <strong>New Contract</strong> to get started.</p>' : ''}
+    <div class="space-y-2">
+      ${recent.map(c => `
+        <div class="card px-4 py-3 flex items-center gap-3">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-gray-800 text-sm truncate">${escHtml(c.customer_name)}</p>
+            <p class="text-xs text-gray-400">${c.contract_number} &bull; ${fmtDate(c.created_at)}</p>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <p class="text-sm font-bold text-gray-700">${fmtMoney(c.total_monthly)}/mo</p>
+            <span class="status-badge badge-${c.status}">${c.status}</span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// NEW CONTRACT WIZARD
+// ══════════════════════════════════════════════════════════════
+function renderNewContract(el) {
+  _contractStep = 1;
+  resetContractState();
+  renderContractStep(el);
+}
+
+function resetContractState() {
+  Object.assign(_c, {
+    customer_name:'', customer_email:'', customer_phone:'', customer_address:'',
+    frequency:'biweekly', monthly_price:265, addons:[], initiation_fee:265,
+    initiation_fee_waived:false, initiation_fee_note:'', total_monthly:265,
+    contract_id:null, contract_number:null, client_secret:null,
+  });
+}
+
+function renderContractStep(el) {
+  const steps = ['Customer', 'Plan', 'Sign', 'Payment', 'Done'];
+  const dots = steps.map((s,i) => {
+    const n = i+1;
+    const cls = n < _contractStep ? 'done' : n === _contractStep ? 'active' : '';
+    const inner = n < _contractStep ? '✓' : n;
+    return `<div class="flex flex-col items-center gap-1">
+      <div class="step-dot ${cls}">${inner}</div>
+      <span class="text-xs ${n <= _contractStep ? 'text-[var(--green)] font-semibold' : 'text-gray-400'}">${s}</span>
+    </div>`;
+  }).join('<div class="flex-1 h-px bg-gray-200 mb-4 mx-1"></div>');
+
+  let stepHtml = '';
+  if (_contractStep === 1) stepHtml = renderStep1();
+  else if (_contractStep === 2) stepHtml = renderStep2();
+  else if (_contractStep === 3) stepHtml = renderStep3();
+  else if (_contractStep === 4) stepHtml = renderStep4();
+  else if (_contractStep === 5) stepHtml = renderStep5();
+
+  el.innerHTML = `
+    <div class="flex items-center mb-6">${dots}</div>
+    <div id="stepContent">${stepHtml}</div>`;
+
+  afterStepRender();
+}
+
+function renderStep1() {
+  return `
+    <div class="card p-5">
+      <h3 class="font-bold text-gray-800 text-base mb-4">Customer Information</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Full Name *</label>
+          <input id="s1_name" class="field" placeholder="Jane Smith" value="${escHtml(_c.customer_name)}" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Email *</label>
+          <input id="s1_email" type="email" class="field" placeholder="jane@example.com" value="${escHtml(_c.customer_email)}" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Phone</label>
+          <input id="s1_phone" type="tel" class="field" placeholder="(714) 555-0100" value="${escHtml(_c.customer_phone)}" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Service Address *</label>
+          <input id="s1_address" class="field" placeholder="123 Pond Lane, Irvine, CA 92620" value="${escHtml(_c.customer_address)}" autocomplete="street-address" />
+        </div>
+      </div>
+      <div id="s1_err" class="hidden mt-3 text-red-600 text-sm"></div>
+      <button onclick="step1Next()" class="btn-primary w-full mt-5">Continue →</button>
+    </div>`;
+}
+
+function renderStep2() {
+  const addonCards = _addons.map(a => {
+    const sel = _c.addons.find(x => x.addon_id === a.id);
+    return `<div class="addon-card ${sel ? 'selected' : ''}" onclick="toggleAddon('${a.id}','${escHtml(a.name)}',${a.monthly_price})" id="ac_${a.id}">
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <p class="font-semibold text-gray-800 text-sm">${escHtml(a.name)}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${escHtml(a.description||'')}</p>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="font-bold text-sm ${sel ? 'text-[var(--green)]' : 'text-gray-700'}">+${fmtMoney(a.monthly_price)}/mo</p>
+          <div class="w-5 h-5 rounded mt-1 ml-auto border-2 flex items-center justify-center text-xs font-bold ${sel ? 'bg-[var(--green)] border-[var(--green)] text-white' : 'border-gray-300 text-transparent'}">✓</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const initFeeVal = _c.initiation_fee_waived ? 0 : _c.initiation_fee;
+
+  return `
+    <div class="space-y-4">
+      <div class="card p-5">
+        <h3 class="font-bold text-gray-800 text-base mb-3">Service Frequency</h3>
+        <div class="flex gap-2 flex-wrap">
+          ${['weekly','biweekly','monthly'].map(f => `
+            <button onclick="setFreq('${f}')" id="fp_${f}" class="freq-pill ${_c.frequency===f?'active':''}">
+              ${f.charAt(0).toUpperCase()+f.slice(1)} ${f==='biweekly'?'<span class="text-xs opacity-60">(Standard)</span>':''}
+            </button>`).join('')}
+        </div>
+        <div class="mt-4">
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Monthly Price</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+            <input id="s2_price" type="number" min="0" step="5" class="field pl-7" value="${_c.monthly_price}" oninput="updatePrice(this.value)" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h3 class="font-bold text-gray-800 text-base mb-3">Optional Add-Ons</h3>
+        <div class="space-y-2">${addonCards || '<p class="text-sm text-gray-400">No add-ons available</p>'}</div>
+      </div>
+
+      <div class="card p-5">
+        <h3 class="font-bold text-gray-800 text-base mb-3">Pricing Summary</h3>
+        <div class="space-y-1.5 text-sm">
+          <div class="flex justify-between text-gray-600">
+            <span>Base service (${_c.frequency})</span>
+            <span class="font-semibold" id="ps_base">${fmtMoney(_c.monthly_price)}</span>
+          </div>
+          <div id="ps_addons"></div>
+          <div class="flex justify-between font-bold text-gray-800 pt-2 border-t border-gray-100 text-base">
+            <span>Monthly Total</span>
+            <span class="text-[var(--green)]" id="ps_total">${fmtMoney(_c.total_monthly)}</span>
+          </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold text-gray-700">Initiation Fee</span>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="s2_waive" ${_c.initiation_fee_waived?'checked':''} onchange="toggleWaive(this.checked)" class="rounded" />
+              <span class="text-xs text-gray-500">Waive</span>
+            </label>
+          </div>
+          <div id="initFeeRow" class="${_c.initiation_fee_waived ? 'hidden' : ''}">
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+              <input id="s2_initfee" type="number" min="0" step="5" class="field pl-7" value="${_c.initiation_fee}" oninput="updateInitFee(this.value)" />
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Default = monthly total. You can discount or waive.</p>
+          </div>
+          <div id="initFeeWaived" class="${_c.initiation_fee_waived ? '' : 'hidden'}">
+            <p class="text-sm font-bold text-amber-600">Initiation fee waived</p>
+            <input id="s2_waiveNote" class="field text-sm mt-1" placeholder="Reason (optional)" value="${escHtml(_c.initiation_fee_note)}" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="goStep(1)" class="btn-outline flex-shrink-0">← Back</button>
+        <button onclick="step2Next()" class="btn-primary flex-1">Continue →</button>
+      </div>
+    </div>`;
+}
+
+function renderStep3() {
+  const addonsText = _c.addons.map(a => `• ${a.name}: +${fmtMoney(a.monthly_price)}/mo`).join('\n');
+  const initFeeText = _c.initiation_fee_waived ? 'Waived' : fmtMoney(_c.initiation_fee);
+  const freqLabel = { weekly:'Weekly', biweekly:'Bi-Weekly', monthly:'Monthly' }[_c.frequency] || _c.frequency;
+
+  return `
+    <div class="space-y-4">
+      <div class="card p-5">
+        <h3 class="font-bold text-gray-800 text-base mb-3">Contract Preview</h3>
+        <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 space-y-2">
+          <div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Customer:</span><span class="font-semibold">${escHtml(_c.customer_name)}</span></div>
+          <div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Email:</span><span>${escHtml(_c.customer_email)}</span></div>
+          ${_c.customer_phone ? `<div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Phone:</span><span>${escHtml(_c.customer_phone)}</span></div>` : ''}
+          <div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Address:</span><span>${escHtml(_c.customer_address)}</span></div>
+          <div class="flex gap-3 pt-1 border-t border-gray-200"><span class="text-gray-400 w-28 flex-shrink-0">Frequency:</span><span class="font-semibold">${freqLabel}</span></div>
+          <div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Monthly Rate:</span><span class="font-bold text-[var(--green)]">${fmtMoney(_c.total_monthly)}/mo</span></div>
+          ${_c.addons.length ? `<div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Add-Ons:</span><span>${_c.addons.map(a => escHtml(a.name)).join(', ')}</span></div>` : ''}
+          <div class="flex gap-3"><span class="text-gray-400 w-28 flex-shrink-0">Initiation Fee:</span><span class="font-semibold">${initFeeText}</span></div>
+        </div>
+        <div class="mt-4 bg-gray-50 rounded-lg p-4 text-xs text-gray-500 leading-relaxed">
+          <p class="font-semibold text-gray-700 mb-1 text-sm">Service Agreement Terms</p>
+          Pacific Coast Ponds agrees to provide ${freqLabel.toLowerCase()} professional koi pond maintenance services at the address above for a monthly fee of ${fmtMoney(_c.total_monthly)}. Service includes water quality testing, filter maintenance, debris removal, and equipment inspection. Either party may cancel with 30 days written notice. Pacific Coast Ponds is not responsible for pre-existing equipment failures or acts of nature. By signing below, the customer agrees to these terms and authorizes recurring monthly billing.
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-gray-800 text-base">Customer Signature</h3>
+          <button onclick="clearSig()" class="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+        </div>
+        <p class="text-xs text-gray-400 mb-2">Have the customer sign below using their finger or stylus.</p>
+        <canvas id="sigCanvas" width="560" height="150" class="w-full border border-gray-200 bg-white rounded-lg"></canvas>
+        <div class="flex items-start gap-2 mt-3">
+          <input type="checkbox" id="s3_agree" class="mt-0.5 rounded" />
+          <label for="s3_agree" class="text-sm text-gray-600">Customer agrees to the terms above and authorizes this service contract.</label>
+        </div>
+        <div id="s3_err" class="hidden mt-2 text-red-600 text-sm"></div>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="goStep(2)" class="btn-outline flex-shrink-0">← Back</button>
+        <button onclick="step3Next()" class="btn-primary flex-1">Complete &amp; Collect Payment →</button>
+      </div>
+    </div>`;
+}
+
+function renderStep4() {
+  return `
+    <div class="card p-5">
+      <h3 class="font-bold text-gray-800 text-base mb-1">Collect Initiation Fee</h3>
+      <p class="text-sm text-gray-500 mb-5">Initiation fee: <strong class="text-gray-800">${fmtMoney(_c.initiation_fee)}</strong></p>
+      <div id="paymentEl" class="mb-4"></div>
+      <div id="s4_err" class="hidden text-red-600 text-sm mb-3"></div>
+      <button id="chargeBtn" onclick="step4Pay()" class="btn-primary w-full">Charge ${fmtMoney(_c.initiation_fee)} →</button>
+      <button onclick="step4Skip()" class="w-full text-center text-sm text-gray-400 hover:text-gray-600 mt-3">Skip payment (collect later)</button>
+    </div>`;
+}
+
+function renderStep5() {
+  return `
+    <div class="text-center py-6">
+      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-9 h-9 text-[var(--green)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <h3 class="text-xl font-black text-gray-800 mb-1">Contract Signed!</h3>
+      <p class="text-[var(--green)] font-bold text-lg mb-4">${escHtml(_c.contract_number || '')}</p>
+      <div class="card p-4 text-left text-sm text-gray-600 space-y-2 mb-6">
+        <p>✓ Contract saved to system</p>
+        <p>✓ Service account created</p>
+        <p>✓ Portal invite sent to <strong>${escHtml(_c.customer_email)}</strong></p>
+        <p>✓ Contract summary emailed to customer</p>
+        <p>✓ Routine service proposal queued for admin scheduling</p>
+      </div>
+      <button onclick="startNewContract()" class="btn-primary w-full">Start New Contract</button>
+    </div>`;
+}
+
+function afterStepRender() {
+  if (_contractStep === 2) updatePriceSummary();
+  if (_contractStep === 3) initSigCanvas();
+  if (_contractStep === 4) initStripe();
+  // Google Places autocomplete on step 1
+  if (_contractStep === 1 && window._gmReady) initPlaces();
+}
+
+// ── Step logic ────────────────────────────────────────────────
+function step1Next() {
+  _c.customer_name    = document.getElementById('s1_name').value.trim();
+  _c.customer_email   = document.getElementById('s1_email').value.trim();
+  _c.customer_phone   = document.getElementById('s1_phone').value.trim();
+  _c.customer_address = document.getElementById('s1_address').value.trim();
+  const err = document.getElementById('s1_err');
+  if (!_c.customer_name || !_c.customer_email || !_c.customer_address) {
+    err.textContent = 'Please fill in Name, Email, and Address.'; err.classList.remove('hidden'); return;
+  }
+  if (!/\S+@\S+\.\S+/.test(_c.customer_email)) {
+    err.textContent = 'Please enter a valid email address.'; err.classList.remove('hidden'); return;
+  }
+  goStep(2);
+}
+
+function step2Next() {
+  _c.frequency     = document.querySelector('.freq-pill.active')?.id?.replace('fp_','') || 'biweekly';
+  _c.monthly_price = parseFloat(document.getElementById('s2_price').value) || 265;
+  _c.initiation_fee_waived = document.getElementById('s2_waive').checked;
+  _c.initiation_fee_note   = document.getElementById('s2_waiveNote')?.value?.trim() || '';
+  _c.initiation_fee = _c.initiation_fee_waived ? 0 : (parseFloat(document.getElementById('s2_initfee')?.value) || _c.total_monthly);
+  goStep(3);
+}
+
+async function step3Next() {
+  const agree = document.getElementById('s3_agree').checked;
+  const err = document.getElementById('s3_err');
+  if (!agree) { err.textContent = 'Customer must check the agreement box.'; err.classList.remove('hidden'); return; }
+
+  const canvas = document.getElementById('sigCanvas');
+  const isBlank = !canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data.some(v => v !== 255 && v !== 0 || false);
+  // Check if canvas has drawing (any non-white pixel alpha > 0)
+  const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+  let hasDrawing = false;
+  for (let i = 3; i < data.length; i += 4) { if (data[i] > 10) { hasDrawing = true; break; } }
+  if (!hasDrawing) { err.textContent = 'Please obtain the customer\'s signature.'; err.classList.remove('hidden'); return; }
+
+  _c.signature_data_url = canvas.toDataURL('image/png');
+
+  const btn = document.querySelector('#stepContent .btn-primary:last-child');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+  err.classList.add('hidden');
+
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch('/.netlify/functions/sales-contract', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer_name:    _c.customer_name,
+      customer_email:   _c.customer_email,
+      customer_phone:   _c.customer_phone || null,
+      customer_address: _c.customer_address,
+      frequency:        _c.frequency,
+      monthly_price:    _c.monthly_price,
+      total_monthly:    _c.total_monthly,
+      initiation_fee:   _c.initiation_fee_waived ? 0 : _c.initiation_fee,
+      initiation_fee_waived: _c.initiation_fee_waived,
+      initiation_fee_note:   _c.initiation_fee_note || null,
+      selected_addons:  _c.addons.map(a => ({ addon_id: a.addon_id, monthly_price: a.monthly_price })),
+    }),
+  });
+
+  const j = await res.json();
+  if (!res.ok) { err.textContent = j.error || 'Error creating contract.'; err.classList.remove('hidden'); if (btn) { btn.disabled = false; btn.textContent = 'Complete & Collect Payment →'; } return; }
+
+  _c.contract_id     = j.contract_id;
+  _c.contract_number = j.contract_number;
+  _c.client_secret   = j.client_secret;
+
+  if (_c.initiation_fee_waived || !_c.client_secret) {
+    await completeContract(null);
+  } else {
+    goStep(4);
+  }
+}
+
+async function step4Pay() {
+  const btn = document.getElementById('chargeBtn');
+  const err = document.getElementById('s4_err');
+  btn.disabled = true; btn.textContent = 'Processing…'; err.classList.add('hidden');
+
+  if (!window._stripe || !window._paymentEl) {
+    err.textContent = 'Payment not initialized. Please try again.'; err.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Charge ' + fmtMoney(_c.initiation_fee) + ' →'; return;
+  }
+
+  const { error, paymentIntent } = await window._stripe.confirmPayment({
+    elements: window._paymentEl,
+    confirmParams: { return_url: window.location.href },
+    redirect: 'if_required',
+  });
+
+  if (error) {
+    err.textContent = error.message; err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Charge ' + fmtMoney(_c.initiation_fee) + ' →';
+    return;
+  }
+
+  if (paymentIntent?.status === 'succeeded') {
+    await completeContract(paymentIntent.id);
+  } else {
+    err.textContent = 'Payment did not complete. Status: ' + (paymentIntent?.status || 'unknown');
+    err.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Charge ' + fmtMoney(_c.initiation_fee) + ' →';
+  }
+}
+
+async function step4Skip() {
+  if (!confirm('Skip payment? You can collect the initiation fee later.')) return;
+  await completeContract(null);
+}
+
+async function completeContract(paymentIntentId) {
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch('/.netlify/functions/sales-contract-complete', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contract_id:        _c.contract_id,
+      signature_data_url: _c.signature_data_url,
+      payment_intent_id:  paymentIntentId || undefined,
+    }),
+  });
+  const j = await res.json();
+  if (!res.ok) {
+    alert('Error completing contract: ' + (j.error || 'Unknown error'));
+    return;
+  }
+  _c.contract_number = j.contract_number;
+  goStep(5);
+}
+
+function startNewContract() {
+  switchTab('new', document.querySelector('[data-tab="new"]'));
+}
+
+function goStep(n) {
+  _contractStep = n;
+  renderContractStep(document.getElementById('pageContent'));
+}
+
+// ── Freq / price helpers ──────────────────────────────────────
+function setFreq(f) {
+  _c.frequency = f;
+  document.querySelectorAll('.freq-pill').forEach(b => b.classList.toggle('active', b.id === 'fp_'+f));
+  const defaultPrice = FREQ_DEFAULTS[f] || 265;
+  _c.monthly_price = defaultPrice;
+  document.getElementById('s2_price').value = defaultPrice;
+  updatePriceSummary();
+}
+
+function updatePrice(val) {
+  _c.monthly_price = parseFloat(val) || 0;
+  updatePriceSummary();
+}
+
+function updateInitFee(val) {
+  _c.initiation_fee = parseFloat(val) || 0;
+}
+
+function toggleWaive(checked) {
+  _c.initiation_fee_waived = checked;
+  document.getElementById('initFeeRow').classList.toggle('hidden', checked);
+  document.getElementById('initFeeWaived').classList.toggle('hidden', !checked);
+  if (!checked) { _c.initiation_fee = _c.total_monthly; document.getElementById('s2_initfee').value = _c.total_monthly; }
+}
+
+function toggleAddon(id, name, price) {
+  const idx = _c.addons.findIndex(a => a.addon_id === id);
+  if (idx >= 0) _c.addons.splice(idx, 1); else _c.addons.push({ addon_id: id, name, monthly_price: price });
+  const card = document.getElementById('ac_' + id);
+  card.classList.toggle('selected', idx < 0);
+  const check = card.querySelector('.rounded');
+  if (check) { check.classList.toggle('bg-[var(--green)]', idx < 0); check.classList.toggle('border-[var(--green)]', idx < 0); check.classList.toggle('text-white', idx < 0); check.classList.toggle('border-gray-300', idx >= 0); }
+  updatePriceSummary();
+}
+
+function updatePriceSummary() {
+  _c.total_monthly = _c.monthly_price + _c.addons.reduce((s, a) => s + parseFloat(a.monthly_price), 0);
+  const baseEl = document.getElementById('ps_base');
+  const addEl  = document.getElementById('ps_addons');
+  const totEl  = document.getElementById('ps_total');
+  const ifEl   = document.getElementById('s2_initfee');
+  if (baseEl) baseEl.textContent = fmtMoney(_c.monthly_price);
+  if (addEl)  addEl.innerHTML = _c.addons.map(a => `<div class="flex justify-between text-gray-600"><span>${escHtml(a.name)}</span><span class="font-semibold">+${fmtMoney(a.monthly_price)}</span></div>`).join('');
+  if (totEl)  totEl.textContent = fmtMoney(_c.total_monthly);
+  if (ifEl && !document.getElementById('s2_waive')?.checked) { _c.initiation_fee = _c.total_monthly; ifEl.value = _c.total_monthly; }
+}
+
+// ── Signature canvas ──────────────────────────────────────────
+function initSigCanvas() {
+  const canvas = document.getElementById('sigCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#111827'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  let drawing = false;
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
+  };
+  canvas.onmousedown = (e) => { drawing = true; ctx.beginPath(); const p = pos(e); ctx.moveTo(p.x, p.y); };
+  canvas.onmousemove = (e) => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+  canvas.onmouseup = canvas.onmouseleave = () => drawing = false;
+  canvas.ontouchstart = (e) => { e.preventDefault(); drawing = true; ctx.beginPath(); const p = pos(e); ctx.moveTo(p.x, p.y); };
+  canvas.ontouchmove  = (e) => { e.preventDefault(); if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+  canvas.ontouchend   = (e) => { e.preventDefault(); drawing = false; };
+}
+
+function clearSig() {
+  const canvas = document.getElementById('sigCanvas');
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ── Stripe PaymentElement ──────────────────────────────────────
+function initStripe() {
+  if (!_c.client_secret) return;
+  const stripe = Stripe(STRIPE_PK);
+  const elements = stripe.elements({ clientSecret: _c.client_secret, appearance: { theme: 'stripe', variables: { colorPrimary: '#1E5E37' } } });
+  const payEl = elements.create('payment');
+  payEl.mount('#paymentEl');
+  window._stripe = stripe; window._paymentEl = elements;
+}
+
+// ── Google Places autocomplete ────────────────────────────────
+window._gmReady = false;
+function _salesGmReady() {
+  window._gmReady = true;
+  if (_contractStep === 1) initPlaces();
+}
+function initPlaces() {
+  const inp = document.getElementById('s1_address');
+  if (!inp || !window.google?.maps?.places) return;
+  const ac = new google.maps.places.Autocomplete(inp, { types: ['address'], componentRestrictions: { country: 'us' } });
+  ac.addListener('place_changed', () => {
+    const p = ac.getPlace();
+    if (p?.formatted_address) { _c.customer_address = p.formatted_address; inp.value = p.formatted_address; }
+  });
+}
+(function() {
+  const s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4&libraries=places&callback=_salesGmReady';
+  s.async = true; document.head.appendChild(s);
+})();
+
+// ══════════════════════════════════════════════════════════════
+// MY CONTRACTS
+// ══════════════════════════════════════════════════════════════
+async function renderMyContracts(el) {
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  const { data: all } = await sb.from('contracts')
+    .select('id,contract_number,customer_name,customer_email,customer_address,frequency,monthly_price,total_monthly,initiation_fee,initiation_fee_waived,status,created_at,contract_selected_addons(monthly_price,contract_addons(name))')
+    .eq('salesperson_id', _user.id).order('created_at', { ascending: false });
+  const contracts = all || [];
+
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800">My Contracts (${contracts.length})</h2>
+    </div>
+    ${contracts.length === 0 ? '<p class="text-gray-400 text-sm text-center py-8">No contracts yet.</p>' : ''}
+    <div class="space-y-2">
+      ${contracts.map(c => {
+        const freqLabel = { weekly:'Weekly', biweekly:'Bi-Weekly', monthly:'Monthly' }[c.frequency] || c.frequency;
+        const addons = c.contract_selected_addons || [];
+        return `<div class="card overflow-hidden">
+          <div class="px-4 py-3 flex items-center gap-3 cursor-pointer" onclick="this.parentElement.querySelector('.details').classList.toggle('hidden')">
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-gray-800 text-sm truncate">${escHtml(c.customer_name)}</p>
+              <p class="text-xs text-gray-400">${c.contract_number} &bull; ${fmtDate(c.created_at)}</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <p class="text-sm font-bold text-gray-700">${fmtMoney(c.total_monthly)}/mo</p>
+              <span class="status-badge badge-${c.status}">${c.status}</span>
+            </div>
+          </div>
+          <div class="details hidden border-t border-gray-100 px-4 py-3 bg-gray-50 text-sm space-y-1.5">
+            <p class="text-gray-500"><span class="font-medium text-gray-700">Email:</span> ${escHtml(c.customer_email)}</p>
+            <p class="text-gray-500"><span class="font-medium text-gray-700">Address:</span> ${escHtml(c.customer_address)}</p>
+            <p class="text-gray-500"><span class="font-medium text-gray-700">Frequency:</span> ${freqLabel}</p>
+            <p class="text-gray-500"><span class="font-medium text-gray-700">Base:</span> ${fmtMoney(c.monthly_price)}/mo</p>
+            ${addons.length ? `<p class="text-gray-500"><span class="font-medium text-gray-700">Add-Ons:</span> ${addons.map(a => escHtml(a.contract_addons?.name || '') + ' +' + fmtMoney(a.monthly_price)).join(', ')}</p>` : ''}
+            <p class="text-gray-500"><span class="font-medium text-gray-700">Initiation Fee:</span> ${c.initiation_fee_waived ? 'Waived' : fmtMoney(c.initiation_fee)}</p>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// DEMO TAB
+// ══════════════════════════════════════════════════════════════
+function renderDemo(el) {
+  el.innerHTML = `
+    <div class="mb-4">
+      <h2 class="text-lg font-bold text-gray-800">Customer Portal Demo</h2>
+      <p class="text-sm text-gray-500 mt-1">Show this to your prospect — this is exactly what they'll see when they log in.</p>
+    </div>
+
+    <!-- Fake portal frame -->
+    <div class="rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm bg-white">
+      <!-- Fake portal header -->
+      <div class="bg-[#0F1C12] px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <img src="https://paccoastponds.com/assets/logo.webp" alt="PCP" class="h-7" />
+          <div>
+            <p class="text-white text-sm font-bold leading-tight">Pacific Coast Ponds</p>
+            <p class="text-white/40 text-xs">Sarah's Koi Garden</p>
+          </div>
+        </div>
+        <span class="text-xs text-white/30">my.paccoastponds.com</span>
+      </div>
+
+      <!-- Fake portal tab nav -->
+      <div class="bg-white border-b">
+        <div class="flex">
+          <button class="demo-tab-btn active" id="dt_schedule" onclick="demoTab('schedule',this)">Schedule</button>
+          <button class="demo-tab-btn" id="dt_shop" onclick="demoTab('shop',this)">Shop</button>
+          <button class="demo-tab-btn" id="dt_messages" onclick="demoTab('messages',this)">Messages</button>
+        </div>
+      </div>
+
+      <!-- Fake portal content -->
+      <div id="demoContent" class="p-4 min-h-[320px]"></div>
+    </div>
+
+    <div class="mt-4 bg-[var(--light-green)] border border-green-200 rounded-xl p-4">
+      <p class="text-sm font-bold text-[var(--green)] mb-1">Ready to get started?</p>
+      <p class="text-xs text-gray-600 mb-3">When they sign up, they'll get access to a portal just like this — personalized to their pond.</p>
+      <button onclick="switchTab('new',document.querySelector('[data-tab=new]'))" class="btn-primary w-full text-sm py-2.5">Start New Contract →</button>
+    </div>`;
+
+  demoTab('schedule', document.getElementById('dt_schedule'));
+}
+
+function demoTab(tab, btnEl) {
+  document.querySelectorAll('.demo-tab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  const el = document.getElementById('demoContent');
+  if (tab === 'schedule') renderDemoSchedule(el);
+  else if (tab === 'shop') renderDemoShop(el);
+  else if (tab === 'messages') renderDemoMessages(el);
+}
+
+function renderDemoSchedule(el) {
+  const visits = [
+    { date: 'Thu, Mar 12', time: '9:00 AM', status: 'scheduled', label: 'Bi-Weekly Service' },
+    { date: 'Thu, Mar 26', time: '9:00 AM', status: 'scheduled', label: 'Bi-Weekly Service' },
+    { date: 'Thu, Apr 10', time: '9:00 AM', status: 'scheduled', label: 'Bi-Weekly Service' },
+  ];
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-gray-800">Upcoming Visits</h3>
+    </div>
+    <div class="space-y-2 mb-4">
+      ${visits.map((v, i) => `
+        <div class="border border-gray-100 rounded-xl p-3 flex items-center gap-3 bg-white">
+          <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-[var(--green)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <div class="flex-1">
+            <p class="font-semibold text-gray-800 text-sm">${v.label}</p>
+            <p class="text-xs text-gray-500">${v.date} at ${v.time}</p>
+          </div>
+          <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Scheduled</span>
+        </div>`).join('')}
+    </div>
+    <div class="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center">
+      <p class="text-xs text-gray-400 mb-2">Have something to add for your next visit?</p>
+      <button onclick="demoAddItem()" class="text-sm font-semibold text-[var(--green)] hover:underline">+ Request a Product or Service</button>
+    </div>
+    <div id="demoItemAdded" class="hidden mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
+      ✓ <strong>Aquascape EcoBlast</strong> has been added to your tech's shopping list for your next visit.
+    </div>
+    <p class="text-xs text-gray-400 text-center mt-4 italic">← This is a demo. Your customer's real visits will appear here.</p>`;
+}
+
+function demoAddItem() {
+  const el = document.getElementById('demoItemAdded');
+  if (el) { el.classList.remove('hidden'); setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50); }
+}
+
+function renderDemoShop(el) {
+  const products = [
+    { name: 'Aquascape EcoBlast', desc: 'Fast-acting string algae treatment', price: '$24.99' },
+    { name: 'Hikari Staple Koi Food', desc: 'Daily diet staple pellets — 4.4 lb', price: '$19.99' },
+    { name: 'Aquascape Beneficial Bacteria', desc: 'Monthly pond health treatment — 8 oz', price: '$14.99' },
+  ];
+  el.innerHTML = `
+    <h3 class="font-bold text-gray-800 mb-3">Add to Your Next Visit</h3>
+    <p class="text-xs text-gray-400 mb-3">Browse products and your tech will bring them on their next service call.</p>
+    <div class="space-y-2">
+      ${products.map((p, i) => `
+        <div class="border border-gray-100 rounded-xl p-3 flex items-center gap-3 bg-white" id="dp_${i}">
+          <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-xl">🛒</div>
+          <div class="flex-1">
+            <p class="font-semibold text-gray-800 text-sm">${p.name}</p>
+            <p class="text-xs text-gray-500">${p.desc}</p>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <p class="text-sm font-bold text-gray-700">${p.price}</p>
+            <button onclick="demoAddToCart(${i},'${p.name}')" class="text-xs font-semibold text-[var(--green)] mt-0.5">Add →</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div id="demoCartMsg" class="hidden mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800"></div>
+    <p class="text-xs text-gray-400 text-center mt-4 italic">← Demo only. Real portal has full catalog.</p>`;
+}
+
+function demoAddToCart(i, name) {
+  const msg = document.getElementById('demoCartMsg');
+  msg.textContent = '✓ ' + name + ' added to your request — your tech will bring it next visit!';
+  msg.classList.remove('hidden');
+}
+
+function renderDemoMessages(el) {
+  el.innerHTML = `
+    <h3 class="font-bold text-gray-800 mb-3">Messages & Support</h3>
+    <div class="space-y-3 mb-4">
+      <div class="flex justify-start">
+        <div class="bg-white border border-gray-200 rounded-2xl px-4 py-2.5 max-w-xs">
+          <p class="text-sm text-gray-700">Hi Sarah! Your bi-weekly service is complete. Water tested great — pH 7.4, ammonia 0. See you in 2 weeks! 🐠</p>
+          <p class="text-xs text-gray-400 mt-1">Pacific Coast Ponds · Mar 6</p>
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <div class="bg-[var(--green)] rounded-2xl px-4 py-2.5 max-w-xs">
+          <p class="text-sm text-white">Thank you! Can you bring more koi food next time?</p>
+          <p class="text-xs text-white/60 mt-1">Sarah · Mar 6</p>
+        </div>
+      </div>
+    </div>
+    <button onclick="demoOpenTicket()" class="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm font-semibold text-gray-500 hover:border-gray-300 hover:text-gray-700 transition">+ Report an Issue or Ask a Question</button>
+    <div id="demoTicketForm" class="hidden mt-3 border border-gray-100 rounded-xl p-4 bg-white">
+      <p class="text-xs font-semibold text-gray-500 uppercase mb-2">New Support Ticket</p>
+      <textarea class="field text-sm" rows="3" placeholder="Describe your issue or question…"></textarea>
+      <button onclick="demoSubmitTicket()" class="btn-primary w-full mt-2 text-sm py-2">Submit Ticket</button>
+    </div>
+    <div id="demoTicketSuccess" class="hidden mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
+      ✓ Ticket submitted! Our team will respond within 1 business day.
+    </div>
+    <p class="text-xs text-gray-400 text-center mt-4 italic">← Demo only. Real portal connects to your team.</p>`;
+}
+
+function demoOpenTicket() {
+  document.getElementById('demoTicketForm')?.classList.remove('hidden');
+}
+function demoSubmitTicket() {
+  document.getElementById('demoTicketForm')?.classList.add('hidden');
+  document.getElementById('demoTicketSuccess')?.classList.remove('hidden');
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+init();
+</script>
+</body>
+</html>
