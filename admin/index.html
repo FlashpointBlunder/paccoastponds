@@ -1602,7 +1602,7 @@ async function loadProposalsList() {
 }
 
 function openCreateProposal() {
-  _editingProposalId = null; _proposalLineItems = []; _propType = 'service'; _proposalProducts = [];
+  _editingProposalId = null; _proposalLineItems = []; _propType = 'service';
   document.getElementById('propModalTitle').textContent = 'New Proposal';
   document.getElementById('propAccountId').innerHTML = `<option value="">Select Customer</option>` +
     _jobsAccounts.map(a => `<option value="${a.id}">${escHtml(a.contact_name||'—')}</option>`).join('');
