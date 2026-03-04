@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pay Invoice — Pacific Coast Ponds</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --green: #1E5E37; --dark: #0F1C12; }
+    body { font-family: Inter, ui-sans-serif, system-ui; }
+    h1,h2 { font-family: Oswald, sans-serif; text-transform: uppercase; }
+    #payment-element { min-height: 200px; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <div class="bg-[var(--dark)] py-5 px-4 text-center">
+    <img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" class="h-10 mx-auto" />
+  </div>
+
+  <div class="max-w-lg mx-auto px-4 py-8">
+
+    <!-- Loading -->
+    <div id="stateLoading" class="bg-white rounded-2xl border p-8 text-center text-gray-400 text-sm">
+      Loading invoice…
+    </div>
+
+    <!-- Error -->
+    <div id="stateError" class="hidden bg-white rounded-2xl border p-8 text-center">
+      <p class="text-2xl font-extrabold mb-2" style="font-family:Oswald,sans-serif">OOPS</p>
+      <p id="errorMsg" class="text-gray-500 text-sm">Something went wrong.</p>
+    </div>
+
+    <!-- Already Paid -->
+    <div id="statePaid" class="hidden bg-white rounded-2xl border p-8 text-center">
+      <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-extrabold mb-2" style="font-family:Oswald,sans-serif">Invoice Paid</h2>
+      <p class="text-gray-500 text-sm">This invoice has already been paid. Thank you!</p>
+    </div>
+
+    <!-- Success -->
+    <div id="stateSuccess" class="hidden bg-white rounded-2xl border p-8 text-center">
+      <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-extrabold mb-2" style="font-family:Oswald,sans-serif">Payment Confirmed!</h2>
+      <p class="text-gray-500 text-sm mb-6">Thank you — your payment has been received. You'll get a receipt from Stripe shortly.</p>
+      <a href="https://paccoastponds.com" class="inline-block px-6 py-3 bg-[var(--green)] text-white font-bold rounded-xl text-sm">Back to Pacific Coast Ponds</a>
+    </div>
+
+    <!-- Invoice + Payment Form -->
+    <div id="stateInvoice" class="hidden space-y-4">
+
+      <!-- Invoice Summary -->
+      <div class="bg-white rounded-2xl border overflow-hidden">
+        <div class="h-1.5 bg-[var(--green)]"></div>
+        <div class="p-5">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <p id="invCustomer" class="font-extrabold text-lg"></p>
+              <p id="invJobType" class="text-sm text-gray-500 mt-0.5"></p>
+            </div>
+            <span class="text-xs font-bold uppercase tracking-wide text-[var(--green)] bg-green-50 px-2 py-1 rounded">Invoice</span>
+          </div>
+
+          <!-- Line Items -->
+          <div class="border rounded-xl overflow-hidden mb-4">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 text-xs uppercase text-gray-400">
+                <tr>
+                  <th class="text-left p-3">Description</th>
+                  <th class="text-right p-3 w-12">Qty</th>
+                  <th class="text-right p-3 w-24">Total</th>
+                </tr>
+              </thead>
+              <tbody id="invItems"></tbody>
+              <tfoot class="bg-gray-50 border-t">
+                <tr>
+                  <td colspan="2" class="p-3 font-bold text-right text-sm">Total Due</td>
+                  <td id="invTotal" class="p-3 font-extrabold text-right text-[var(--green)] text-lg"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Form -->
+      <div class="bg-white rounded-2xl border overflow-hidden">
+        <div class="p-5">
+          <h2 class="font-extrabold text-lg mb-4" style="font-family:Oswald,sans-serif">PAYMENT</h2>
+          <div id="payment-element" class="mb-4"></div>
+          <p id="payError" class="text-red-500 text-sm mb-3 hidden"></p>
+          <button id="payBtn"
+                  class="w-full py-4 bg-[var(--green)] text-white font-extrabold text-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  style="font-family:Oswald,sans-serif;letter-spacing:.5px">
+            PAY NOW
+          </button>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-gray-400">Secured by Stripe &bull; Your card info is never stored on our servers</p>
+    </div>
+
+  </div>
+
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const TOKEN   = params.get('token');
+    const PI_ID   = params.get('payment_intent');
+    const PI_STATUS = params.get('redirect_status');
+    const STRIPE_PK = 'pk_test_51T5LDt2FcIjayQS7xfHkkNaACF95tBNYtcYpDCFs0KMSTJtPZpE0hssTU6tERABayJGkubweuQHOWOHEIc51rFpI006igi4dxJ';
+
+    const fmt = n => '$' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const show = id => ['stateLoading','stateError','statePaid','stateSuccess','stateInvoice']
+      .forEach(s => document.getElementById(s).classList.toggle('hidden', s !== id));
+    const showError = msg => { document.getElementById('errorMsg').textContent = msg; show('stateError'); };
+
+    async function init() {
+      if (!TOKEN) { showError('No invoice token found in this link.'); return; }
+
+      // Coming back from Stripe redirect
+      if (PI_STATUS === 'succeeded' && PI_ID) {
+        try {
+          const res = await fetch('/.netlify/functions/confirm-invoice-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment_intent_id: PI_ID, payment_token: TOKEN }),
+          });
+          // Whether confirm succeeds or says already_paid, show success
+          show('stateSuccess');
+        } catch(e) { showError('Could not confirm payment. Please contact us.'); }
+        return;
+      }
+
+      // Load invoice
+      let invoice, items;
+      try {
+        const res = await fetch(`/.netlify/functions/get-invoice-by-token?token=${TOKEN}`);
+        if (!res.ok) { showError('Invoice not found or link has expired.'); return; }
+        ({ invoice, items } = await res.json());
+      } catch(e) { showError('Could not load invoice.'); return; }
+
+      if (invoice.status === 'paid') { show('statePaid'); return; }
+
+      // Render summary
+      document.getElementById('invCustomer').textContent = invoice.service_accounts?.contact_name || '—';
+      const jobType = invoice.jobs?.job_types?.name || 'Service';
+      const jobDate = invoice.jobs?.scheduled_date
+        ? new Date(invoice.jobs.scheduled_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : '';
+      document.getElementById('invJobType').textContent = jobDate ? `${jobType} · ${jobDate}` : jobType;
+      document.getElementById('invTotal').textContent = fmt(invoice.total_amount);
+      document.getElementById('invItems').innerHTML = (items || []).map(i => `
+        <tr class="border-t">
+          <td class="p-3">${i.description}</td>
+          <td class="p-3 text-right text-gray-500">${parseFloat(i.quantity)}</td>
+          <td class="p-3 text-right font-semibold">${fmt(parseFloat(i.quantity) * parseFloat(i.unit_price))}</td>
+        </tr>`).join('');
+
+      // Create PaymentIntent
+      let clientSecret;
+      try {
+        const res = await fetch('/.netlify/functions/create-invoice-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_token: TOKEN }),
+        });
+        const data = await res.json();
+        if (data.error === 'already_paid') { show('statePaid'); return; }
+        if (!res.ok || !data.client_secret) { showError(data.error || 'Could not initialize payment.'); return; }
+        clientSecret = data.client_secret;
+      } catch(e) { showError('Could not initialize payment.'); return; }
+
+      // Mount Stripe Payment Element
+      const stripe   = Stripe(STRIPE_PK);
+      const elements = stripe.elements({
+        clientSecret,
+        appearance: { theme: 'stripe', variables: { colorPrimary: '#1E5E37', borderRadius: '8px' } }
+      });
+      const paymentEl = elements.create('payment');
+      paymentEl.mount('#payment-element');
+      show('stateInvoice');
+
+      const payBtn  = document.getElementById('payBtn');
+      const payErr  = document.getElementById('payError');
+      payBtn.addEventListener('click', async () => {
+        payBtn.disabled = true;
+        payBtn.textContent = 'Processing…';
+        payErr.classList.add('hidden');
+        const { error } = await stripe.confirmPayment({
+          elements,
+          confirmParams: {
+            return_url: `${location.origin}/pay-invoice/?token=${TOKEN}`,
+          },
+        });
+        // Only reaches here on error (success causes a redirect)
+        if (error) {
+          payErr.textContent = error.message;
+          payErr.classList.remove('hidden');
+          payBtn.disabled = false;
+          payBtn.textContent = 'PAY NOW';
+        }
+      });
+    }
+
+    // Load Stripe.js then run init
+    (function() {
+      const s = document.createElement('script');
+      s.src = 'https://js.stripe.com/v3/';
+      s.onload = init;
+      document.head.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

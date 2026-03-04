@@ -22,7 +22,7 @@ exports.handler = async (event) => {
   if (!invoice_id) return { statusCode: 400, body: JSON.stringify({ error: 'invoice_id required' }) };
 
   const { data: inv } = await sb.from('service_invoices')
-    .select('id, status, total_amount, notes, created_at, service_accounts(contact_name, contact_email, address), jobs(scheduled_date, job_types(name))')
+    .select('id, status, total_amount, notes, created_at, payment_token, service_accounts(contact_name, contact_email, address), jobs(scheduled_date, job_types(name))')
     .eq('id', invoice_id).single();
 
   if (!inv) return { statusCode: 404, body: JSON.stringify({ error: 'Invoice not found' }) };
@@ -41,6 +41,7 @@ exports.handler = async (event) => {
 
   const fmtMoney = n => '$' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const fmtDate  = d => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const payUrl   = `https://paccoastponds.com/pay-invoice/?token=${inv.payment_token}`;
 
   const total = (items || []).reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
   const invoiceNum = inv.id.slice(0, 8).toUpperCase();
@@ -108,16 +109,17 @@ exports.handler = async (event) => {
 
       ${notesSection}
 
-      <!-- Portal CTA -->
+      <!-- Pay Now CTA -->
       <div style="text-align:center;padding:8px 0 20px;">
-        <a href="https://my.paccoastponds.com"
-           style="display:inline-block;background:#1E5E37;color:#ffffff;padding:15px 36px;border-radius:8px;font-weight:700;font-size:15px;text-decoration:none;letter-spacing:.3px;">
-          View Your Account &rarr;
+        <a href="${payUrl}"
+           style="display:inline-block;background:#1E5E37;color:#ffffff;padding:16px 48px;border-radius:8px;font-weight:800;font-size:16px;text-decoration:none;letter-spacing:.5px;">
+          PAY NOW &rarr;
         </a>
+        <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">Secured by Stripe &bull; No account required</p>
       </div>
 
       <p style="margin:24px 0 0;font-size:13px;color:#9ca3af;line-height:1.6;text-align:center;">
-        Questions? Reply to this email or log in to your portal at
+        Questions? Reply to this email or log in at
         <a href="https://my.paccoastponds.com" style="color:#1E5E37;text-decoration:none;font-weight:600;">my.paccoastponds.com</a>
       </p>
     </div>
