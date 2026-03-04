@@ -4100,8 +4100,9 @@ async function renderBilling(el) {
                     <td><span class="badge ${cls}">${i.status.replace('_',' ')}</span></td>
                     <td class="text-gray-400 text-sm">${fmtDate(i.sent_at || i.created_at)}</td>
                     <td class="text-right whitespace-nowrap">
+                      <button onclick="openMonthlyInvoiceDetail('${i.id}')" class="text-xs text-blue-600 underline mr-2">View</button>
                       ${i.stripe_invoice_id
-                        ? '<a href="https://dashboard.stripe.com/test/invoices/' + i.stripe_invoice_id + '" target="_blank" class="text-xs text-blue-600 underline mr-2">View ↗</a>'
+                        ? '<a href="https://dashboard.stripe.com/test/invoices/' + i.stripe_invoice_id + '" target="_blank" class="text-xs text-gray-400 underline mr-2">Stripe ↗</a>'
                         : ''}
                       ${isFailed
                         ? '<button onclick="retryMonthlyInvoice(\'' + i.id + '\')" class="text-xs text-green-700 font-semibold underline mr-2">Retry</button>'
@@ -4277,6 +4278,70 @@ async function voidMonthlyInvoice(invoiceId) {
   } else {
     toast(json.error || 'Failed to void invoice', false);
   }
+}
+
+async function openMonthlyInvoiceDetail(invoiceId) {
+  const el = document.getElementById('monthlyInvoiceModalBody');
+  el.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+  openModal('monthlyInvoiceModal');
+
+  const [{ data: inv }, { data: items }] = await Promise.all([
+    sb.from('monthly_invoices')
+      .select('id, period_start, period_end, status, total_amount, stripe_invoice_id, paid_at, created_at, service_accounts(contact_name, profiles(full_name))')
+      .eq('id', invoiceId).single(),
+    sb.from('invoice_line_items')
+      .select('description, amount, type, quantity')
+      .eq('invoice_id', invoiceId)
+      .order('created_at'),
+  ]);
+
+  if (!inv) { el.innerHTML = '<p class="text-red-500">Invoice not found.</p>'; return; }
+
+  const name   = inv.service_accounts?.profiles?.full_name || inv.service_accounts?.contact_name || '—';
+  const period = fmtDate(inv.period_start) + ' – ' + fmtDate(inv.period_end);
+  const badgeMap = { paid: 'badge-green', failed: 'badge-red', pending_charge: 'badge-yellow', open: 'badge-blue', void: 'badge-gray' };
+  const cls    = badgeMap[inv.status] || 'badge-gray';
+
+  const rows = (items || []).map(it =>
+    '<tr class="border-t"><td class="py-2 pr-4 text-sm">' + escHtml(it.description) + '</td>'
+    + '<td class="py-2 pr-4 text-sm text-gray-500 text-center">' + (it.quantity || 1) + '</td>'
+    + '<td class="py-2 text-sm text-right font-semibold">' + fmtMoney(it.amount) + '</td></tr>'
+  ).join('');
+
+  const stripeLink = inv.stripe_invoice_id
+    ? '<a href="https://dashboard.stripe.com/test/invoices/' + inv.stripe_invoice_id + '" target="_blank" class="text-xs text-blue-600 underline">View in Stripe ↗</a>'
+    : '';
+
+  const voidBtn = inv.status === 'failed'
+    ? '<button onclick="voidMonthlyInvoice(\'' + inv.id + '\');closeModal(\'monthlyInvoiceModal\')" class="btn-red text-sm">Void Invoice</button>'
+    : '';
+
+  el.innerHTML = `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-bold text-lg">${escHtml(name)}</p>
+          <p class="text-sm text-gray-500">${period}</p>
+        </div>
+        <span class="badge ${cls}">${inv.status.replace('_',' ')}</span>
+      </div>
+      <table class="w-full">
+        <thead><tr>
+          <th class="text-left text-xs uppercase text-gray-400 pb-2">Description</th>
+          <th class="text-xs uppercase text-gray-400 pb-2 text-center">Qty</th>
+          <th class="text-xs uppercase text-gray-400 pb-2 text-right">Amount</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="text-gray-400 text-sm py-3">No line items recorded.</td></tr>'}</tbody>
+        <tfoot><tr class="border-t-2">
+          <td colspan="2" class="pt-3 font-bold text-right text-sm">Total</td>
+          <td class="pt-3 font-extrabold text-right text-green-700">${fmtMoney(inv.total_amount)}</td>
+        </tr></tfoot>
+      </table>
+      <div class="flex items-center justify-between pt-2">
+        <div>${stripeLink}</div>
+        <div>${voidBtn}</div>
+      </div>
+    </div>`;
 }
 
 async function adminCreateStripeCustomer(accountId) {
@@ -4759,6 +4824,17 @@ init();
       <button onclick="closeModal('equipmentModal')" class="btn-outline flex-1">Cancel</button>
       <button onclick="saveEquipment()" class="btn-primary flex-1">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ── Monthly Invoice Detail Modal ──────────────────────────────── -->
+<div id="monthlyInvoiceModal" class="modal-bg hidden">
+  <div class="modal" style="max-width:38rem">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold">Monthly Invoice</h2>
+      <button onclick="closeModal('monthlyInvoiceModal')" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+    </div>
+    <div id="monthlyInvoiceModalBody"></div>
   </div>
 </div>
 

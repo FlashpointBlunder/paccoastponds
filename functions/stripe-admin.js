@@ -70,7 +70,7 @@ exports.handler = async (event) => {
       const paid = await stripe.invoices.pay(inv.stripe_invoice_id, { forgive: false });
       if (paid.status === 'paid') {
         await sb.from('monthly_invoices').update({
-          status: 'paid', paid_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          status: 'paid', paid_at: new Date().toISOString(),
         }).eq('id', invoice_id);
         return { statusCode: 200, body: JSON.stringify({ paid: true }) };
       }
@@ -99,9 +99,7 @@ exports.handler = async (event) => {
       } catch(e) { console.warn('Stripe void failed:', e.message); }
     }
 
-    await sb.from('monthly_invoices').update({
-      status: 'void', updated_at: new Date().toISOString(),
-    }).eq('id', invoice_id);
+    await sb.from('monthly_invoices').update({ status: 'void' }).eq('id', invoice_id);
 
     return { statusCode: 200, body: JSON.stringify({ voided: true }) };
   }
