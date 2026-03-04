@@ -4002,7 +4002,7 @@ async function renderBilling(el) {
   const failed  = (invoices || []).filter(i => i.status === 'failed');
   const pending = (svcInvoices || []).filter(i => i.status === 'pending_approval');
   const monthlyBadge = { paid: 'badge-green', failed: 'badge-red', pending_charge: 'badge-yellow', open: 'badge-blue', void: 'badge-gray' };
-  const svcBadge     = { pending_approval: 'badge-yellow', approved: 'badge-green', sent: 'badge-blue', paid: 'badge-green' };
+  const svcBadge     = { pending_approval: 'badge-yellow', approved: 'badge-green', sent: 'badge-blue', paid: 'badge-green', void: 'badge-gray' };
 
   el.innerHTML = `
     <div class="flex items-start justify-between mb-6 flex-wrap gap-3">
@@ -4122,7 +4122,7 @@ async function openSvcInvoiceDetail(invoiceId) {
     .select('*').eq('invoice_id', invoiceId).order('sort_order');
 
   if (!inv) { toast('Invoice not found', false); return; }
-  const svcBadge = { pending_approval: 'badge-yellow', approved: 'badge-green', sent: 'badge-blue', paid: 'badge-green' };
+  const svcBadge = { pending_approval: 'badge-yellow', approved: 'badge-green', sent: 'badge-blue', paid: 'badge-green', void: 'badge-gray' };
   const total = (items||[]).reduce((s, i) => s + parseFloat(i.quantity||0) * parseFloat(i.unit_price||0), 0);
 
   document.getElementById('svcInvoiceModalBody').innerHTML = `
@@ -4154,16 +4154,41 @@ async function openSvcInvoiceDetail(invoiceId) {
           </tfoot>
         </table>
       </div>` : '<p class="text-gray-400 text-sm">No line items.</p>'}
-      <div class="flex gap-2 pt-1">
+      <div class="flex gap-2 pt-1 flex-wrap">
         ${inv.status === 'pending_approval' ? `
         <button onclick="approveServiceInvoice('${inv.id}');closeModal('svcInvoiceModal')" class="flex-1 py-2.5 bg-[var(--green)] text-white font-bold rounded-lg">Approve Invoice</button>` : ''}
         ${inv.status === 'approved' || inv.status === 'sent' ? `
         <button onclick="sendServiceInvoiceEmail('${inv.id}')" class="flex-1 py-2.5 ${inv.status === 'sent' ? 'bg-gray-100 text-gray-600 border border-gray-300' : 'bg-[var(--blue)] text-white'} font-bold rounded-lg">
           ${inv.status === 'sent' ? 'Resend Invoice Email' : '&#128231; Send Invoice Email'}
         </button>` : ''}
+        ${inv.status !== 'paid' && inv.status !== 'void' ? `
+        <button onclick="voidServiceInvoice('${inv.id}')" class="py-2.5 px-4 bg-white border border-red-300 text-red-600 font-bold rounded-lg hover:bg-red-50">Void</button>` : ''}
       </div>
     </div>`;
   openModal('svcInvoiceModal');
+}
+
+async function voidServiceInvoice(invoiceId) {
+  if (!confirm('Void this invoice? This cannot be undone.')) return;
+  const { data: inv } = await sb.from('service_invoices').select('stripe_payment_intent_id').eq('id', invoiceId).single();
+  // Cancel the Stripe PaymentIntent if one exists (prevents payment after void)
+  if (inv?.stripe_payment_intent_id) {
+    const { data: { session } } = await sb.auth.getSession();
+    try {
+      await fetch('/.netlify/functions/cancel-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ payment_intent_id: inv.stripe_payment_intent_id }),
+      });
+    } catch(e) { console.warn('Could not cancel PaymentIntent:', e); }
+  }
+  const { error } = await sb.from('service_invoices').update({
+    status: 'void', updated_at: new Date().toISOString(),
+  }).eq('id', invoiceId);
+  if (error) { toast(error.message, false); return; }
+  toast('Invoice voided');
+  closeModal('svcInvoiceModal');
+  renderBilling(document.getElementById('pageContent'));
 }
 
 async function sendServiceInvoiceEmail(invoiceId) {
