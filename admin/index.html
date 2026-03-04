@@ -4116,7 +4116,7 @@ async function approveServiceInvoice(invoiceId) {
 
 async function openSvcInvoiceDetail(invoiceId) {
   const { data: inv } = await sb.from('service_invoices')
-    .select('*, service_accounts(contact_name, address), jobs(id, scheduled_date, notes, job_types(name))')
+    .select('*, service_accounts(contact_name, contact_email, address), jobs(id, scheduled_date, notes, job_types(name))')
     .eq('id', invoiceId).single();
   const { data: items } = await sb.from('service_invoice_line_items')
     .select('*').eq('invoice_id', invoiceId).order('sort_order');
@@ -4154,10 +4154,36 @@ async function openSvcInvoiceDetail(invoiceId) {
           </tfoot>
         </table>
       </div>` : '<p class="text-gray-400 text-sm">No line items.</p>'}
-      ${inv.status === 'pending_approval' ? `
-      <button onclick="approveServiceInvoice('${inv.id}');closeModal('svcInvoiceModal')" class="w-full py-2.5 bg-[var(--green)] text-white font-bold rounded-lg">Approve Invoice</button>` : ''}
+      <div class="flex gap-2 pt-1">
+        ${inv.status === 'pending_approval' ? `
+        <button onclick="approveServiceInvoice('${inv.id}');closeModal('svcInvoiceModal')" class="flex-1 py-2.5 bg-[var(--green)] text-white font-bold rounded-lg">Approve Invoice</button>` : ''}
+        ${inv.status === 'approved' || inv.status === 'sent' ? `
+        <button onclick="sendServiceInvoiceEmail('${inv.id}')" class="flex-1 py-2.5 ${inv.status === 'sent' ? 'bg-gray-100 text-gray-600 border border-gray-300' : 'bg-[var(--blue)] text-white'} font-bold rounded-lg">
+          ${inv.status === 'sent' ? 'Resend Invoice Email' : '&#128231; Send Invoice Email'}
+        </button>` : ''}
+      </div>
     </div>`;
   openModal('svcInvoiceModal');
+}
+
+async function sendServiceInvoiceEmail(invoiceId) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch('/.netlify/functions/send-service-invoice-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ invoice_id: invoiceId }),
+  });
+  const json = await res.json();
+  if (json.sent) {
+    toast('Invoice emailed to customer ✓');
+    closeModal('svcInvoiceModal');
+    renderBilling(document.getElementById('pageContent'));
+  } else {
+    toast(json.error || json.reason || 'Failed to send email', false);
+    btn.disabled = false; btn.textContent = 'Send Invoice Email';
+  }
 }
 
 async function adminCreateStripeCustomer(accountId) {
