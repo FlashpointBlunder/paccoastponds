@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <!-- Google Tag Manager — replace GTM-XXXXXXX with your container ID -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-XXXXXXX');</script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -176,6 +178,8 @@
   </style>
 </head>
 <body id="top" class="bg-white text-gray-900">
+  <!-- GTM noscript — replace GTM-XXXXXXX with your container ID -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-XXXXXXX" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   <!-- HEADER -->
   <header class="w-full border-b-4 border-[var(--brand-green)] sticky top-0 z-50 bg-white">
@@ -764,6 +768,10 @@
         alert("Please enter a valid 10-digit US phone number.");
         return false;
       }
+
+      // Fire conversion event → GTM picks this up and fires Google Ads conversion tag
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: 'generate_lead', form_name: 'pond-lead' });
 
       // Record submission with Netlify
       try { await fetch("/", { method: "POST", body: data }); }
