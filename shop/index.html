@@ -54,8 +54,7 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: .875rem 1.25rem; max-width: 1200px; margin: 0 auto;
     }
-    .logo { color: #fff; font-weight: 800; font-size: 1.125rem; letter-spacing: -.01em; }
-    .logo span { color: var(--teal-light); }
+    .logo { display: flex; align-items: center; }
     .hdr-nav { display: flex; align-items: center; gap: 1.5rem; }
     .hdr-link { color: rgba(255,255,255,.8); font-size: .875rem; font-weight: 600; transition: color .15s; }
     .hdr-link:hover { color: #fff; }
@@ -425,7 +424,7 @@
 <!-- Header -->
 <header id="hdr">
   <div class="hdr-inner">
-    <a href="/" data-nav="/" class="logo">Pacific Coast <span>Ponds</span></a>
+    <a href="/" data-nav="/" class="logo"><img src="https://paccoastponds.com/assets/logo.webp" alt="Pacific Coast Ponds" style="height:40px;display:block;"></a>
     <nav class="hdr-nav">
       <div class="hdr-links" style="display:flex;gap:1.5rem;">
         <a href="/collections" data-nav="/collections" class="hdr-link">Shop</a>
