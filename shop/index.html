@@ -25,7 +25,7 @@
     html { font-size: 16px; -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      color: var(--g900); background: var(--cream); line-height: 1.6;
+      color: var(--g900); background: #f3f4f6; line-height: 1.6;
     }
     a { color: inherit; text-decoration: none; }
     img { max-width: 100%; height: auto; display: block; }
@@ -80,11 +80,13 @@
 
     /* ── Hero ── */
     .hero {
-      background: linear-gradient(135deg, var(--teal) 0%, var(--teal-mid) 100%);
-      color: #fff; padding: 3.5rem 1.25rem; text-align: center;
+      background: linear-gradient(120deg, var(--teal) 0%, #0d6b5e 100%);
+      color: #fff; padding: 2.25rem 1.25rem;
     }
-    .hero h1 { font-size: clamp(1.75rem, 4.5vw, 2.75rem); font-weight: 900; margin-bottom: .75rem; letter-spacing: -.02em; }
-    .hero p { font-size: 1.0625rem; color: rgba(255,255,255,.82); max-width: 520px; margin: 0 auto 1.75rem; }
+    .hero-inner { max-width: 1200px; margin: 0 auto; }
+    .hero h1 { font-size: clamp(1.375rem, 3vw, 2rem); font-weight: 900; margin-bottom: .375rem; letter-spacing: -.02em; }
+    .hero p { font-size: .9375rem; color: rgba(255,255,255,.78); max-width: 460px; margin: 0 0 1.125rem; }
+    .hero .btn-primary { font-size: .875rem; padding: .625rem 1.375rem; }
 
     /* ── Buttons ── */
     .btn-primary {
@@ -120,14 +122,14 @@
     .cat-card h3 { font-size: .8125rem; font-weight: 700; color: var(--g700); line-height: 1.3; }
 
     /* ── Product grid ── */
-    .prod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1.25rem; }
+    .prod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
     .prod-card {
-      background: #fff; border-radius: .75rem; overflow: hidden;
-      box-shadow: var(--sh); border: 1px solid var(--g200);
-      cursor: pointer; transition: box-shadow .15s, transform .15s;
+      background: #fff; border-radius: .625rem; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid var(--g200);
+      cursor: pointer; transition: box-shadow .2s, transform .2s;
       display: flex; flex-direction: column;
     }
-    .prod-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+    .prod-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.1); transform: translateY(-3px); }
     .prod-img {
       aspect-ratio: 1; background: var(--g100);
       display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -312,7 +314,74 @@
     #ftr { background: var(--teal); color: rgba(255,255,255,.65); text-align: center; padding: 2rem 1rem; font-size: .875rem; margin-top: 3rem; }
     #ftr a { color: rgba(255,255,255,.75); }
 
+    /* ── Shop layout (sidebar + main) ── */
+    .shop-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 1.75rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+      align-items: start;
+    }
+    .shop-hd {
+      display: flex; align-items: baseline; justify-content: space-between;
+      flex-wrap: wrap; gap: .375rem; margin-bottom: 1rem;
+    }
+    .shop-hd h1 { font-size: 1.25rem; font-weight: 800; color: var(--g900); margin: 0; }
+    .shop-hd-count { font-size: .8125rem; color: var(--g500); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: #fff; border: 1px solid var(--g200); border-radius: .75rem;
+      padding: 1rem; position: sticky; top: 5.25rem;
+      max-height: calc(100vh - 6rem); overflow-y: auto;
+    }
+    .sidebar-hd {
+      font-size: .6875rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--g400); margin-bottom: .625rem;
+      padding-bottom: .5rem; border-bottom: 1px solid var(--g100);
+    }
+    .sidebar-link {
+      display: block; padding: .4375rem .625rem; border-radius: .375rem;
+      font-size: .875rem; font-weight: 600; color: var(--g700);
+      transition: background .12s, color .12s;
+    }
+    .sidebar-link:hover { background: var(--g100); color: var(--g900); }
+    .sidebar-link.active { color: var(--teal); background: #edf7f6; }
+    .sidebar-sub {
+      display: block; padding: .3125rem .625rem .3125rem 1.25rem;
+      border-radius: .375rem; font-size: .8125rem; font-weight: 500; color: var(--g500);
+      transition: background .12s, color .12s;
+    }
+    .sidebar-sub:hover { background: var(--g100); color: var(--g700); }
+    .sidebar-sub.active { color: var(--teal); font-weight: 700; }
+
+    /* ── Mobile category strip ── */
+    .mobile-cats {
+      display: none; overflow-x: auto; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      padding: .75rem 1.25rem; gap: .5rem;
+      background: #fff; border-bottom: 1px solid var(--g200);
+    }
+    .mobile-cats::-webkit-scrollbar { display: none; }
+    .mobile-cat-pill {
+      display: inline-block; flex-shrink: 0; white-space: nowrap;
+      padding: .375rem .875rem; border-radius: 2rem;
+      border: 1.5px solid var(--g200); background: #fff;
+      font-size: .8125rem; font-weight: 600; color: var(--g700);
+      transition: all .15s;
+    }
+    .mobile-cat-pill:hover, .mobile-cat-pill.active {
+      background: var(--teal); border-color: var(--teal); color: #fff;
+    }
+
     /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .shop-layout { grid-template-columns: 1fr; padding: 1rem 1rem 2.5rem; gap: 1rem; }
+      .sidebar { display: none; }
+      .mobile-cats { display: flex; }
+    }
     @media (max-width: 640px) {
       .hdr-links { display: none; }
       .cat-grid  { grid-template-columns: repeat(3, 1fr); gap: .75rem; }
@@ -373,6 +442,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
 let _user         = null;
 let _isSub        = false;
 let _cart         = JSON.parse(localStorage.getItem('pcp_cart') || '[]');
+let _allCats      = null;
 let _stripe       = null;
 let _stripeEls    = null;
 let _coInfo       = null;
@@ -505,6 +575,44 @@ function catIcon(name) {
 }
 const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
+// ─── CATEGORY HELPERS ─────────────────────────────────────────────────────────
+async function getCategories() {
+  if (_allCats) return _allCats;
+  const { data } = await sb.from('product_categories').select('id, name, slug, parent_id').order('name');
+  _allCats = data || [];
+  return _allCats;
+}
+
+function buildSidebar(cats, activeCatId) {
+  const parents  = cats.filter(c => !c.parent_id);
+  const children = cats.filter(c => c.parent_id);
+  let html = '<aside class="sidebar"><p class="sidebar-hd">Categories</p>';
+  html += '<a href="/collections" data-nav="/collections" class="sidebar-link' + (!activeCatId ? ' active' : '') + '">All Products</a>';
+  parents.forEach(p => {
+    const kids           = children.filter(c => c.parent_id === p.id);
+    const isActive       = p.id === activeCatId;
+    const hasActiveChild = kids.some(k => k.id === activeCatId);
+    html += '<a href="/collections/' + esc(p.slug||p.id) + '" data-nav="/collections/' + esc(p.slug||p.id) + '" class="sidebar-link' + (isActive ? ' active' : '') + '">' + esc(p.name) + '</a>';
+    if (isActive || hasActiveChild) {
+      kids.forEach(k => {
+        html += '<a href="/collections/' + esc(k.slug||k.id) + '" data-nav="/collections/' + esc(k.slug||k.id) + '" class="sidebar-sub' + (k.id === activeCatId ? ' active' : '') + '">' + esc(k.name) + '</a>';
+      });
+    }
+  });
+  html += '</aside>';
+  return html;
+}
+
+function buildMobileCats(cats, activeCatId) {
+  const parents = cats.filter(c => !c.parent_id);
+  return '<div class="mobile-cats">' +
+    '<a href="/collections" data-nav="/collections" class="mobile-cat-pill' + (!activeCatId ? ' active' : '') + '">All</a>' +
+    parents.map(p =>
+      '<a href="/collections/' + esc(p.slug||p.id) + '" data-nav="/collections/' + esc(p.slug||p.id) + '" class="mobile-cat-pill' + (p.id === activeCatId ? ' active' : '') + '">' + esc(p.name) + '</a>'
+    ).join('') +
+    '</div>';
+}
+
 // ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
 function prodCard(p) {
   const inStock = p.stock_status !== 'out_of_stock' && p.stock_status !== 'discontinued';
@@ -569,84 +677,64 @@ async function pgHome(el) {
     'Professional pond supplies shipped direct. Pumps, filters, aeration, treatments & more.');
   ldWebsite();
 
-  const [{ data: cats }, { data: featured }] = await Promise.all([
-    sb.from('product_categories').select('id, name, slug').is('parent_id', null).order('name'),
+  const [cats, { data: featured }] = await Promise.all([
+    getCategories(),
     sb.from('products')
       .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
-      .eq('active', true).not('slug', 'is', null)
-      .order('created_at', { ascending: false }).limit(8),
+      .eq('active', true).eq('shop_visible', true).not('slug', 'is', null)
+      .order('created_at', { ascending: false }).limit(12),
   ]);
 
-  el.innerHTML = `
-    <section class="hero">
-      <div class="wrap">
-        <h1>Your Pond, Perfectly Equipped</h1>
-        <p>Professional-grade pond supplies — pumps, filters, aeration, treatments &amp; more. Shipped USPS direct to your door.</p>
-        <a href="/collections" data-nav="/collections" class="btn-primary">Shop All Products</a>
-      </div>
-    </section>
+  const sidebar      = buildSidebar(cats, null);
+  const mobileCats   = buildMobileCats(cats, null);
+  const productsHtml = featured?.length
+    ? '<div class="prod-grid">' + featured.map(prodCard).join('') + '</div>'
+    : '<p style="color:var(--g500)">No products found.</p>';
 
-    ${cats?.length ? `
-    <section class="sec wrap">
-      <h2 class="sec-title">Shop by Category</h2>
-      <div class="cat-grid">
-        ${cats.map(c => `
-          <div class="cat-card" data-nav="/collections/${esc(c.slug || c.id)}">
-            <div class="cat-icon">${catIcon(c.name)}</div>
-            <h3>${esc(c.name)}</h3>
-          </div>`).join('')}
-      </div>
-    </section>` : ''}
-
-    ${featured?.length ? `
-    <section class="sec wrap">
-      <h2 class="sec-title">New Arrivals</h2>
-      <div class="prod-grid">${featured.map(prodCard).join('')}</div>
-    </section>` : ''}
-
-    <section class="trust-bar">
-      <div class="trust-items wrap">
-        <div>
-          <div class="trust-icon">🚢</div>
-          <p class="trust-title">USPS Shipping</p>
-          <p class="trust-sub">Real-time rates, every order</p>
-        </div>
-        <div>
-          <div class="trust-icon">🔒</div>
-          <p class="trust-title">Secure Checkout</p>
-          <p class="trust-sub">Powered by Stripe</p>
-        </div>
-        <div>
-          <div class="trust-icon">💚</div>
-          <p class="trust-title">Subscribe &amp; Save</p>
-          <p class="trust-sub">5% off eligible items — free to join</p>
-        </div>
-      </div>
-    </section>
-  `;
+  el.innerHTML =
+    '<section class="hero"><div class="hero-inner">' +
+      '<h1>Your Pond, Perfectly Equipped</h1>' +
+      '<p>Professional-grade pond supplies — pumps, filters, UV, aeration &amp; more.</p>' +
+      '<a href="/collections" data-nav="/collections" class="btn-primary">Browse All Products</a>' +
+    '</div></section>' +
+    mobileCats +
+    '<div class="shop-layout">' +
+      sidebar +
+      '<div class="shop-main">' +
+        '<div class="shop-hd"><h1>New Arrivals</h1><span class="shop-hd-count">' + (featured?.length || 0) + ' products</span></div>' +
+        productsHtml +
+      '</div>' +
+    '</div>';
 }
 
 // ─── COLLECTIONS ──────────────────────────────────────────────────────────────
 async function pgCollections(el) {
-  setMeta('All Categories — Pacific Coast Ponds Shop', 'Browse all pond supply categories.');
-  const { data: cats } = await sb.from('product_categories')
-    .select('id, name, slug').is('parent_id', null).order('name');
+  setMeta('All Products — Pacific Coast Ponds Shop', 'Shop all professional pond supplies.');
+  ldBreadcrumb([{ name: 'Home', url: '/' }, { name: 'Shop', url: '/collections' }]);
 
-  el.innerHTML = `
-    <div class="wrap sec">
-      <nav class="bc">
-        <a href="/" data-nav="/">Home</a><span>›</span>
-        <span>All Categories</span>
-      </nav>
-      <h1 class="sec-title">All Categories</h1>
-      <div class="cat-grid">
-        ${(cats || []).map(c => `
-          <div class="cat-card" data-nav="/collections/${esc(c.slug || c.id)}">
-            <div class="cat-icon">${catIcon(c.name)}</div>
-            <h3>${esc(c.name)}</h3>
-          </div>`).join('')}
-      </div>
-    </div>`;
+  const [cats, { data: products }] = await Promise.all([
+    getCategories(),
+    sb.from('products')
+      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
+      .eq('active', true).eq('shop_visible', true).order('name'),
+  ]);
+
+  const sidebar      = buildSidebar(cats, null);
+  const mobileCats   = buildMobileCats(cats, null);
+  const productsHtml = products?.length
+    ? '<div class="prod-grid">' + products.map(prodCard).join('') + '</div>'
+    : '<p style="color:var(--g500)">No products found.</p>';
+
+  el.innerHTML =
+    mobileCats +
+    '<div class="shop-layout">' +
+      sidebar +
+      '<div class="shop-main">' +
+        '<nav class="bc"><a href="/" data-nav="/">Home</a><span>›</span><span>All Products</span></nav>' +
+        '<div class="shop-hd"><h1>All Products</h1><span class="shop-hd-count">' + (products?.length || 0) + ' products</span></div>' +
+        productsHtml +
+      '</div>' +
+    '</div>';
 }
 
 // ─── COLLECTION ───────────────────────────────────────────────────────────────
@@ -695,20 +783,31 @@ async function pgCollection(el, slug) {
       ${pillList.map(s => `<a href="/collections/${esc(s.slug||s.id)}" data-nav="/collections/${esc(s.slug||s.id)}" class="sub-pill${s.id===cat.id?' active':''}">${esc(s.name)}</a>`).join('')}
     </div>` : '';
 
-  el.innerHTML = `
-    <div class="wrap sec">
-      <nav class="bc">
-        <a href="/" data-nav="/">Home</a><span>›</span>
-        <a href="/collections" data-nav="/collections">Shop</a><span>›</span>
-        ${parentCat ? `<a href="/collections/${esc(parentCat.slug||parentCat.id)}" data-nav="/collections/${esc(parentCat.slug||parentCat.id)}">${esc(parentCat.name)}</a><span>›</span>` : ''}
-        <span>${esc(cat.name)}</span>
-      </nav>
-      <h1 class="sec-title">${esc(cat.name)}</h1>
-      ${pillsHtml}
-      ${!products?.length
-        ? '<p style="color:var(--g500)">No products in this category yet.</p>'
-        : `<div class="prod-grid">${products.map(prodCard).join('')}</div>`}
-    </div>`;
+  const allCats    = await getCategories();
+  const sidebar    = buildSidebar(allCats, cat.id);
+  const mobileCats = buildMobileCats(allCats, cat.parent_id || cat.id);
+
+  const bcHtml = '<nav class="bc">' +
+    '<a href="/" data-nav="/">Home</a><span>›</span>' +
+    '<a href="/collections" data-nav="/collections">Shop</a><span>›</span>' +
+    (parentCat ? '<a href="/collections/' + esc(parentCat.slug||parentCat.id) + '" data-nav="/collections/' + esc(parentCat.slug||parentCat.id) + '">' + esc(parentCat.name) + '</a><span>›</span>' : '') +
+    '<span>' + esc(cat.name) + '</span></nav>';
+
+  const productsHtml = !products?.length
+    ? '<p style="color:var(--g500)">No products in this category yet.</p>'
+    : '<div class="prod-grid">' + products.map(prodCard).join('') + '</div>';
+
+  el.innerHTML =
+    mobileCats +
+    '<div class="shop-layout">' +
+      sidebar +
+      '<div class="shop-main">' +
+        bcHtml +
+        '<div class="shop-hd"><h1>' + esc(cat.name) + '</h1><span class="shop-hd-count">' + (products?.length || 0) + ' products</span></div>' +
+        pillsHtml +
+        productsHtml +
+      '</div>' +
+    '</div>';
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
