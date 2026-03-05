@@ -119,7 +119,7 @@
     const TOKEN   = params.get('token');
     const PI_ID   = params.get('payment_intent');
     const PI_STATUS = params.get('redirect_status');
-    const STRIPE_PK = 'pk_test_51T5LDt2FcIjayQS7xfHkkNaACF95tBNYtcYpDCFs0KMSTJtPZpE0hssTU6tERABayJGkubweuQHOWOHEIc51rFpI006igi4dxJ';
+    const STRIPE_PK = 'pk_live_51T5LDiCDu3b9bXYMyphr5R9EZf1MQjaIgBSVzVGCP5ruZTlFRvSJWTxM5AqR7Qd0cH8eVycTISGzbV5xTwaeeBcG00WNstjNoL';
 
     const fmt = n => '$' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     const show = id => ['stateLoading','stateError','statePaid','stateSuccess','stateInvoice']
