@@ -998,26 +998,203 @@
     };
   </script>
 
-<!--Start of Tawk.to Script-->
-<script type="text/javascript">
-var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
-Tawk_API.onLoad=function(){
-  Tawk_API.customStyle({
-    visibility:{
-      desktop:{position:'br',xOffset:15,yOffset:80},
-      mobile:{position:'br',xOffset:15,yOffset:80}
-    }
-  });
-};
+<!-- AI Chat Widget -->
+<style>
+  #aiChatBtn {
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--brand-green); color: #fff;
+    border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; transition: transform .2s, box-shadow .2s;
+  }
+  #aiChatBtn:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+  #aiChatBtn .chat-badge {
+    position: absolute; top: -4px; right: -4px;
+    background: var(--brand-blue); color: #fff;
+    font-size: .6rem; font-weight: 700; border-radius: 999px;
+    padding: 2px 5px; display: none;
+  }
+  #aiChatWindow {
+    position: fixed; bottom: 92px; right: 24px; z-index: 9998;
+    width: 360px; max-width: calc(100vw - 32px);
+    height: 520px; max-height: calc(100vh - 120px);
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.18);
+    display: none; flex-direction: column; overflow: hidden;
+    font-family: Inter, ui-sans-serif, system-ui;
+  }
+  #aiChatWindow.open { display: flex; }
+  .chat-header {
+    background: var(--brand-green); color: #fff;
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+  }
+  .chat-header-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(255,255,255,.2);
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+  }
+  .chat-header-info { flex: 1; }
+  .chat-header-name { font-weight: 700; font-size: .95rem; }
+  .chat-header-status { font-size: .75rem; opacity: .8; }
+  .chat-close {
+    background: none; border: none; color: #fff; font-size: 1.4rem;
+    cursor: pointer; line-height: 1; padding: 0; opacity: .8;
+  }
+  .chat-close:hover { opacity: 1; }
+  #chatMessages {
+    flex: 1; overflow-y: auto; padding: 16px; display: flex;
+    flex-direction: column; gap: 10px;
+  }
+  .chat-msg {
+    max-width: 82%; padding: 10px 13px; border-radius: 14px;
+    font-size: .875rem; line-height: 1.45; word-wrap: break-word;
+  }
+  .chat-msg.bot {
+    background: #f3f4f6; color: #111; border-bottom-left-radius: 4px; align-self: flex-start;
+  }
+  .chat-msg.user {
+    background: var(--brand-green); color: #fff;
+    border-bottom-right-radius: 4px; align-self: flex-end;
+  }
+  .chat-msg.typing { color: #9ca3af; font-style: italic; }
+  .chat-footer {
+    padding: 10px 12px; border-top: 1px solid #e5e7eb;
+    display: flex; gap: 8px; flex-shrink: 0; background: #fff;
+  }
+  #chatInput {
+    flex: 1; border: 1.5px solid #d1d5db; border-radius: 8px;
+    padding: 8px 12px; font-size: .875rem; outline: none; resize: none;
+    font-family: inherit; line-height: 1.4; max-height: 80px;
+  }
+  #chatInput:focus { border-color: var(--brand-green); }
+  #chatSend {
+    background: var(--brand-green); color: #fff; border: none;
+    border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    font-size: 1rem; transition: background .15s; flex-shrink: 0;
+  }
+  #chatSend:hover { background: #164a2b; }
+  #chatSend:disabled { background: #9ca3af; cursor: not-allowed; }
+  .chat-suggestions {
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px;
+  }
+  .chat-suggestions button {
+    background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;
+    border-radius: 999px; padding: 5px 12px; font-size: .78rem;
+    cursor: pointer; transition: background .15s;
+  }
+  .chat-suggestions button:hover { background: #dcfce7; }
+</style>
+
+<!-- Chat toggle button -->
+<button id="aiChatBtn" aria-label="Chat with Koi, our AI assistant" onclick="toggleChat()">
+  🐟
+  <span class="chat-badge" id="chatBadge">1</span>
+</button>
+
+<!-- Chat window -->
+<div id="aiChatWindow" role="dialog" aria-label="Chat with Koi">
+  <div class="chat-header">
+    <div class="chat-header-avatar">🐟</div>
+    <div class="chat-header-info">
+      <div class="chat-header-name">Koi — PCP Assistant</div>
+      <div class="chat-header-status">Ask me anything about ponds</div>
+    </div>
+    <button class="chat-close" onclick="toggleChat()" aria-label="Close chat">×</button>
+  </div>
+  <div id="chatMessages"></div>
+  <div class="chat-suggestions" id="chatSuggestions">
+    <button onclick="sendSuggestion('How much does a koi pond cost?')">Pond cost?</button>
+    <button onclick="sendSuggestion('What maintenance services do you offer?')">Maintenance?</button>
+    <button onclick="sendSuggestion('I want a free estimate')">Free estimate</button>
+    <button onclick="sendSuggestion('How do I keep koi healthy?')">Koi care tips</button>
+  </div>
+  <div class="chat-footer">
+    <textarea id="chatInput" rows="1" placeholder="Ask about ponds, koi, or our services…"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
+    <button id="chatSend" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<script>
 (function(){
-var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
-s1.async=true;
-s1.src='https://embed.tawk.to/6992b5a373d8cb1c357e2888/default';
-s1.charset='UTF-8';
-s1.setAttribute('crossorigin','*');
-s0.parentNode.insertBefore(s1,s0);
+  var _msgs = [];
+  var _opened = false;
+
+  // Show badge after 4s to draw attention
+  setTimeout(function(){
+    var b = document.getElementById('chatBadge');
+    if (b && !_opened) b.style.display = 'block';
+  }, 4000);
+
+  window.toggleChat = function() {
+    _opened = true;
+    document.getElementById('chatBadge').style.display = 'none';
+    var win = document.getElementById('aiChatWindow');
+    var isOpen = win.classList.toggle('open');
+    if (isOpen && _msgs.length === 0) {
+      appendMsg('bot', "Hi! I'm Koi 🐟 — your Pacific Coast Ponds assistant. I can answer questions about koi, pond maintenance, new builds, or help you get a free estimate. What's on your mind?");
+    }
+    if (isOpen) {
+      setTimeout(function(){ document.getElementById('chatInput').focus(); }, 50);
+    }
+  };
+
+  window.sendSuggestion = function(text) {
+    document.getElementById('chatSuggestions').style.display = 'none';
+    document.getElementById('chatInput').value = text;
+    sendMessage();
+  };
+
+  window.sendMessage = function() {
+    var input = document.getElementById('chatInput');
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('chatSuggestions').style.display = 'none';
+
+    appendMsg('user', text);
+    _msgs.push({ role: 'user', content: text });
+
+    var typingEl = appendMsg('bot', '…', true);
+    document.getElementById('chatSend').disabled = true;
+
+    fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: _msgs })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      typingEl.remove();
+      document.getElementById('chatSend').disabled = false;
+      if (data.reply) {
+        appendMsg('bot', data.reply);
+        _msgs.push({ role: 'assistant', content: data.reply });
+      } else {
+        appendMsg('bot', 'Sorry, something went wrong. Please try again or call us at (949) 541-4903.');
+      }
+    })
+    .catch(function() {
+      typingEl.remove();
+      document.getElementById('chatSend').disabled = false;
+      appendMsg('bot', 'Having trouble connecting. Please try again or call (949) 541-4903.');
+    });
+  };
+
+  function appendMsg(role, text, isTyping) {
+    var el = document.createElement('div');
+    el.className = 'chat-msg ' + role + (isTyping ? ' typing' : '');
+    el.textContent = text;
+    var container = document.getElementById('chatMessages');
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+    return el;
+  }
 })();
 </script>
-<!--End of Tawk.to Script-->
 </body>
 </html>
