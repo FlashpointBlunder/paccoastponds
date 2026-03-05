@@ -1059,6 +1059,9 @@
     border-bottom-right-radius: 4px; align-self: flex-end;
   }
   .chat-msg.typing { color: #9ca3af; font-style: italic; }
+  .chat-msg.bot ul { margin: 6px 0 4px 16px; padding: 0; }
+  .chat-msg.bot li { margin-bottom: 2px; }
+  .chat-msg.bot strong { font-weight: 700; }
   .chat-footer {
     padding: 10px 12px; border-top: 1px solid #e5e7eb;
     display: flex; gap: 8px; flex-shrink: 0; background: #fff;
@@ -1185,10 +1188,33 @@
     });
   };
 
+  function renderMarkdown(text) {
+    // Escape HTML first
+    var s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Headers
+    s = s.replace(/^### (.+)$/gm, '<strong style="display:block;margin-top:8px;font-size:.9rem">$1</strong>');
+    s = s.replace(/^## (.+)$/gm,  '<strong style="display:block;margin-top:8px;font-size:.95rem">$1</strong>');
+    s = s.replace(/^# (.+)$/gm,   '<strong style="display:block;margin-top:8px;font-size:1rem">$1</strong>');
+    // Bold
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Bullet lists
+    s = s.replace(/^[-•] (.+)$/gm, '<li>$1</li>');
+    s = s.replace(/(<li>.*<\/li>)/s, '<ul style="margin:6px 0 6px 16px;padding:0">$1</ul>');
+    // Line breaks
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+
   function appendMsg(role, text, isTyping) {
     var el = document.createElement('div');
     el.className = 'chat-msg ' + role + (isTyping ? ' typing' : '');
-    el.textContent = text;
+    if (isTyping || role === 'user') {
+      el.textContent = text;
+    } else {
+      el.innerHTML = renderMarkdown(text);
+    }
     var container = document.getElementById('chatMessages');
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
