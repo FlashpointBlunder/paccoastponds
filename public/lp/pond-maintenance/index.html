@@ -331,8 +331,7 @@
         await fetch('/', { method: 'POST', body: new FormData(form) });
       } catch (ex) { console.warn('Netlify POST failed', ex); }
 
-      form.classList.add('hidden');
-      document.getElementById('lpSuccess').classList.remove('hidden');
+      window.location.href = '/thank-you';
       return false;
     }
   </script>
