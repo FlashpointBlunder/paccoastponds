@@ -99,10 +99,13 @@
           <input required name="full_name" placeholder="Full Name *" class="field" />
           <input required name="phone" id="lpPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Phone Number *" class="field" />
           <input name="email" type="email" placeholder="Email Address" class="field" />
-          <input name="street" placeholder="Street Address" autocomplete="street-address" class="field" />
+          <div class="relative">
+            <input id="lp_street" name="street" placeholder="Street Address" autocomplete="off" class="field" oninput="onLpAddrInput(this.value)" onblur="setTimeout(hideLpAddrDrop,150)" />
+            <div id="lp_addr_drop" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden"></div>
+          </div>
           <div class="grid grid-cols-2 gap-2">
-            <input name="city" placeholder="City" class="field" />
-            <input required name="zip" placeholder="ZIP Code *" pattern="[0-9]{5}" maxlength="5" inputmode="numeric" class="field" />
+            <input id="lp_city" name="city" placeholder="City" class="field" />
+            <input required id="lp_zip" name="zip" placeholder="ZIP Code *" pattern="[0-9]{5}" maxlength="5" inputmode="numeric" class="field" />
           </div>
           <select name="project_type" class="field bg-white">
             <option value="">Project Type</option>
@@ -296,6 +299,73 @@
         else if (d.length > 0)  this.value = '(' + d;
       });
     })();
+
+    // ── Google Places autocomplete (AutocompleteService — no widget) ──
+    const MAPS_KEY = 'AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4';
+    let _mapsReady = false, _acSvc = null, _acToken = null, _acTimer = null, _acPreds = [];
+
+    function loadMaps() {
+      if (_mapsReady) return;
+      _mapsReady = true;
+      window._lpGmReady = function() {
+        _acSvc   = new google.maps.places.AutocompleteService();
+        _acToken = new google.maps.places.AutocompleteSessionToken();
+      };
+      var s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + MAPS_KEY + '&libraries=places&callback=_lpGmReady';
+      s.async = true; s.defer = true;
+      document.head.appendChild(s);
+    }
+
+    function hideLpAddrDrop() {
+      var d = document.getElementById('lp_addr_drop');
+      if (d) d.classList.add('hidden');
+    }
+
+    function selectLpAddress(i) {
+      var pred = _acPreds[i];
+      if (!pred) return;
+      document.getElementById('lp_street').value = pred.structured_formatting?.main_text || pred.description;
+      hideLpAddrDrop();
+      // Use PlacesService to get address components for city/zip
+      var svc = new google.maps.places.PlacesService(document.createElement('div'));
+      svc.getDetails({ placeId: pred.place_id, fields: ['address_components'], sessionToken: _acToken }, function(place) {
+        _acToken = new google.maps.places.AutocompleteSessionToken();
+        if (!place || !place.address_components) return;
+        var city = '', zip = '';
+        place.address_components.forEach(function(c) {
+          if (c.types.includes('locality'))            city = c.long_name;
+          if (c.types.includes('postal_code'))         zip  = c.long_name;
+        });
+        if (city) document.getElementById('lp_city').value = city;
+        if (zip)  document.getElementById('lp_zip').value  = zip;
+      });
+    }
+
+    function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function onLpAddrInput(val) {
+      clearTimeout(_acTimer);
+      if (val.length < 3) { hideLpAddrDrop(); return; }
+      if (!_acSvc) { loadMaps(); setTimeout(function(){ onLpAddrInput(val); }, 800); return; }
+      _acTimer = setTimeout(function() {
+        _acSvc.getPlacePredictions({
+          input: val, sessionToken: _acToken,
+          componentRestrictions: { country: 'us' }, types: ['address']
+        }, function(preds, status) {
+          _acPreds = preds || [];
+          var drop = document.getElementById('lp_addr_drop');
+          if (!drop || !_acPreds.length) { hideLpAddrDrop(); return; }
+          drop.innerHTML = _acPreds.map(function(p, i) {
+            return '<div class="px-3 py-2.5 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-0" onmousedown="selectLpAddress(' + i + ')">'
+              + '<p class="text-sm font-medium text-gray-800">' + escHtml(p.structured_formatting?.main_text || p.description) + '</p>'
+              + '<p class="text-xs text-gray-400">' + escHtml(p.structured_formatting?.secondary_text || '') + '</p>'
+              + '</div>';
+          }).join('');
+          drop.classList.remove('hidden');
+        });
+      }, 280);
+    }
 
     async function handleLpSubmit(e) {
       e.preventDefault();
