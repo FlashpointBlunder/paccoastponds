@@ -188,7 +188,19 @@
       padding: .625rem .875rem; font-size: .875rem; color: var(--green); font-weight: 600;
       display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem;
     }
-    .pd-desc { color: var(--g700); font-size: .9375rem; line-height: 1.75; margin-bottom: 1.5rem; white-space: pre-wrap; }
+    .pd-desc { color: var(--g700); font-size: .9375rem; line-height: 1.75; margin-bottom: 1.5rem; }
+    .pd-desc p { margin-bottom: .875rem; }
+    .pd-desc h4, .pd-sec-title { font-size: .8125rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--g500); margin: 1.25rem 0 .5rem; }
+    .pd-desc ul, .pd-feature-list { padding-left: 1.25rem; margin-bottom: .875rem; }
+    .pd-desc ul li, .pd-feature-list li { margin-bottom: .25rem; }
+    .pd-spec-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .875rem; }
+    .pd-spec-table th, .pd-spec-table td { padding: .5rem .75rem; text-align: left; border-bottom: 1px solid var(--g100); }
+    .pd-spec-table th { background: var(--g100); font-weight: 700; color: var(--g700); width: 45%; }
+    .pd-spec-table td { color: var(--g900); font-weight: 500; }
+    .pd-spec-table tr:first-child th, .pd-spec-table tr:first-child td { border-radius: .375rem .375rem 0 0; }
+    .pd-ingredients { font-size: .8125rem; color: var(--g500); line-height: 1.7; }
+    .pd-video { margin: 1.25rem 0; border-radius: .625rem; overflow: hidden; aspect-ratio: 16/9; }
+    .pd-video iframe { width: 100%; height: 100%; border: none; }
     .qty-row { display: flex; align-items: center; gap: 1rem; margin-bottom: .875rem; }
     .qty-label { font-size: .8rem; text-transform: uppercase; font-weight: 700; color: var(--g500); }
     .qty-ctrl { display: flex; align-items: center; border: 1.5px solid var(--g200); border-radius: var(--rad); overflow: hidden; }
@@ -941,7 +953,7 @@ async function pgProduct(el, slug) {
                   </button>`).join('')}
               </div>
             </div>` : ''}
-          ${displayDesc ? `<p class="pd-desc">${esc(displayDesc)}</p>` : ''}
+          ${displayDesc ? `<div class="pd-desc">${displayDesc}</div>` : ''}
           <div id="pdAtcWrap">${renderAtcHtml(_selVariant)}</div>
           <div class="pd-meta" id="pdMeta">${renderMetaHtml(_selVariant)}</div>
         </div>
