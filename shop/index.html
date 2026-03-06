@@ -458,6 +458,7 @@
     <nav class="hdr-nav">
       <div class="hdr-links" style="display:flex;gap:1.5rem;">
         <a href="/collections" data-nav="/collections" class="hdr-link">Shop</a>
+        <a href="/brands"      data-nav="/brands"      class="hdr-link">Brands</a>
         <a href="/account"     data-nav="/account"     class="hdr-link" id="acctLink">Account</a>
       </div>
       <button class="cart-btn" id="cartBtn">
@@ -555,6 +556,8 @@ function route() {
   if (p === '/' || p === '')          return pgHome(root);
   if (p === '/collections')           return pgCollections(root);
   if (p.startsWith('/collections/'))  return pgCollection(root, p.replace('/collections/', '').replace(/\/$/, ''));
+  if (p === '/brands')                return pgBrands(root);
+  if (p.startsWith('/brands/'))       return pgBrand(root, decodeURIComponent(p.replace('/brands/', '').replace(/\/$/, '')));
   if (p.startsWith('/products/'))     return pgProduct(root, p.replace('/products/', '').replace(/\/$/, ''));
   if (p === '/cart')                  return pgCart(root);
   if (p === '/checkout')              return pgCheckout(root);
@@ -639,11 +642,25 @@ async function getCategories() {
   return _allCats;
 }
 
-function buildSidebar(cats, activeCatId) {
+// ─── BRAND HELPERS ───────────────────────────────────────────────────────────
+let _allBrands = null;
+async function getBrands() {
+  if (_allBrands) return _allBrands;
+  const { data } = await sb.from('products').select('brand').eq('active', true).eq('shop_visible', true).not('brand', 'is', null);
+  _allBrands = [...new Set((data || []).map(p => p.brand).filter(Boolean))].sort();
+  return _allBrands;
+}
+function brandSlug(name) { return encodeURIComponent(name.toLowerCase().replace(/\s+/g, '-')); }
+function brandFromSlug(slug) {
+  if (!_allBrands) return slug;
+  return _allBrands.find(b => brandSlug(b) === slug) || slug;
+}
+
+function buildSidebar(cats, activeCatId, activeBrand) {
   const parents  = cats.filter(c => !c.parent_id);
   const children = cats.filter(c => c.parent_id);
   let html = '<aside class="sidebar"><p class="sidebar-hd">Categories</p>';
-  html += '<a href="/collections" data-nav="/collections" class="sidebar-link' + (!activeCatId ? ' active' : '') + '">All Products</a>';
+  html += '<a href="/collections" data-nav="/collections" class="sidebar-link' + (!activeCatId && !activeBrand ? ' active' : '') + '">All Products</a>';
   parents.forEach(p => {
     const kids           = children.filter(c => c.parent_id === p.id);
     const isActive       = p.id === activeCatId;
@@ -655,6 +672,14 @@ function buildSidebar(cats, activeCatId) {
       });
     }
   });
+  // Brands section
+  if (_allBrands && _allBrands.length) {
+    html += '<p class="sidebar-hd" style="margin-top:1rem;">Brands</p>';
+    html += '<a href="/brands" data-nav="/brands" class="sidebar-link' + (activeBrand === '__all' ? ' active' : '') + '">All Brands</a>';
+    _allBrands.forEach(b => {
+      html += '<a href="/brands/' + brandSlug(b) + '" data-nav="/brands/' + brandSlug(b) + '" class="sidebar-link' + (activeBrand === b ? ' active' : '') + '">' + esc(b) + '</a>';
+    });
+  }
   html += '</aside>';
   return html;
 }
@@ -762,8 +787,9 @@ async function pgHome(el) {
     'Professional pond supplies shipped direct. Pumps, filters, aeration, treatments & more.');
   ldWebsite();
 
-  const [cats, { data: featured }] = await Promise.all([
+  const [cats, brands, { data: featured }] = await Promise.all([
     getCategories(),
+    getBrands(),
     sb.from('products')
       .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute, is_freight')
       .eq('active', true).eq('shop_visible', true).not('slug', 'is', null)
@@ -797,8 +823,9 @@ async function pgCollections(el) {
   setMeta('All Products — Pacific Coast Ponds Shop', 'Shop all professional pond supplies.');
   ldBreadcrumb([{ name: 'Home', url: '/' }, { name: 'Shop', url: '/collections' }]);
 
-  const [cats, { data: products }] = await Promise.all([
+  const [cats, brands, { data: products }] = await Promise.all([
     getCategories(),
+    getBrands(),
     sb.from('products')
       .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute, is_freight')
       .eq('active', true).eq('shop_visible', true).order('name'),
@@ -870,7 +897,7 @@ async function pgCollection(el, slug) {
       ${pillList.map(s => `<a href="/collections/${esc(s.slug||s.id)}" data-nav="/collections/${esc(s.slug||s.id)}" class="sub-pill${s.id===cat.id?' active':''}">${esc(s.name)}</a>`).join('')}
     </div>` : '';
 
-  const allCats    = await getCategories();
+  const [allCats] = await Promise.all([getCategories(), getBrands()]);
   const sidebar    = buildSidebar(allCats, cat.id);
   const mobileCats = buildMobileCats(allCats, cat.parent_id || cat.id);
 
@@ -897,6 +924,65 @@ async function pgCollection(el, slug) {
       '</div>' +
     '</div>';
   buildBrandPills(products, 'brandPillsWrap');
+}
+
+// ─── BRANDS ──────────────────────────────────────────────────────────────────
+async function pgBrands(el) {
+  setMeta('Shop by Brand — Pacific Coast Ponds Shop', 'Browse pond supplies by brand.');
+  ldBreadcrumb([{ name: 'Home', url: '/' }, { name: 'Brands', url: '/brands' }]);
+
+  const [cats, brands] = await Promise.all([getCategories(), getBrands()]);
+  const sidebar    = buildSidebar(cats, null, '__all');
+  const mobileCats = buildMobileCats(cats, null);
+
+  const brandsHtml = brands.length
+    ? '<div class="cat-grid">' + brands.map(b =>
+        '<div class="cat-card" data-nav="/brands/' + brandSlug(b) + '" style="cursor:pointer">' +
+          '<div class="cat-icon" style="font-size:1.25rem;font-weight:800;color:var(--teal)">' + esc(b.charAt(0)) + '</div>' +
+          '<h3>' + esc(b) + '</h3>' +
+        '</div>'
+      ).join('') + '</div>'
+    : '<p style="color:var(--g500)">No brands found.</p>';
+
+  el.innerHTML =
+    mobileCats +
+    '<div class="shop-layout">' +
+      sidebar +
+      '<div class="shop-main">' +
+        '<nav class="bc"><a href="/" data-nav="/">Home</a><span>›</span><span>Brands</span></nav>' +
+        '<div class="shop-hd"><h1>Shop by Brand</h1><span class="shop-hd-count">' + brands.length + ' brands</span></div>' +
+        brandsHtml +
+      '</div>' +
+    '</div>';
+}
+
+async function pgBrand(el, slug) {
+  const [cats, brands] = await Promise.all([getCategories(), getBrands()]);
+  const brandName = brandFromSlug(slug);
+
+  setMeta(brandName + ' — Pacific Coast Ponds Shop', 'Shop ' + brandName + ' pond supplies.');
+  ldBreadcrumb([{ name: 'Home', url: '/' }, { name: 'Brands', url: '/brands' }, { name: brandName, url: '/brands/' + slug }]);
+
+  const { data: products } = await sb.from('products')
+    .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute, is_freight')
+    .eq('active', true).eq('shop_visible', true).eq('brand', brandName).order('name');
+
+  const sidebar    = buildSidebar(cats, null, brandName);
+  const mobileCats = buildMobileCats(cats, null);
+  const productsHtml = products?.length
+    ? '<div class="prod-grid">' + products.map(prodCard).join('') + '</div>'
+    : '<p style="color:var(--g500)">No products from this brand.</p>';
+
+  el.innerHTML =
+    mobileCats +
+    '<div class="shop-layout">' +
+      sidebar +
+      '<div class="shop-main">' +
+        '<nav class="bc"><a href="/" data-nav="/">Home</a><span>›</span><a href="/brands" data-nav="/brands">Brands</a><span>›</span><span>' + esc(brandName) + '</span></nav>' +
+        '<div class="shop-hd"><h1>' + esc(brandName) + '</h1><span class="shop-hd-count">' + (products?.length || 0) + ' products</span></div>' +
+        productsHtml +
+      '</div>' +
+    '</div>';
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
