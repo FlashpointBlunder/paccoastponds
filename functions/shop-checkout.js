@@ -40,7 +40,7 @@ exports.handler = async (event) => {
   // Fetch product data to verify prices
   const productIds = items.map(i => i.product_id).filter(Boolean);
   const { data: products } = await sb.from('products')
-    .select('id, name, sku, price, subscribe_save_eligible')
+    .select('id, name, sku, price, subscribe_save_eligible, is_freight')
     .in('id', productIds);
   const productMap = Object.fromEntries((products || []).map(p => [p.id, p]));
 
@@ -78,7 +78,13 @@ exports.handler = async (event) => {
     };
   });
 
-  const shippingCost = parseFloat(shipping_rate?.rate || 0);
+  // Server-side free shipping / freight validation
+  const hasFreight = items.some(i => {
+    const prod = productMap[i.product_id];
+    return prod?.is_freight;
+  });
+  const freeShip = !hasFreight && subtotal >= 99;
+  const shippingCost = (hasFreight || freeShip) ? 0 : parseFloat(shipping_rate?.rate || 0);
   const total = +(subtotal - discountAmount + shippingCost).toFixed(2);
   const totalCents = Math.round(total * 100);
 

@@ -159,6 +159,27 @@
       font-size: .625rem; font-weight: 800; padding: .2rem .45rem;
       border-radius: 999px;
     }
+    .badge-freight {
+      background: #fef3c7; color: #92400e;
+      font-size: .625rem; font-weight: 800; padding: .2rem .45rem;
+      border-radius: 999px;
+    }
+
+    /* Free shipping bar */
+    .fs-progress { padding: .5rem 0 .25rem; }
+    .fs-bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-bottom: .25rem; }
+    .fs-fill { height: 4px; background: var(--teal); border-radius: 2px; transition: width .3s; }
+    .fs-label { font-size: .72rem; color: #6b7280; text-align: center; }
+    .freight-note { font-size: .72rem; color: #92400e; text-align: center; padding: .25rem 0; }
+
+    /* Brand filter pills */
+    .brand-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+    .brand-pill {
+      background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;
+      padding: .3rem .85rem; font-size: .8rem; font-weight: 600;
+      border-radius: 99px; cursor: pointer; transition: all .15s;
+    }
+    .brand-pill:hover, .brand-pill.active { background: var(--teal); color: #fff; border-color: var(--teal); }
     .atc-sm {
       background: var(--teal); color: #fff; border: none;
       width: 1.875rem; height: 1.875rem; border-radius: 50%;
@@ -496,6 +517,8 @@ function renderCartBadge() {
 }
 function cartSubtotal() { return _cart.reduce((s, i) => s + i.price * i.qty, 0); }
 function cartDiscount() { return _cart.reduce((s, i) => s + (i.ss ? (i.origPrice - i.price) * i.qty : 0), 0); }
+function cartHasFreight() { return _cart.some(i => i.is_freight); }
+function freeShipEligible() { return !cartHasFreight() && cartSubtotal() >= 99; }
 
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 function toast(msg, ok = true) {
@@ -646,13 +669,39 @@ function buildMobileCats(cats, activeCatId) {
     '</div>';
 }
 
+// ─── BRAND PILLS ─────────────────────────────────────────────────────────────
+function buildBrandPills(products, wrapId) {
+  const brands = [...new Set((products||[]).map(p => p.brand).filter(Boolean))].sort();
+  if (brands.length < 2) return;
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="brand-pills">' +
+    '<button class="brand-pill active" data-brand="">All Brands</button>' +
+    brands.map(b => '<button class="brand-pill" data-brand="' + esc(b) + '">' + esc(b) + '</button>').join('') +
+    '</div>';
+  wrap.addEventListener('click', e => {
+    const pill = e.target.closest('.brand-pill');
+    if (!pill) return;
+    wrap.querySelectorAll('.brand-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    const brand = pill.dataset.brand;
+    document.querySelectorAll('.prod-grid .prod-card').forEach(card => {
+      card.style.display = (!brand || card.dataset.brand === brand) ? '' : 'none';
+    });
+    const visible = document.querySelectorAll('.prod-grid .prod-card').length -
+      document.querySelectorAll('.prod-grid .prod-card[style*="display: none"]').length;
+    const countEl = document.querySelector('.shop-hd-count');
+    if (countEl) countEl.textContent = visible + ' products';
+  });
+}
+
 // ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
 function prodCard(p) {
   const inStock = p.stock_status !== 'out_of_stock' && p.stock_status !== 'discontinued';
   const ssPrice = (p.subscribe_save_eligible && _isSub) ? +(p.price * 0.95).toFixed(2) : null;
   const url = `/products/${esc(p.slug || p.id)}`;
   return `
-    <article class="prod-card" data-nav="${url}" style="cursor:pointer">
+    <article class="prod-card" data-nav="${url}" data-brand="${esc(p.brand||'')}" style="cursor:pointer">
       <div class="prod-img">
         ${p.image_url
           ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`
@@ -667,12 +716,14 @@ function prodCard(p) {
               $${ssPrice ? ssPrice.toFixed(2) : parseFloat(p.price).toFixed(2)}
             </p>
             ${p.subscribe_save_eligible ? '<span class="badge-ss">S&S</span>' : ''}
+            ${p.is_freight ? '<span class="badge-freight">Freight</span>' : ''}
             ${!inStock ? '<span class="badge-oos">Out of Stock</span>' : ''}
           </div>
           <button class="atc-sm js-atc"
             data-id="${esc(p.id)}" data-name="${esc(p.name)}"
             data-price="${p.price}" data-img="${esc(p.image_url || '')}"
             data-ss="${p.subscribe_save_eligible}"
+            data-freight="${p.is_freight||false}"
             data-has-variants="${p.variant_attribute ? 'true' : 'false'}"
             data-slug="${esc(p.slug || p.id)}"
             ${inStock ? '' : 'disabled'}
@@ -697,9 +748,10 @@ document.addEventListener('click', e => {
   const origPrice  = parseFloat(btn.dataset.price);
   const price      = (ssEligible && _isSub) ? +(origPrice * 0.95).toFixed(2) : origPrice;
   const name       = btn.dataset.name;
+  const isFreight  = btn.dataset.freight === 'true';
   const existing   = _cart.find(i => i.product_id === btn.dataset.id);
   if (existing) existing.qty++;
-  else _cart.push({ product_id: btn.dataset.id, name, price, origPrice, image_url: btn.dataset.img, qty: 1, ss: ssEligible && _isSub });
+  else _cart.push({ product_id: btn.dataset.id, name, price, origPrice, image_url: btn.dataset.img, qty: 1, ss: ssEligible && _isSub, is_freight: isFreight });
   saveCart();
   toast(name + ' added to cart');
 });
@@ -713,7 +765,7 @@ async function pgHome(el) {
   const [cats, { data: featured }] = await Promise.all([
     getCategories(),
     sb.from('products')
-      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
+      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute, is_freight')
       .eq('active', true).eq('shop_visible', true).not('slug', 'is', null)
       .order('created_at', { ascending: false }).limit(12),
   ]);
@@ -748,7 +800,7 @@ async function pgCollections(el) {
   const [cats, { data: products }] = await Promise.all([
     getCategories(),
     sb.from('products')
-      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
+      .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute, is_freight')
       .eq('active', true).eq('shop_visible', true).order('name'),
   ]);
 
@@ -765,9 +817,11 @@ async function pgCollections(el) {
       '<div class="shop-main">' +
         '<nav class="bc"><a href="/" data-nav="/">Home</a><span>›</span><span>All Products</span></nav>' +
         '<div class="shop-hd"><h1>All Products</h1><span class="shop-hd-count">' + (products?.length || 0) + ' products</span></div>' +
+        '<div id="brandPillsWrap"></div>' +
         productsHtml +
       '</div>' +
     '</div>';
+  buildBrandPills(products, 'brandPillsWrap');
 }
 
 // ─── COLLECTION ───────────────────────────────────────────────────────────────
@@ -798,7 +852,7 @@ async function pgCollection(el, slug) {
   }
 
   const { data: products } = await sb.from('products')
-    .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute')
+    .select('id, name, slug, price, image_url, brand, stock_status, subscribe_save_eligible, variant_attribute, is_freight')
     .in('category_id', ids).eq('active', true).eq('shop_visible', true).order('name');
 
   ldBreadcrumb([
@@ -838,16 +892,18 @@ async function pgCollection(el, slug) {
         bcHtml +
         '<div class="shop-hd"><h1>' + esc(cat.name) + '</h1><span class="shop-hd-count">' + (products?.length || 0) + ' products</span></div>' +
         pillsHtml +
+        '<div id="brandPillsWrap"></div>' +
         productsHtml +
       '</div>' +
     '</div>';
+  buildBrandPills(products, 'brandPillsWrap');
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
 async function pgProduct(el, slug) {
   const col = _UUID_RE.test(slug) ? 'id' : 'slug';
   const { data: p } = await sb.from('products')
-    .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id, variant_attribute')
+    .select('id, name, slug, sku, price, image_url, brand, stock_status, subscribe_save_eligible, shop_description, description, meta_title, meta_description, weight_oz, category_id, variant_attribute, is_freight')
     .eq(col, slug)
     .eq('active', true).eq('shop_visible', true).maybeSingle();
   if (!p) { el.innerHTML = '<div class="wrap sec"><p>Product not found.</p></div>'; return; }
@@ -1004,7 +1060,7 @@ async function pgProduct(el, slug) {
       const existing = _cart.find(i => (i.product_id + '|' + (i.variant_id || '')) === key);
       if (existing) existing.qty += qty;
       else _cart.push({ product_id: p.id, name: p.name, price, origPrice, image_url: img, qty,
-        ss: p.subscribe_save_eligible && _isSub, variant_id: varId, variant_name: varName });
+        ss: p.subscribe_save_eligible && _isSub, variant_id: varId, variant_name: varName, is_freight: !!p.is_freight });
       saveCart();
       toast(p.name + (varName ? ` (${varName})` : '') + ' added to cart');
     });
@@ -1082,9 +1138,12 @@ function pgCart(el) {
         <div>
           <div class="order-box">
             <h3 style="font-weight:800;margin-bottom:.875rem;">Order Summary</h3>
+            ${cartHasFreight()
+              ? '<p class="freight-note">Freight item in cart — shipping quoted at checkout</p>'
+              : '<div class="fs-progress"><div class="fs-bar"><div class="fs-fill" style="width:' + Math.min(100, (sub / 99) * 100) + '%"></div></div><p class="fs-label">' + (sub >= 99 ? 'Free shipping on this order!' : '$' + (99 - sub).toFixed(2) + ' away from free shipping') + '</p></div>'}
             <div class="order-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
             ${disc > 0 ? `<div class="order-row discount"><span>S&S Discount</span><span>−$${disc.toFixed(2)}</span></div>` : ''}
-            <div class="order-row"><span>Shipping</span><span style="color:var(--g500)">Calculated at checkout</span></div>
+            <div class="order-row"><span>Shipping</span><span style="color:var(--g500)">${cartHasFreight() ? 'Freight — see checkout' : (freeShipEligible() ? 'FREE' : 'Calculated at checkout')}</span></div>
             <div class="order-row total"><span>Estimated Total</span><span>$${(sub - disc).toFixed(2)}</span></div>
             <button class="btn-primary" id="checkoutBtn" style="width:100%;margin-top:1.25rem;padding:.875rem;text-align:center;">
               Proceed to Checkout
@@ -1190,6 +1249,16 @@ function renderCoInfo() {
     const btn = document.getElementById('coBtn1');
     btn.textContent = 'Fetching rates…'; btn.disabled = true;
 
+    // Free shipping or freight: skip rate lookup
+    if (freeShipEligible()) {
+      _rates = []; _selRate = { id: 'free', carrier: 'Free Shipping', service: 'Free Shipping', rate: '0.00', delivery_days: null };
+      _coStep = 2; pgCheckout(document.getElementById('root')); return;
+    }
+    if (cartHasFreight()) {
+      _rates = []; _selRate = { id: 'freight', carrier: 'Freight', service: 'Freight', rate: '0.00', delivery_days: null };
+      _coStep = 2; pgCheckout(document.getElementById('root')); return;
+    }
+
     try {
       const totalOz = _cart.reduce((s, i) => s + 16 * i.qty, 0);
       const res  = await fetch(`${FN}/shop-shipping`, {
@@ -1197,6 +1266,7 @@ function renderCoInfo() {
         body: JSON.stringify({
           to_address: { name, street1: addr1, city, state, zip, phone },
           weight_oz: totalOz,
+          has_freight: cartHasFreight(),
         }),
       });
       const data = await res.json();
@@ -1221,18 +1291,22 @@ function renderCoShipping() {
         ${esc(_coInfo.city)}, ${esc(_coInfo.state)} ${esc(_coInfo.zip)}
         <button id="editAddrBtn" style="background:none;border:none;color:var(--teal);font-size:.8rem;font-weight:700;cursor:pointer;margin-left:.375rem;text-decoration:underline;">Edit</button>
       </p>
-      <h3 style="font-weight:800;margin-bottom:.875rem;">Shipping Options</h3>
-      ${_rates.length
-        ? _rates.map((r, i) => `
-          <label class="ship-opt">
-            <input type="radio" name="rate" value="${i}" ${i === 0 ? 'checked' : ''}>
-            <div>
-              <p class="ship-opt-name">${esc(r.service)}</p>
-              <p class="ship-opt-days">${r.delivery_days ? r.delivery_days + ' business day' + (r.delivery_days !== 1 ? 's' : '') : 'Estimated delivery'}</p>
-            </div>
-            <span class="ship-opt-price">$${parseFloat(r.rate).toFixed(2)}</span>
-          </label>`).join('')
-        : '<p style="color:var(--g500)">No rates available.</p>'}
+      <h3 style="font-weight:800;margin-bottom:.875rem;">Shipping</h3>
+      ${_selRate?.id === 'free'
+        ? '<div style="padding:1rem;background:#ecfdf5;border-radius:var(--rad);font-weight:700;color:#065f46;margin-bottom:.5rem;">Free shipping on orders over $99!</div>'
+        : _selRate?.id === 'freight'
+          ? '<div style="padding:1rem;background:#fef3c7;border-radius:var(--rad);color:#92400e;margin-bottom:.5rem;"><strong>Freight shipping required</strong><br>Your order contains oversized items. We\'ll contact you with a freight quote after placing your order.<br><br>Call us: <a href="tel:9495414903" style="color:#92400e;font-weight:700">(949) 541-4903</a></div>'
+          : _rates.length
+            ? _rates.map((r, i) => `
+              <label class="ship-opt">
+                <input type="radio" name="rate" value="${i}" ${i === 0 ? 'checked' : ''}>
+                <div>
+                  <p class="ship-opt-name">${esc(r.service)}</p>
+                  <p class="ship-opt-days">${r.delivery_days ? r.delivery_days + ' business day' + (r.delivery_days !== 1 ? 's' : '') : 'Estimated delivery'}</p>
+                </div>
+                <span class="ship-opt-price">$${parseFloat(r.rate).toFixed(2)}</span>
+              </label>`).join('')
+            : '<p style="color:var(--g500)">No rates available.</p>'}
     </div>
     <button class="btn-primary" id="coBtn2" style="width:100%;padding:.875rem;text-align:center;">
       Continue to Payment
@@ -1292,7 +1366,7 @@ async function renderCoPayment() {
       <h2>Order Summary</h2>
       <div class="order-row"><span>Subtotal</span><span>$${co.subtotal.toFixed(2)}</span></div>
       ${co.discount > 0 ? `<div class="order-row discount"><span>S&S Discount</span><span>−$${co.discount.toFixed(2)}</span></div>` : ''}
-      <div class="order-row"><span>Shipping (${esc(_selRate?.service || '')})</span><span>$${co.shipping.toFixed(2)}</span></div>
+      <div class="order-row"><span>Shipping${_selRate?.id === 'freight' ? '' : ' (' + esc(_selRate?.service || '') + ')'}</span><span>${_selRate?.id === 'freight' ? 'TBD' : (co.shipping === 0 ? 'FREE' : '$' + co.shipping.toFixed(2))}</span></div>
       <div class="order-row total"><span>Total</span><span>$${co.total.toFixed(2)}</span></div>
     </div>
     <div class="co-card">

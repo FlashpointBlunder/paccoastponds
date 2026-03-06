@@ -25,7 +25,13 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { to_address, weight_oz, length_in, width_in, height_in } = body;
+  const { to_address, weight_oz, length_in, width_in, height_in, has_freight } = body;
+
+  // Freight items: skip rate lookup entirely
+  if (has_freight) {
+    return { statusCode: 200, headers, body: JSON.stringify({ freight: true, rates: [] }) };
+  }
+
   if (!to_address || !to_address.zip) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'to_address.zip required' }) };
   }
