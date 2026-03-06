@@ -643,17 +643,23 @@ async function getCategories() {
 }
 
 // ─── BRAND HELPERS ───────────────────────────────────────────────────────────
-let _allBrands = null;
+let _allBrands = null;  // [{name, logo_url}]
 async function getBrands() {
   if (_allBrands) return _allBrands;
-  const { data } = await sb.from('products').select('brand').eq('active', true).eq('shop_visible', true).not('brand', 'is', null);
-  _allBrands = [...new Set((data || []).map(p => p.brand).filter(Boolean))].sort();
+  const { data } = await sb.from('brands').select('name, logo_url').order('name');
+  _allBrands = data || [];
   return _allBrands;
 }
 function brandSlug(name) { return encodeURIComponent(name.toLowerCase().replace(/\s+/g, '-')); }
 function brandFromSlug(slug) {
   if (!_allBrands) return slug;
-  return _allBrands.find(b => brandSlug(b) === slug) || slug;
+  const b = _allBrands.find(b => brandSlug(b.name) === slug);
+  return b ? b.name : slug;
+}
+function brandLogo(name) {
+  if (!_allBrands) return null;
+  const b = _allBrands.find(b => b.name === name);
+  return b?.logo_url || null;
 }
 
 function buildSidebar(cats, activeCatId, activeBrand) {
@@ -677,7 +683,7 @@ function buildSidebar(cats, activeCatId, activeBrand) {
     html += '<p class="sidebar-hd" style="margin-top:1rem;">Brands</p>';
     html += '<a href="/brands" data-nav="/brands" class="sidebar-link' + (activeBrand === '__all' ? ' active' : '') + '">All Brands</a>';
     _allBrands.forEach(b => {
-      html += '<a href="/brands/' + brandSlug(b) + '" data-nav="/brands/' + brandSlug(b) + '" class="sidebar-link' + (activeBrand === b ? ' active' : '') + '">' + esc(b) + '</a>';
+      html += '<a href="/brands/' + brandSlug(b.name) + '" data-nav="/brands/' + brandSlug(b.name) + '" class="sidebar-link' + (activeBrand === b.name ? ' active' : '') + '">' + esc(b.name) + '</a>';
     });
   }
   html += '</aside>';
@@ -937,9 +943,11 @@ async function pgBrands(el) {
 
   const brandsHtml = brands.length
     ? '<div class="cat-grid">' + brands.map(b =>
-        '<div class="cat-card" data-nav="/brands/' + brandSlug(b) + '" style="cursor:pointer">' +
-          '<div class="cat-icon" style="font-size:1.25rem;font-weight:800;color:var(--teal)">' + esc(b.charAt(0)) + '</div>' +
-          '<h3>' + esc(b) + '</h3>' +
+        '<div class="cat-card" data-nav="/brands/' + brandSlug(b.name) + '" style="cursor:pointer">' +
+          (b.logo_url
+            ? '<img src="' + esc(b.logo_url) + '" alt="' + esc(b.name) + '" style="max-height:48px;max-width:100px;object-fit:contain;margin:0 auto .5rem">'
+            : '<div class="cat-icon" style="font-size:1.25rem;font-weight:800;color:var(--teal)">' + esc(b.name.charAt(0)) + '</div>') +
+          '<h3>' + esc(b.name) + '</h3>' +
         '</div>'
       ).join('') + '</div>'
     : '<p style="color:var(--g500)">No brands found.</p>';
@@ -979,6 +987,7 @@ async function pgBrand(el, slug) {
       sidebar +
       '<div class="shop-main">' +
         '<nav class="bc"><a href="/" data-nav="/">Home</a><span>›</span><a href="/brands" data-nav="/brands">Brands</a><span>›</span><span>' + esc(brandName) + '</span></nav>' +
+        (brandLogo(brandName) ? '<img src="' + esc(brandLogo(brandName)) + '" alt="' + esc(brandName) + '" style="max-height:60px;max-width:160px;object-fit:contain;margin-bottom:.75rem;">' : '') +
         '<div class="shop-hd"><h1>' + esc(brandName) + '</h1><span class="shop-hd-count">' + (products?.length || 0) + ' products</span></div>' +
         productsHtml +
       '</div>' +

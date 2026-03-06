@@ -117,6 +117,7 @@
       <div class="sidebar-link" data-page="messages">💬 &nbsp;Messages</div>
       <div class="sidebar-link" data-page="map">🗺 &nbsp;Map</div>
       <div class="sidebar-link" data-page="build">🏗 &nbsp;Build</div>
+      <div class="sidebar-link" data-page="brands">🏷 &nbsp;Brands</div>
       <div class="sidebar-link" data-page="shoporders">🛒 &nbsp;Shop Orders</div>
       <div class="sidebar-link" data-page="salespeople">🤝 &nbsp;Salespeople</div>
       <div class="sidebar-link" data-page="contracts">📄 &nbsp;Contracts</div>
@@ -273,6 +274,7 @@ function loadPage(page) {
     billing:    renderBilling,
     messages:   renderMessages,
     map:        renderMap,
+    brands:     renderBrands,
     shoporders: renderShopOrders,
     salespeople: renderSalespeople,
     contracts:  renderContracts,
@@ -2222,9 +2224,10 @@ async function renderProducts(el) {
                 <label class="text-xs font-semibold text-gray-500 uppercase">URL Slug</label>
                 <input name="slug" placeholder="auto-generated-from-name" class="field mt-1" />
               </div>
-              <div>
+              <div style="position:relative">
                 <label class="text-xs font-semibold text-gray-500 uppercase">Brand</label>
-                <input name="brand" placeholder="e.g. Aquascape" class="field mt-1" />
+                <input name="brand" id="brandInput" placeholder="Type or select brand…" class="field mt-1" autocomplete="off" />
+                <div id="brandDropdown" class="hidden" style="position:absolute;z-index:50;left:0;right:0;top:100%;max-height:200px;overflow-y:auto;background:#fff;border:1px solid #d1d5db;border-top:none;border-radius:0 0 .5rem .5rem;box-shadow:0 4px 12px rgba(0,0,0,.1);"></div>
               </div>
             </div>
             <div>
@@ -2480,7 +2483,8 @@ async function openAddProduct() {
   document.querySelector('[name=image_url]').value  = '';
   document.getElementById('productImagePreview').classList.add('hidden');
   document.getElementById('productSubmitBtn').textContent = 'Save Product';
-  await populateProductCatSelect();
+  await Promise.all([populateProductCatSelect(), loadBrandsList()]);
+  initBrandAutocomplete();
   openModal('productModal');
 }
 
@@ -2489,7 +2493,8 @@ async function openEditProduct(productId) {
   if (!p) return;
   document.getElementById('productModalTitle').textContent = 'Edit Product';
   document.getElementById('productSubmitBtn').textContent = 'Save Changes';
-  await populateProductCatSelect(p.category_id);
+  await Promise.all([populateProductCatSelect(p.category_id), loadBrandsList()]);
+  initBrandAutocomplete();
   const f = document.getElementById('productForm');
   f.querySelector('[name=product_id]').value = p.id;
   f.querySelector('[name=name]').value       = p.name || '';
@@ -2546,6 +2551,52 @@ async function populateProductCatSelect(selectedId = '') {
       if (sub.id === selectedId) sopt.selected = true;
       sel.appendChild(sopt);
     });
+  });
+}
+
+let _brandsList = [];
+async function loadBrandsList() {
+  const { data } = await sb.from('brands').select('id, name').order('name');
+  _brandsList = data || [];
+}
+function initBrandAutocomplete() {
+  const input = document.getElementById('brandInput');
+  const dropdown = document.getElementById('brandDropdown');
+  if (!input || !dropdown) return;
+  function render(filter) {
+    const q = (filter || '').toLowerCase();
+    const matches = q ? _brandsList.filter(b => b.name.toLowerCase().includes(q)) : _brandsList;
+    let html = matches.map(b =>
+      '<div class="px-3 py-2 cursor-pointer hover:bg-green-50 text-sm" data-brand="' + escHtml(b.name) + '">' + escHtml(b.name) + '</div>'
+    ).join('');
+    if (q && !_brandsList.some(b => b.name.toLowerCase() === q)) {
+      html += '<div class="px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm text-blue-600 font-semibold border-t" data-new="1">+ Add "' + escHtml(filter) + '" as new brand</div>';
+    }
+    dropdown.innerHTML = html;
+    dropdown.classList.toggle('hidden', !html);
+  }
+  input.addEventListener('focus', () => render(input.value));
+  input.addEventListener('input', () => render(input.value));
+  dropdown.addEventListener('click', async e => {
+    const opt = e.target.closest('[data-brand]');
+    const newOpt = e.target.closest('[data-new]');
+    if (opt) {
+      input.value = opt.dataset.brand;
+      dropdown.classList.add('hidden');
+    } else if (newOpt) {
+      const name = input.value.trim();
+      if (!name) return;
+      const { data, error } = await sb.from('brands').insert({ name }).select().single();
+      if (error) { toast(error.message, 'error'); return; }
+      _brandsList.push(data);
+      _brandsList.sort((a, b) => a.name.localeCompare(b.name));
+      input.value = name;
+      dropdown.classList.add('hidden');
+      toast('Brand "' + name + '" created');
+    }
+  });
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.add('hidden');
   });
 }
 
@@ -2611,7 +2662,7 @@ function bindProductModalForm() {
       shop_visible:            fd.get('shop_visible') === 'on',
       image_url:               imageUrl,
       slug:                    slug || null,
-      brand:                   fd.get('brand') || null,
+      brand:                   document.getElementById('brandInput').value.trim() || null,
       stock_status:            fd.get('stock_status') || 'in_stock',
       variant_attribute:       fd.get('variant_attribute') || null,
       mpn:                     fd.get('mpn') || null,
@@ -2627,6 +2678,11 @@ function bindProductModalForm() {
       width_in:                fd.get('width_in')  ? parseFloat(fd.get('width_in'))  : null,
       height_in:               fd.get('height_in') ? parseFloat(fd.get('height_in')) : null,
     };
+    // Auto-create brand if new
+    if (payload.brand && !_brandsList.some(b => b.name === payload.brand)) {
+      await sb.from('brands').insert({ name: payload.brand });
+    }
+
     const { error } = productId
       ? await sb.from('products').update(payload).eq('id', productId)
       : await sb.from('products').insert(payload);
@@ -4673,6 +4729,108 @@ async function adminToggleTicket(ticketId, currentStatus) {
   if (error) { toast(error.message, false); return; }
   toast(`Ticket ${newStatus}`);
   openAdminTicket(ticketId);
+}
+
+// ─── BRANDS ──────────────────────────────────────────────────────────────────
+async function renderBrands(el) {
+  el.innerHTML = '<div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold">Brands</h2><button id="addBrandBtn" class="btn-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold text-sm">+ Add Brand</button></div><div id="brandsGrid" class="text-center text-gray-400 py-8">Loading…</div>';
+  document.getElementById('addBrandBtn').addEventListener('click', () => openBrandModal());
+  loadBrandsGrid();
+}
+
+async function loadBrandsGrid() {
+  const { data: brands } = await sb.from('brands').select('*').order('name');
+  const grid = document.getElementById('brandsGrid');
+  if (!brands?.length) { grid.innerHTML = '<p class="text-gray-400">No brands yet. Click + Add Brand to get started.</p>'; return; }
+  grid.innerHTML = '<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">' +
+    brands.map(b => '<div class="bg-white border border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-green-400 transition-colors" onclick="openBrandModal(\'' + escHtml(b.id) + '\')">' +
+      (b.logo_url
+        ? '<img src="' + escHtml(b.logo_url) + '" alt="' + escHtml(b.name) + '" class="mx-auto mb-2" style="max-height:60px;max-width:120px;object-fit:contain;">'
+        : '<div class="w-14 h-14 rounded-full bg-green-100 text-green-700 text-xl font-bold flex items-center justify-center mx-auto mb-2">' + escHtml(b.name.charAt(0)) + '</div>') +
+      '<p class="font-semibold text-sm text-gray-800">' + escHtml(b.name) + '</p>' +
+      '<p class="text-xs text-gray-400 mt-1">Click to edit</p>' +
+    '</div>').join('') +
+  '</div>';
+}
+
+async function openBrandModal(brandId) {
+  let brand = null;
+  if (brandId) {
+    const { data } = await sb.from('brands').select('*').eq('id', brandId).single();
+    brand = data;
+  }
+  const existing = document.getElementById('brandModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'brandModal';
+  modal.className = 'modal-bg';
+  modal.innerHTML = '<div class="modal" style="max-width:420px">' +
+    '<div class="flex items-center justify-between mb-4">' +
+      '<h3 class="text-lg font-bold">' + (brand ? 'Edit Brand' : 'Add Brand') + '</h3>' +
+      '<button onclick="document.getElementById(\'brandModal\').remove()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>' +
+    '</div>' +
+    '<div class="space-y-4">' +
+      '<div><label class="text-xs font-semibold text-gray-500 uppercase">Brand Name *</label>' +
+        '<input id="brandNameInput" class="field mt-1" value="' + escHtml(brand?.name || '') + '" placeholder="e.g. Aquascape"></div>' +
+      '<div><label class="text-xs font-semibold text-gray-500 uppercase">Logo</label>' +
+        '<input type="file" id="brandLogoFile" accept="image/*" class="field mt-1 text-sm">' +
+        (brand?.logo_url ? '<div id="brandLogoPreview" class="mt-2 flex items-center gap-3"><img src="' + escHtml(brand.logo_url) + '" style="max-height:50px;max-width:120px;object-fit:contain;"><button onclick="document.getElementById(\'brandLogoPreview\').remove()" class="text-xs text-red-500 underline">Remove</button></div>' : '') +
+      '</div>' +
+      '<div class="flex gap-2">' +
+        '<button id="saveBrandBtn" class="btn-sm bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold text-sm flex-1">' + (brand ? 'Save Changes' : 'Create Brand') + '</button>' +
+        (brand ? '<button id="deleteBrandBtn" class="btn-sm bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg font-semibold text-sm">Delete</button>' : '') +
+      '</div>' +
+      '<p id="brandModalErr" class="text-red-500 text-sm hidden"></p>' +
+    '</div>' +
+  '</div>';
+  document.body.appendChild(modal);
+
+  document.getElementById('saveBrandBtn').addEventListener('click', async () => {
+    const name = document.getElementById('brandNameInput').value.trim();
+    if (!name) { document.getElementById('brandModalErr').textContent = 'Name is required'; document.getElementById('brandModalErr').classList.remove('hidden'); return; }
+    const btn = document.getElementById('saveBrandBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    let logoUrl = brand?.logo_url || null;
+    const file = document.getElementById('brandLogoFile').files[0];
+    if (file) {
+      const ext = file.name.split('.').pop();
+      const path = crypto.randomUUID() + '.' + ext;
+      const { error: upErr } = await sb.storage.from('brand-logos').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { btn.disabled = false; btn.textContent = brand ? 'Save Changes' : 'Create Brand'; document.getElementById('brandModalErr').textContent = 'Logo upload failed: ' + upErr.message; document.getElementById('brandModalErr').classList.remove('hidden'); return; }
+      const { data: { publicUrl } } = sb.storage.from('brand-logos').getPublicUrl(path);
+      logoUrl = publicUrl;
+    }
+    if (!document.getElementById('brandLogoPreview') && brand?.logo_url && !file) logoUrl = null;
+
+    const payload = { name, logo_url: logoUrl };
+    let error;
+    if (brand) {
+      ({ error } = await sb.from('brands').update(payload).eq('id', brand.id));
+      // Also update product brand names if renamed
+      if (!error && brand.name !== name) {
+        await sb.from('products').update({ brand: name }).eq('brand', brand.name);
+      }
+    } else {
+      ({ error } = await sb.from('brands').insert(payload));
+    }
+    if (error) { btn.disabled = false; btn.textContent = brand ? 'Save Changes' : 'Create Brand'; document.getElementById('brandModalErr').textContent = error.message; document.getElementById('brandModalErr').classList.remove('hidden'); return; }
+
+    document.getElementById('brandModal').remove();
+    toast(brand ? 'Brand updated' : 'Brand created');
+    _brandsList = []; // force refresh
+    loadBrandsGrid();
+  });
+
+  if (brand) {
+    document.getElementById('deleteBrandBtn').addEventListener('click', async () => {
+      if (!confirm('Delete brand "' + brand.name + '"? Products will keep their brand text but the brand entry will be removed.')) return;
+      await sb.from('brands').delete().eq('id', brand.id);
+      document.getElementById('brandModal').remove();
+      toast('Brand deleted');
+      loadBrandsGrid();
+    });
+  }
 }
 
 // ─── SHOP ORDERS ──────────────────────────────────────────────────────────────
