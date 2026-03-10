@@ -11,7 +11,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Custom Koi Pond Design & Construction — Orange County | Pacific Coast Ponds</title>
-  <meta name="description" content="Custom koi pond design and construction in Orange County. Free 3D rendering with every proposal. Fixed-price quotes. Licensed & insured. Projects from $20,000." />
+  <meta name="description" content="Custom koi pond design and construction in Orange County. Free 3D rendering with every proposal. Fixed-price quotes. Licensed & insured." />
   <meta name="robots" content="noindex" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +34,14 @@
     .badge { border: 2px solid var(--brand-green); padding: .6rem 1rem; text-align: center; font-weight: 700; text-transform: uppercase; font-size: .75rem; letter-spacing: .5px; }
     .step-num { width: 2.75rem; height: 2.75rem; border-radius: 50%; background: var(--brand-green); color: #fff; display: flex; align-items: center; justify-content: center; font-family: Oswald, sans-serif; font-size: 1.1rem; font-weight: 700; flex-shrink: 0; }
     .render-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+    .mobile-sticky { display: none; }
+    @media (max-width: 767px) {
+      .mobile-sticky { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 60; background: var(--brand-green); padding: .75rem 1rem; gap: .5rem; box-shadow: 0 -4px 12px rgba(0,0,0,.25); }
+      .mobile-sticky a { flex: 1; text-align: center; font-family: Oswald, sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; font-size: .85rem; padding: .75rem; }
+      .mobile-sticky .ms-form { background: #fff; color: var(--brand-green); }
+      .mobile-sticky .ms-call { border: 2px solid #fff; color: #fff; background: transparent; }
+      body { padding-bottom: 70px; }
+    }
   </style>
 </head>
 <body class="bg-white text-gray-900">
@@ -79,10 +87,10 @@
 
         <div class="mt-8 flex flex-wrap gap-3">
           <div class="flex items-center gap-1.5 bg-white/10 rounded px-3 py-2">
-            <span class="text-xs font-semibold">🏗️ Projects from $20,000</span>
+            <span class="text-xs font-semibold">📍 Serving Orange County & SoCal</span>
           </div>
           <div class="flex items-center gap-1.5 bg-white/10 rounded px-3 py-2">
-            <span class="text-xs font-semibold">📍 Serving Orange County</span>
+            <span class="text-xs font-semibold">🗓️ Free Consultation — No Obligation</span>
           </div>
         </div>
       </div>
@@ -98,35 +106,18 @@
 
           <input required name="full_name" placeholder="Full Name *" class="field" />
           <input required name="phone" id="lpPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Phone Number *" class="field" />
-          <input name="email" type="email" placeholder="Email Address" class="field" />
-          <div class="relative">
-            <input id="lp_street" name="street" placeholder="Street Address" autocomplete="off" class="field" oninput="onLpAddrInput(this.value)" onblur="setTimeout(hideLpAddrDrop,150)" />
-            <div id="lp_addr_drop" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden"></div>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <input id="lp_city" name="city" placeholder="City" class="field" />
-            <input required id="lp_zip" name="zip" placeholder="ZIP Code *" pattern="[0-9]{5}" maxlength="5" inputmode="numeric" class="field" />
-          </div>
+          <input required id="lp_zip" name="zip" placeholder="ZIP Code *" pattern="[0-9]{5}" maxlength="5" inputmode="numeric" class="field" />
           <select name="project_type" class="field bg-white">
-            <option value="">Project Type</option>
+            <option value="">What are you interested in?</option>
             <option>New Koi Pond</option>
             <option>Pond Remodel / Upgrade</option>
             <option>Waterfall or Stream</option>
             <option>Pondless Water Feature</option>
             <option>Not Sure Yet</option>
           </select>
-          <select name="budget" class="field bg-white">
-            <option value="">Approximate Budget</option>
-            <option>$20,000 – $40,000</option>
-            <option>$40,000 – $75,000</option>
-            <option>$75,000 – $150,000</option>
-            <option>$150,000+</option>
-            <option>Not Sure Yet</option>
-          </select>
-          <textarea name="details" rows="2" placeholder="Tell us about your yard — size, style preferences, fish goals..." class="field resize-none"></textarea>
 
           <p id="lpErr" class="text-red-600 text-sm font-semibold hidden"></p>
-          <button class="btn py-4 text-base w-full">Request Free 3D Rendering →</button>
+          <button class="btn py-4 text-base w-full">Get My Free 3D Rendering →</button>
           <p class="text-center text-xs text-gray-400 mt-1">Or call: <a href="tel:9495414903" class="font-semibold text-[var(--brand-green)] hover:underline">(949) 541-4903</a></p>
         </form>
 
@@ -169,6 +160,27 @@
       </div>
       <div class="text-center mt-8">
         <a href="#form-top" class="btn inline-block py-3 px-8">Get Your Free Rendering →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── COMPLETED PROJECTS ──────────────────────────────── -->
+  <section class="py-16 bg-[var(--brand-cream)]">
+    <div class="max-w-5xl mx-auto px-4">
+      <h2 class="text-3xl font-extrabold mb-2 text-center">Completed Projects</h2>
+      <p class="text-center text-gray-500 text-sm mb-8 max-w-xl mx-auto">Real ponds we've designed and built for homeowners across Southern California.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+        <div class="overflow-hidden shadow-lg group">
+          <img src="/assets/project1.jpg" alt="Completed koi pond with waterfall — Orange County" class="render-img group-hover:scale-105 transition-transform duration-500" />
+          <div class="bg-white p-3"><p class="text-sm font-semibold text-gray-800">Aliso Viejo — Natural Koi Pond</p></div>
+        </div>
+        <div class="overflow-hidden shadow-lg group">
+          <img src="/assets/project2.png" alt="Custom koi pond build — Southern California" class="render-img group-hover:scale-105 transition-transform duration-500" />
+          <div class="bg-white p-3"><p class="text-sm font-semibold text-gray-800">Laguna Beach — Modern Koi Pond</p></div>
+        </div>
+      </div>
+      <div class="text-center mt-8">
+        <a href="#form-top" class="btn inline-block py-3 px-8">Start Your Project →</a>
       </div>
     </div>
   </section>
@@ -278,14 +290,15 @@
   <form name="build-lead" data-netlify="true" netlify netlify-honeypot="bot-field" hidden>
     <input type="text" name="full_name" />
     <input type="tel" name="phone" />
-    <input type="email" name="email" />
-    <input type="text" name="street" />
-    <input type="text" name="city" />
     <input type="text" name="zip" />
     <input type="text" name="project_type" />
-    <input type="text" name="budget" />
-    <textarea name="details"></textarea>
   </form>
+
+  <!-- ── STICKY MOBILE CTA ──────────────────────────────── -->
+  <div class="mobile-sticky">
+    <a href="#form-top" class="ms-form">Free 3D Rendering</a>
+    <a href="tel:9495414903" class="ms-call">Call Now</a>
+  </div>
 
   <script>
     // Phone auto-format
@@ -300,73 +313,6 @@
       });
     })();
 
-    // ── Google Places autocomplete (AutocompleteService — no widget) ──
-    const MAPS_KEY = 'AIzaSyB5aX6BD0W83Z6AhjoaGnW2k_cTtIQWWo4';
-    let _mapsReady = false, _acSvc = null, _acToken = null, _acTimer = null, _acPreds = [];
-
-    function loadMaps() {
-      if (_mapsReady) return;
-      _mapsReady = true;
-      window._lpGmReady = function() {
-        _acSvc   = new google.maps.places.AutocompleteService();
-        _acToken = new google.maps.places.AutocompleteSessionToken();
-      };
-      var s = document.createElement('script');
-      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + MAPS_KEY + '&libraries=places&callback=_lpGmReady';
-      s.async = true; s.defer = true;
-      document.head.appendChild(s);
-    }
-
-    function hideLpAddrDrop() {
-      var d = document.getElementById('lp_addr_drop');
-      if (d) d.classList.add('hidden');
-    }
-
-    function selectLpAddress(i) {
-      var pred = _acPreds[i];
-      if (!pred) return;
-      document.getElementById('lp_street').value = pred.structured_formatting?.main_text || pred.description;
-      hideLpAddrDrop();
-      // Use PlacesService to get address components for city/zip
-      var svc = new google.maps.places.PlacesService(document.createElement('div'));
-      svc.getDetails({ placeId: pred.place_id, fields: ['address_components'], sessionToken: _acToken }, function(place) {
-        _acToken = new google.maps.places.AutocompleteSessionToken();
-        if (!place || !place.address_components) return;
-        var city = '', zip = '';
-        place.address_components.forEach(function(c) {
-          if (c.types.includes('locality'))            city = c.long_name;
-          if (c.types.includes('postal_code'))         zip  = c.long_name;
-        });
-        if (city) document.getElementById('lp_city').value = city;
-        if (zip)  document.getElementById('lp_zip').value  = zip;
-      });
-    }
-
-    function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-    function onLpAddrInput(val) {
-      clearTimeout(_acTimer);
-      if (val.length < 3) { hideLpAddrDrop(); return; }
-      if (!_acSvc) { loadMaps(); setTimeout(function(){ onLpAddrInput(val); }, 800); return; }
-      _acTimer = setTimeout(function() {
-        _acSvc.getPlacePredictions({
-          input: val, sessionToken: _acToken,
-          componentRestrictions: { country: 'us' }, types: ['address']
-        }, function(preds, status) {
-          _acPreds = preds || [];
-          var drop = document.getElementById('lp_addr_drop');
-          if (!drop || !_acPreds.length) { hideLpAddrDrop(); return; }
-          drop.innerHTML = _acPreds.map(function(p, i) {
-            return '<div class="px-3 py-2.5 cursor-pointer hover:bg-green-50 border-b border-gray-100 last:border-0" onmousedown="selectLpAddress(' + i + ')">'
-              + '<p class="text-sm font-medium text-gray-800">' + escHtml(p.structured_formatting?.main_text || p.description) + '</p>'
-              + '<p class="text-xs text-gray-400">' + escHtml(p.structured_formatting?.secondary_text || '') + '</p>'
-              + '</div>';
-          }).join('');
-          drop.classList.remove('hidden');
-        });
-      }, 280);
-    }
-
     async function handleLpSubmit(e) {
       e.preventDefault();
       const form = e.target;
@@ -379,7 +325,7 @@
 
       if (!name)               { err.textContent = 'Please enter your name.';                     err.classList.remove('hidden'); return false; }
       if (phone.length !== 10) { err.textContent = 'Please enter a valid 10-digit phone number.'; err.classList.remove('hidden'); return false; }
-      if (!/^\d{5}$/.test(zip)){ err.textContent = 'Please enter a valid 5-digit ZIP code.';      err.classList.remove('hidden'); return false; }
+      if (zip && !/^\d{5}$/.test(zip)){ err.textContent = 'Please enter a valid 5-digit ZIP code.'; err.classList.remove('hidden'); return false; }
 
       // Fire conversion event → GTM fires Google Ads conversion tag
       window.dataLayer = window.dataLayer || [];
