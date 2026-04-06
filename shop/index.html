@@ -165,6 +165,15 @@
       border-radius: 999px;
     }
 
+    /* Koi filter chips */
+    .koi-filter-chip {
+      background: var(--g100); color: var(--g700); border: 1px solid var(--g200);
+      padding: .35rem .75rem; border-radius: 999px; font-size: .75rem; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+    }
+    .koi-filter-chip:hover { border-color: var(--teal); color: var(--teal); }
+    .koi-filter-chip.active { background: var(--teal); color: #fff; border-color: var(--teal); }
+
     /* Free shipping bar */
     .fs-progress { padding: .5rem 0 .25rem; }
     .fs-bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-bottom: .25rem; }
@@ -458,6 +467,7 @@
     <nav class="hdr-nav">
       <div class="hdr-links" style="display:flex;gap:1.5rem;">
         <a href="/collections" data-nav="/collections" class="hdr-link">Shop</a>
+        <a href="/koi"         data-nav="/koi"         class="hdr-link">Koi Fish</a>
         <a href="/brands"      data-nav="/brands"      class="hdr-link">Brands</a>
         <a href="/account"     data-nav="/account"     class="hdr-link" id="acctLink">Account</a>
       </div>
@@ -563,6 +573,8 @@ function route() {
   if (p === '/checkout')              return pgCheckout(root);
   if (p === '/account')               return pgAccount(root);
   if (p === '/order-confirm')         return pgOrderConfirm(root);
+  if (p === '/koi')                   return pgKoiShop(root);
+  if (p.startsWith('/koi/'))          return pgKoiDetail(root, decodeURIComponent(p.replace('/koi/', '').replace(/\/$/, '')));
   root.innerHTML = `<div class="wrap sec"><h1 style="font-size:2rem;font-weight:900">404</h1><p style="color:var(--g500);margin-top:.5rem">Page not found. <a href="/" data-nav="/" style="color:var(--teal)">← Home</a></p></div>`;
 }
 
@@ -1689,6 +1701,238 @@ async function signOut() {
   document.getElementById('acctLink').textContent = 'Account';
   toast('Signed out'); nav('/');
 }
+
+// ─── KOI FISH SHOP ───────────────────────────────────────────────────────────
+
+function koiCard(k) {
+  const isSold = k.status === 'sold';
+  const url = `/koi/${esc(k.slug || k.id)}`;
+  return `
+    <article class="prod-card" data-nav="${url}" style="cursor:pointer">
+      <div class="prod-img" style="background:#0099CC;aspect-ratio:3/4;">
+        ${k.photo_url
+          ? `<img src="${esc(k.photo_url)}" alt="${esc(k.variety)}" loading="lazy" style="object-fit:cover;width:100%;height:100%;">`
+          : `<div class="prod-img-ph" style="color:rgba(255,255,255,.4)">🐟</div>`}
+        ${isSold ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;">
+          <span style="color:#fff;font-weight:900;font-size:1.75rem;text-transform:uppercase;letter-spacing:2px;transform:rotate(-12deg);text-shadow:2px 2px 4px rgba(0,0,0,.3);">SOLD</span>
+        </div>` : ''}
+      </div>
+      <div class="prod-body">
+        <p class="prod-brand">${esc(k.breeder || '')}</p>
+        <p class="prod-name">${esc(k.variety)}</p>
+        <p style="font-size:.75rem;color:var(--g400);margin-top:.125rem;">
+          ${k.size_inches ? esc(k.size_inches + '"') : ''}${k.size_inches && k.sex && k.sex !== 'Unknown' ? ' · ' : ''}${k.sex && k.sex !== 'Unknown' ? esc(k.sex) : ''}${k.age ? ' · ' + esc(k.age) : ''}
+        </p>
+        <div class="prod-foot">
+          <div>
+            ${isSold
+              ? '<p class="prod-price" style="color:var(--g400);text-decoration:line-through;">$' + Number(k.price).toLocaleString() + '</p>'
+              : '<p class="prod-price">$' + Number(k.price).toLocaleString() + '</p>'}
+            ${!isSold && k.original_price ? '<span style="font-size:.75rem;color:var(--g400);text-decoration:line-through;margin-left:.375rem;">$' + Number(k.original_price).toLocaleString() + '</span>' : ''}
+            ${isSold ? '<span class="badge-oos" style="background:#fee2e2;color:#991b1b;">Sold</span>' : ''}
+          </div>
+        </div>
+      </div>
+    </article>`;
+}
+
+async function pgKoiShop(el) {
+  setMeta('Koi Fish for Sale — Pacific Coast Ponds', 'Hand-selected Japanese koi fish. Each fish is one-of-a-kind — when it\'s gone, it\'s gone.');
+  ldBreadcrumb([{ name: 'Home', url: '/' }, { name: 'Koi Fish', url: '/koi' }]);
+
+  const { data: fish } = await sb.from('koi_fish')
+    .select('id, variety, breeder, size_inches, sex, age, price, original_price, status, photo_url, slug, featured')
+    .in('status', ['available', 'sold'])
+    .order('featured', { ascending: false })
+    .order('status')
+    .order('created_at', { ascending: false });
+
+  const { data: varieties } = await sb.from('koi_varieties').select('name, category').order('category').order('name');
+
+  // Group varieties by category for filter sidebar
+  const catGroups = {};
+  (varieties || []).forEach(v => {
+    if (!catGroups[v.category]) catGroups[v.category] = [];
+    catGroups[v.category].push(v.name);
+  });
+
+  const available = (fish || []).filter(f => f.status === 'available');
+  const sold = (fish || []).filter(f => f.status === 'sold');
+
+  el.innerHTML = `
+    <section style="background:#0099CC;padding:3rem 1.25rem;text-align:center;color:#fff;">
+      <div style="max-width:800px;margin:0 auto;">
+        <h1 style="font-size:2.25rem;font-weight:900;margin-bottom:.5rem;font-family:inherit;">Koi Fish for Sale</h1>
+        <p style="font-size:1.0625rem;opacity:.85;line-height:1.6;">Hand-selected Japanese koi. Each fish is one-of-a-kind — when it's gone, it's gone.</p>
+      </div>
+    </section>
+
+    <div class="wrap" style="padding-top:2rem;padding-bottom:3rem;">
+
+      <!-- Variety filter chips -->
+      <div id="koiFilterBar" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+        <button class="koi-filter-chip active" data-variety="all">All Fish</button>
+        ${Object.entries(catGroups).map(([cat, names]) =>
+          names.map(n => `<button class="koi-filter-chip" data-variety="${esc(n)}">${esc(n)}</button>`).join('')
+        ).join('')}
+      </div>
+
+      <!-- Available fish -->
+      ${available.length
+        ? `<div class="shop-hd" style="margin-bottom:1rem;"><h1>Available</h1><span class="shop-hd-count">${available.length} fish</span></div>
+           <div class="prod-grid" id="koiAvailGrid">${available.map(koiCard).join('')}</div>`
+        : '<p style="color:var(--g500);margin-bottom:2rem;">No koi fish currently available. Check back soon!</p>'}
+
+      <!-- Sold fish (shown faded) -->
+      ${sold.length
+        ? `<div class="shop-hd" style="margin-top:2.5rem;margin-bottom:1rem;"><h1>Recently Sold</h1><span class="shop-hd-count">${sold.length} fish</span></div>
+           <div class="prod-grid" style="opacity:.65;" id="koiSoldGrid">${sold.map(koiCard).join('')}</div>`
+        : ''}
+
+      <!-- Koi request CTA -->
+      <div style="margin-top:3rem;text-align:center;padding:2rem;background:var(--g100);border-radius:var(--rad);">
+        <h2 style="font-size:1.25rem;font-weight:800;margin-bottom:.5rem;">Looking for something specific?</h2>
+        <p style="color:var(--g500);margin-bottom:1rem;font-size:.9375rem;">Tell us what variety, size, or breeder you're after and we'll keep an eye out.</p>
+        <a href="https://paccoastponds.com/#contact" class="btn-primary" style="display:inline-block;">Request a Koi</a>
+      </div>
+    </div>`;
+
+  // Filter chips
+  el.querySelectorAll('.koi-filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      el.querySelectorAll('.koi-filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const variety = chip.dataset.variety;
+      el.querySelectorAll('.prod-card').forEach(card => {
+        const name = card.querySelector('.prod-name')?.textContent || '';
+        card.style.display = (variety === 'all' || name === variety) ? '' : 'none';
+      });
+    });
+  });
+}
+
+async function pgKoiDetail(el, slug) {
+  const col = _UUID_RE.test(slug) ? 'id' : 'slug';
+  const { data: k } = await sb.from('koi_fish')
+    .select('*')
+    .eq(col, slug)
+    .in('status', ['available', 'sold'])
+    .maybeSingle();
+
+  if (!k) { el.innerHTML = '<div class="wrap sec"><p>Koi fish not found. <a href="/koi" data-nav="/koi" style="color:var(--teal)">← Back to Koi Shop</a></p></div>'; return; }
+
+  setMeta(`${k.variety} — Koi Fish for Sale | Pacific Coast Ponds`,
+    `${k.variety}${k.size_inches ? ', ' + k.size_inches + ' inches' : ''}${k.breeder ? ' from ' + k.breeder : ''}. One-of-a-kind Japanese koi.`);
+
+  ldBreadcrumb([
+    { name: 'Home', url: '/' },
+    { name: 'Koi Fish', url: '/koi' },
+    { name: k.variety, url: '/koi/' + k.slug },
+  ]);
+
+  const isSold = k.status === 'sold';
+
+  el.innerHTML = `
+    <div class="wrap sec" style="padding-top:1.5rem;">
+      <p style="font-size:.8125rem;color:var(--g400);margin-bottom:1.5rem;">
+        <a href="/" data-nav="/" style="color:var(--g400)">Home</a> ›
+        <a href="/koi" data-nav="/koi" style="color:var(--g400)">Koi Fish</a> ›
+        <span style="color:var(--g700)">${esc(k.variety)}</span>
+      </p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:start;" class="koi-detail-grid">
+
+        <!-- Photo -->
+        <div style="background:#0099CC;border-radius:var(--rad);overflow:hidden;position:relative;aspect-ratio:3/4;">
+          ${k.photo_url
+            ? `<img src="${esc(k.photo_url)}" alt="${esc(k.variety)}" style="width:100%;height:100%;object-fit:cover;">`
+            : '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:rgba(255,255,255,.4);font-size:4rem;">🐟</div>'}
+          ${isSold ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
+            <span style="color:#fff;font-weight:900;font-size:3rem;text-transform:uppercase;letter-spacing:3px;transform:rotate(-12deg);text-shadow:3px 3px 6px rgba(0,0,0,.4);">SOLD</span>
+          </div>` : ''}
+        </div>
+
+        <!-- Details -->
+        <div>
+          <h1 style="font-size:1.75rem;font-weight:900;margin-bottom:.25rem;">${esc(k.variety)}</h1>
+          ${k.breeder ? `<p style="font-size:.9375rem;color:var(--g500);margin-bottom:1rem;">Breeder: <strong>${esc(k.breeder)}</strong></p>` : ''}
+
+          <!-- Price -->
+          <div style="margin-bottom:1.5rem;">
+            ${isSold
+              ? `<p style="font-size:1.5rem;font-weight:800;color:var(--g400);text-decoration:line-through;">$${Number(k.price).toLocaleString()}</p>
+                 <span style="display:inline-block;background:#fee2e2;color:#991b1b;padding:.25rem .75rem;border-radius:var(--rad);font-size:.8125rem;font-weight:700;text-transform:uppercase;margin-top:.5rem;">Sold</span>`
+              : `<div style="display:flex;align-items:baseline;gap:.75rem;">
+                   <span style="font-size:1.5rem;font-weight:800;color:var(--teal);">$${Number(k.price).toLocaleString()}</span>
+                   ${k.original_price ? '<span style="font-size:1rem;color:var(--g400);text-decoration:line-through;">$' + Number(k.original_price).toLocaleString() + '</span>' : ''}
+                 </div>`}
+          </div>
+
+          <!-- Specs table -->
+          <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
+            ${k.size_inches ? `<tr><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-weight:600;font-size:.875rem;width:40%;">Size</td><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-size:.875rem;">${esc(k.size_inches)}"</td></tr>` : ''}
+            ${k.sex ? `<tr><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-weight:600;font-size:.875rem;">Sex</td><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-size:.875rem;">${esc(k.sex)}</td></tr>` : ''}
+            ${k.age ? `<tr><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-weight:600;font-size:.875rem;">Age</td><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-size:.875rem;">${esc(k.age)}</td></tr>` : ''}
+            ${k.body_type ? `<tr><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-weight:600;font-size:.875rem;">Body Type</td><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-size:.875rem;">${esc(k.body_type)}</td></tr>` : ''}
+            ${k.breeder ? `<tr><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-weight:600;font-size:.875rem;">Breeder</td><td style="padding:.6rem 0;border-bottom:1px solid var(--g200);font-size:.875rem;">${esc(k.breeder)}</td></tr>` : ''}
+            <tr><td style="padding:.6rem 0;font-weight:600;font-size:.875rem;">SKU</td><td style="padding:.6rem 0;font-size:.875rem;color:var(--g400);">${esc(k.sku)}</td></tr>
+          </table>
+
+          ${k.description ? `<div style="color:var(--g700);font-size:.9375rem;line-height:1.7;margin-bottom:1.5rem;">${esc(k.description)}</div>` : ''}
+
+          <!-- Buy / Contact -->
+          ${isSold
+            ? `<div style="padding:1rem;background:var(--g100);border-radius:var(--rad);text-align:center;">
+                <p style="font-weight:700;margin-bottom:.5rem;">This fish has been sold</p>
+                <a href="/koi" data-nav="/koi" style="color:var(--teal);font-weight:600;">← Browse available koi</a>
+              </div>`
+            : `<button class="btn-primary js-koi-buy" data-id="${esc(k.id)}" data-variety="${esc(k.variety)}"
+                data-price="${k.price}" data-img="${esc(k.photo_url || '')}" data-sku="${esc(k.sku)}"
+                style="width:100%;padding:.875rem;font-size:1rem;margin-bottom:.75rem;">
+                Add to Cart — $${Number(k.price).toLocaleString()}
+              </button>
+              <p style="text-align:center;font-size:.8125rem;color:var(--g400);">One-of-a-kind • Ships with health guarantee</p>`}
+
+        </div>
+      </div>
+    </div>
+
+    <style>
+      @media (max-width: 768px) {
+        .koi-detail-grid { grid-template-columns: 1fr !important; gap: 1.5rem !important; }
+      }
+    </style>`;
+}
+
+// Koi fish add-to-cart handler
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.js-koi-buy');
+  if (!btn) return;
+  e.stopPropagation();
+  const item = {
+    id: 'koi-' + btn.dataset.id,
+    name: btn.dataset.variety,
+    price: parseFloat(btn.dataset.price),
+    img: btn.dataset.img,
+    qty: 1,
+    isKoi: true,
+    koiId: btn.dataset.id,
+    sku: btn.dataset.sku,
+  };
+  // Koi are one-of-a-kind — don't allow duplicates
+  const cart = JSON.parse(localStorage.getItem('pcp_cart') || '[]');
+  if (cart.find(c => c.id === item.id)) {
+    alert('This fish is already in your cart!');
+    return;
+  }
+  cart.push(item);
+  localStorage.setItem('pcp_cart', JSON.stringify(cart));
+  renderCartBadge();
+  // Quick feedback
+  btn.textContent = '✓ Added to Cart';
+  btn.disabled = true;
+  setTimeout(() => { btn.textContent = 'Add to Cart — $' + Number(btn.dataset.price).toLocaleString(); btn.disabled = false; }, 2000);
+});
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 (async function init() {
