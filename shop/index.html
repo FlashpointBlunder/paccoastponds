@@ -1711,7 +1711,7 @@ function koiCard(k) {
     <article class="prod-card" data-nav="${url}" style="cursor:pointer">
       <div class="prod-img" style="background:#0099CC;aspect-ratio:3/4;">
         ${k.photo_url
-          ? `<img src="${esc(k.photo_url)}" alt="${esc(k.variety)}" loading="lazy" style="object-fit:cover;width:100%;height:100%;">`
+          ? `<img src="${esc(k.photo_url)}" alt="${esc(k.variety)}" loading="lazy" style="object-fit:contain;width:100%;height:100%;">`
           : `<div class="prod-img-ph" style="color:rgba(255,255,255,.4)">🐟</div>`}
         ${isSold ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;">
           <span style="color:#fff;font-weight:900;font-size:1.75rem;text-transform:uppercase;letter-spacing:2px;transform:rotate(-12deg);text-shadow:2px 2px 4px rgba(0,0,0,.3);">SOLD</span>
@@ -1845,7 +1845,7 @@ async function pgKoiDetail(el, slug) {
         <!-- Photo -->
         <div style="background:#0099CC;border-radius:var(--rad);overflow:hidden;position:relative;aspect-ratio:3/4;">
           ${k.photo_url
-            ? `<img src="${esc(k.photo_url)}" alt="${esc(k.variety)}" style="width:100%;height:100%;object-fit:cover;">`
+            ? `<img src="${esc(k.photo_url)}" alt="${esc(k.variety)}" style="width:100%;height:100%;object-fit:contain;">`
             : '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:rgba(255,255,255,.4);font-size:4rem;">🐟</div>'}
           ${isSold ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
             <span style="color:#fff;font-weight:900;font-size:3rem;text-transform:uppercase;letter-spacing:3px;transform:rotate(-12deg);text-shadow:3px 3px 6px rgba(0,0,0,.4);">SOLD</span>
