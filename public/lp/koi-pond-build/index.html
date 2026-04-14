@@ -186,6 +186,27 @@
     </div>
   </section>
 
+  <!-- ── EXAMPLE PONDS ───────────────────────────────────── -->
+  <section class="py-16 bg-white">
+    <div class="max-w-5xl mx-auto px-4">
+      <h2 class="text-3xl font-extrabold mb-2 text-center">Example Ponds</h2>
+      <p class="text-center text-gray-500 text-sm mb-8 max-w-xl mx-auto">A look at the styles we build — from modern water features to naturalistic backyard koi ponds.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+        <div class="overflow-hidden shadow-lg group">
+          <img src="/assets/modern-koi-pond-waterfall.jpg" alt="Modern koi pond with stacked-stone waterfall — Orange County" class="render-img group-hover:scale-105 transition-transform duration-500" />
+          <div class="bg-white p-3"><p class="text-sm font-semibold text-gray-800">Modern Waterfall Koi Pond</p></div>
+        </div>
+        <div class="overflow-hidden shadow-lg group">
+          <img src="/assets/backyard-koi-pond-sunset.jpg" alt="Naturalistic backyard koi pond at sunset — Southern California" class="render-img group-hover:scale-105 transition-transform duration-500" />
+          <div class="bg-white p-3"><p class="text-sm font-semibold text-gray-800">Naturalistic Backyard Koi Pond</p></div>
+        </div>
+      </div>
+      <div class="text-center mt-8">
+        <a href="#form-top" class="btn inline-block py-3 px-8">Get Your Free Estimate →</a>
+      </div>
+    </div>
+  </section>
+
   <!-- ── WHAT SETS US APART ────────────────────────────────── -->
   <section class="py-16 bg-[var(--brand-dark)] text-white">
     <div class="max-w-5xl mx-auto px-4">
@@ -318,6 +339,7 @@
       e.preventDefault();
       const form = e.target;
       const err  = document.getElementById('lpErr');
+      const btn  = form.querySelector('button[type="submit"], button:not([type])');
       err.classList.add('hidden');
 
       const name  = (form.full_name.value || '').trim();
@@ -328,9 +350,21 @@
       if (phone.length !== 10) { err.textContent = 'Please enter a valid 10-digit phone number.'; err.classList.remove('hidden'); return false; }
       if (zip && !/^\d{5}$/.test(zip)){ err.textContent = 'Please enter a valid 5-digit ZIP code.'; err.classList.remove('hidden'); return false; }
 
-      // Fire conversion event → GTM fires Google Ads conversion tag
+      if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'not-allowed'; }
+
+      // dataLayer event (available for GTM / GA4)
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({ event: 'generate_lead', form_name: 'build-lp' });
+
+      // Google Ads conversion — fires once per successful submit
+      if (!window.__lpConversionFired && typeof gtag === 'function') {
+        window.__lpConversionFired = true;
+        gtag('event', 'conversion', {
+          'send_to':  'AW-17993828944/LpxVCNaMo5wcENCUkIRD',
+          'value':    2500.0,
+          'currency': 'USD'
+        });
+      }
 
       try {
         await fetch('/', { method: 'POST', body: new FormData(form) });
