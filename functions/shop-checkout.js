@@ -16,7 +16,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { items, shipping_address, shipping_rate, customer_email, customer_name, auth_token } = body;
+  const { items, shipping_address, shipping_rate, customer_email, customer_name, auth_token, points_to_redeem } = body;
   if (!items?.length || !shipping_address || !customer_email || !customer_name) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing required fields' }) };
   }
@@ -25,14 +25,18 @@ exports.handler = async (event) => {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 
-  // Check if user is a subscriber (for Subscribe & Save discount)
+  // Check if user is a subscriber (for Subscribe & Save discount) and fetch rewards
   let isSubscriber = false;
   let customerId = null;
+  let availablePoints = 0;
   if (auth_token) {
     const { data: { user } } = await sb.auth.getUser(auth_token);
     if (user) {
       customerId = user.id;
-      const { data: sub } = await sb.from('shop_subscribers').select('id').eq('user_id', user.id).single();
+      const { data: profile } = await sb.from('profiles').select('rewards_balance').eq('id', user.id).single();
+      availablePoints = profile?.rewards_balance || 0;
+
+      const { data: sub } = await sb.from('shop_subscribers').select('id').eq('user_id', user.id).maybeSingle();
       isSubscriber = !!sub;
     }
   }
@@ -112,7 +116,17 @@ exports.handler = async (event) => {
   });
   const freeShip = !hasFreight && subtotal >= 99;
   const shippingCost = (hasFreight || freeShip) ? 0 : parseFloat(shipping_rate?.rate || 0);
-  const total = +(subtotal - discountAmount + shippingCost).toFixed(2);
+
+  // REDEMPTION LOGIC: $0.01 per point
+  let rewardsDiscount = 0;
+  if (points_to_redeem && customerId) {
+    const points = Math.min(parseInt(points_to_redeem), availablePoints);
+    if (points > 0) {
+      rewardsDiscount = +(points * 0.01).toFixed(2);
+    }
+  }
+
+  const total = +(subtotal - discountAmount - rewardsDiscount + shippingCost).toFixed(2);
   const totalCents = Math.round(total * 100);
 
   // Generate order number
@@ -129,7 +143,7 @@ exports.handler = async (event) => {
     shipping_address: shipping_address,
     subtotal:        +subtotal.toFixed(2),
     shipping_cost:   shippingCost,
-    discount_amount: +discountAmount.toFixed(2),
+    discount_amount: +(discountAmount + rewardsDiscount).toFixed(2),
     total,
     status:          'pending',
   }).select().single();
@@ -155,8 +169,21 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers, body: JSON.stringify({ error: pi.error.message }) };
   }
 
-  // Save PaymentIntent ID on order
+  // Save PaymentIntent ID on order and handle points deduction
   await sb.from('shop_orders').update({ stripe_payment_intent_id: pi.id }).eq('id', order.id);
+
+  if (rewardsDiscount > 0) {
+    const pointsRedeemed = Math.round(rewardsDiscount * 100);
+    await sb.from('rewards_ledger').insert({
+      profile_id: customerId,
+      order_id: order.id,
+      points: -pointsRedeemed,
+      type: 'redeem',
+      description: `Points redeemed on order ${orderNumber}`,
+    });
+    const newBalance = availablePoints - pointsRedeemed;
+    await sb.from('profiles').update({ rewards_balance: newBalance }).eq('id', customerId);
+  }
 
   return {
     statusCode: 200, headers,

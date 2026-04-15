@@ -33,7 +33,7 @@ exports.handler = async (event) => {
 
   // Fetch the order
   const { data: order } = await sb.from('shop_orders')
-    .select('id, order_number, customer_name, customer_email, shipping_address, status')
+    .select('id, order_number, customer_name, customer_email, shipping_address, status, customer_id')
     .eq('stripe_payment_intent_id', payment_intent_id)
     .maybeSingle();
 
@@ -41,15 +41,39 @@ exports.handler = async (event) => {
     return { statusCode: 404, headers, body: JSON.stringify({ error: 'Order not found' }) };
   }
 
+  // Fetch line items first to calculate rewards
+  const { data: items } = await sb.from('shop_order_items')
+    .select('id, product_name, product_sku, quantity, unit_price, variant_name, koi_id, products(drop_ship, vendor_name, vendor_email)')
+    .eq('order_id', order.id);
+
   // Mark paid (idempotent — safe to call multiple times)
   if (order.status !== 'paid') {
     await sb.from('shop_orders').update({ status: 'paid' }).eq('id', order.id);
-  }
 
-  // Fetch line items with product vendor info
-  const { data: items } = await sb.from('shop_order_items')
-    .select('id, product_name, product_sku, quantity, unit_price, variant_name, products(drop_ship, vendor_name, vendor_email)')
-    .eq('order_id', order.id);
+    // AWARD REWARDS (only if marking paid for the first time)
+    if (order.customer_id) {
+      let earnedPoints = 0;
+      (items || []).forEach(i => {
+        const pointsPerDollar = i.koi_id ? 2 : 1; // DOUBLE POINTS FOR KOI
+        earnedPoints += Math.floor(parseFloat(i.unit_price) * i.quantity * pointsPerDollar);
+      });
+
+      if (earnedPoints > 0) {
+        await sb.from('rewards_ledger').insert({
+          profile_id: order.customer_id,
+          order_id: order.id,
+          points: earnedPoints,
+          type: 'earn',
+          description: `Points earned from order ${order.order_number}`,
+        });
+
+        // Increment profile balance
+        const { data: profile } = await sb.from('profiles').select('rewards_balance').eq('id', order.customer_id).single();
+        const newBalance = (profile?.rewards_balance || 0) + earnedPoints;
+        await sb.from('profiles').update({ rewards_balance: newBalance }).eq('id', order.customer_id);
+      }
+    }
+  }
 
   // Group drop-ship items by vendor email
   const vendorGroups = {};
