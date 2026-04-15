@@ -526,7 +526,15 @@ function renderCartBadge() {
   const n = _cart.reduce((s, i) => s + i.qty, 0);
   document.getElementById('cartBadge').textContent = n;
 }
-function cartSubtotal() { return _cart.reduce((s, i) => s + i.price * i.qty, 0); }
+function cartSubtotal() {
+  return _cart.reduce((s, i) => {
+    let total = i.price * i.qty;
+    if (i.isKoi && i.has_koi_insurance) {
+      total += (i.price * 0.25) * i.qty;
+    }
+    return s + total;
+  }, 0);
+}
 function cartDiscount() { return _cart.reduce((s, i) => s + (i.ss ? (i.origPrice - i.price) * i.qty : 0), 0); }
 function cartHasFreight() { return _cart.some(i => i.is_freight); }
 function freeShipEligible() { return !cartHasFreight() && cartSubtotal() >= 99; }
@@ -1227,19 +1235,29 @@ function pgCart(el) {
       <div class="cart-layout">
         <div id="cartItems">
           ${_cart.map((item, i) => `
-            <div class="cart-item">
-              <div class="cart-item-img">
-                ${item.image_url
-                  ? `<img src="${esc(item.image_url)}" alt="${esc(item.name)}">`
-                  : `<div class="cart-item-ph">📦</div>`}
+            <div class="cart-item" style="flex-wrap: wrap;">
+              <div style="display: flex; width: 100%; align-items: center; gap: 1rem;">
+                <div class="cart-item-img">
+                  ${item.image_url || item.img
+                    ? `<img src="${esc(item.image_url || item.img)}" alt="${esc(item.name)}">`
+                    : `<div class="cart-item-ph">📦</div>`}
+                </div>
+                <div class="cart-item-info">
+                  <p class="cart-item-name">${esc(item.name)}</p>
+                  ${item.variant_name ? `<span class="cart-item-var">${esc(item.variant_name)}</span>` : ''}
+                  <p class="cart-item-sub">$${item.price.toFixed(2)} × ${item.qty}${item.ss ? ' <span class="badge-ss">S&S</span>' : ''}</p>
+                  <button class="cart-item-rm js-rm" data-idx="${i}">Remove</button>
+                </div>
+                <p class="cart-item-total">$${(item.price * item.qty + (item.has_koi_insurance ? (item.price * 0.25 * item.qty) : 0)).toFixed(2)}</p>
               </div>
-              <div class="cart-item-info">
-                <p class="cart-item-name">${esc(item.name)}</p>
-                ${item.variant_name ? `<span class="cart-item-var">${esc(item.variant_name)}</span>` : ''}
-                <p class="cart-item-sub">$${item.price.toFixed(2)} × ${item.qty}${item.ss ? ' <span class="badge-ss">S&S</span>' : ''}</p>
-                <button class="cart-item-rm js-rm" data-idx="${i}">Remove</button>
-              </div>
-              <p class="cart-item-total">$${(item.price * item.qty).toFixed(2)}</p>
+              ${item.isKoi ? `
+                <div style="width: 100%; margin-top: 0.75rem; padding: 0.75rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--rad); display: flex; align-items: center; gap: 0.75rem;">
+                  <input type="checkbox" id="ins-${i}" class="js-koi-ins" data-idx="${i}" ${item.has_koi_insurance ? 'checked' : ''} style="width: 1.1rem; height: 1.1rem; cursor: pointer;">
+                  <label for="ins-${i}" style="font-size: 0.875rem; cursor: pointer; color: #0369a1; font-weight: 600;">
+                    Add 2-Year Health Guarantee (+25%: $${(item.price * 0.25).toFixed(2)})
+                  </label>
+                </div>
+              ` : ''}
             </div>`).join('')}
         </div>
         <div>
@@ -1269,10 +1287,19 @@ function pgCart(el) {
   });
   document.getElementById('cartItems').addEventListener('click', e => {
     const btn = e.target.closest('.js-rm');
-    if (!btn) return;
-    _cart.splice(parseInt(btn.dataset.idx), 1);
-    saveCart();
-    pgCart(el);
+    if (btn) {
+      _cart.splice(parseInt(btn.dataset.idx), 1);
+      saveCart();
+      pgCart(el);
+      return;
+    }
+    const ins = e.target.closest('.js-koi-ins');
+    if (ins) {
+      const idx = parseInt(ins.dataset.idx);
+      _cart[idx].has_koi_insurance = ins.checked;
+      saveCart();
+      pgCart(el);
+    }
   });
 }
 
@@ -1449,6 +1476,8 @@ async function renderCoPayment() {
         product_id: i.product_id, product_name: i.name,
         quantity: i.qty, unit_price: i.price,
         variant_id: i.variant_id || null, variant_name: i.variant_name || null,
+        koi_id: i.koiId || null,
+        has_koi_insurance: i.has_koi_insurance || false,
       })),
       shipping_address: {
         name: _coInfo.name, address1: _coInfo.address1, address2: _coInfo.address2,

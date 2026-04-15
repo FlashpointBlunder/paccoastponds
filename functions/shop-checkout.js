@@ -53,28 +53,55 @@ exports.handler = async (event) => {
     variantMap = Object.fromEntries((variants || []).map(v => [v.id, v]));
   }
 
+  // Fetch koi data for price verification
+  const koiIds = items.map(i => i.koi_id).filter(Boolean);
+  let koiMap = {};
+  if (koiIds.length) {
+    const { data: koi } = await sb.from('koi_fish')
+      .select('id, variety, sku, price').in('id', koiIds);
+    koiMap = Object.fromEntries((koi || []).map(k => [k.id, k]));
+  }
+
   // Calculate totals
   let subtotal = 0;
   let discountAmount = 0;
   const lineItems = items.map(item => {
     const product   = productMap[item.product_id];
     const variant   = item.variant_id ? variantMap[item.variant_id] : null;
-    const unitPrice = variant ? parseFloat(variant.price)
-                    : product ? parseFloat(product.price)
-                    : parseFloat(item.unit_price);
+    const koi       = item.koi_id ? koiMap[item.koi_id] : null;
+
+    let unitPrice = 0;
+    if (koi) {
+      unitPrice = parseFloat(koi.price);
+    } else {
+      unitPrice = variant ? parseFloat(variant.price)
+                : product ? parseFloat(product.price)
+                : parseFloat(item.unit_price);
+    }
+
     const eligible  = isSubscriber && product?.subscribe_save_eligible;
     const finalPrice = eligible ? +(unitPrice * 0.95).toFixed(2) : unitPrice;
-    subtotal        += unitPrice * item.quantity;
+
+    let insurancePrice = 0;
+    if (koi && item.has_koi_insurance) {
+      insurancePrice = +(unitPrice * 0.25).toFixed(2);
+    }
+
+    subtotal        += (unitPrice + insurancePrice) * item.quantity;
     if (eligible) discountAmount += (unitPrice - finalPrice) * item.quantity;
+
     return {
-      product_id:             item.product_id,
-      product_name:           product?.name || item.product_name,
-      product_sku:            variant?.sku || product?.sku || item.sku || null,
+      product_id:             item.product_id || null,
+      product_name:           koi?.variety || product?.name || item.product_name,
+      product_sku:            koi?.sku || variant?.sku || product?.sku || item.sku || null,
       quantity:               item.quantity,
       unit_price:             finalPrice,
       subscribe_save_applied: eligible,
       variant_id:             item.variant_id   || null,
       variant_name:           item.variant_name || null,
+      koi_id:                 item.koi_id       || null,
+      has_koi_insurance:      !!item.has_koi_insurance,
+      koi_insurance_price:    insurancePrice,
     };
   });
 
