@@ -5302,16 +5302,37 @@ async function openKoiModal(koiId) {
         </div>
       </div>
 
-      <!-- Pricing -->
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-xs font-semibold text-gray-500 uppercase">Price ($) *</label>
-          <input id="koiPrice" type="number" step="1" class="field mt-1" value="${koi?.price || ''}" placeholder="995">
+      <!-- Pricing Engine -->
+      <div class="bg-gray-50 border rounded-xl p-4 space-y-3">
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Pricing Engine</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Base Cost ($)</label>
+            <input id="koiBaseCost" type="number" step="0.01" class="field mt-1 bg-white" value="${koi?.base_cost || ''}" placeholder="400.00" oninput="runPricingEngine()">
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Quality Tier</label>
+            <select id="koiTier" class="field mt-1 bg-white" onchange="runPricingEngine()">
+              <option value="">No Tier</option>
+              <option value="A" ${koi?.quality_tier==='A'?'selected':''}>Tier A (5.5x)</option>
+              <option value="B" ${koi?.quality_tier==='B'?'selected':''}>Tier B (5.0x)</option>
+              <option value="C" ${koi?.quality_tier==='C'?'selected':''}>Tier C (4.5x)</option>
+              <option value="S" ${koi?.quality_tier==='S'?'selected':''}>S-Tier Trophy (2.5x)</option>
+              <option value="Wholesale" ${koi?.quality_tier==='Wholesale'?'selected':''}>Wholesale (2.75x)</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label class="text-xs font-semibold text-gray-500 uppercase">Original Price ($)</label>
-          <input id="koiOrigPrice" type="number" step="1" class="field mt-1" value="${koi?.original_price || ''}" placeholder="1500">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Retail Price ($) *</label>
+            <input id="koiPrice" type="number" step="1" class="field mt-1 font-bold text-green-700 bg-white" value="${koi?.price || ''}" placeholder="995">
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 uppercase">Original Price ($)</label>
+            <input id="koiOrigPrice" type="number" step="1" class="field mt-1 bg-white" value="${koi?.original_price || ''}" placeholder="1500">
+          </div>
         </div>
+        <p class="text-[10px] text-gray-400">Multipliers are presets; Price can be manually overridden.</p>
       </div>
 
       <!-- Status / Featured -->
@@ -5423,6 +5444,8 @@ async function openKoiModal(koiId) {
       description: document.getElementById('koiDescription').value.trim() || null,
       photo_url: photoUrl,
       photo_raw_url: rawUrl,
+      base_cost: document.getElementById('koiBaseCost').value ? parseFloat(document.getElementById('koiBaseCost').value) : null,
+      quality_tier: document.getElementById('koiTier').value || null,
     };
 
     let error;
@@ -5449,6 +5472,16 @@ async function openKoiModal(koiId) {
       loadKoiGrid();
     });
   }
+}
+
+function runPricingEngine() {
+  const cost = parseFloat(document.getElementById('koiBaseCost').value);
+  const tier = document.getElementById('koiTier').value;
+  const priceInput = document.getElementById('koiPrice');
+  if (!cost || !tier) return;
+  const multipliers = { A: 5.5, B: 5.0, C: 4.5, S: 2.5, Wholesale: 2.75 };
+  const mult = multipliers[tier] || 1;
+  priceInput.value = Math.round(cost * mult);
 }
 
 function koiErr(msg) {

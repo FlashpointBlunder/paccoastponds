@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laguna Koi Kiosk Experience</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #0F1C12; color: white; overflow: hidden; }
+    h1, h2, h3 { font-family: 'Oswald', sans-serif; text-transform: uppercase; }
+    .kiosk-gradient { background: linear-gradient(180deg, rgba(15,28,18,0) 0%, rgba(15,28,18,0.9) 70%, #0F1C12 100%); }
+    .tier-badge { @apply px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase; }
+    .tier-S { background: #FCD34D; color: #78350F; }
+    .tier-A { background: #EF4444; color: white; }
+    .tier-B { background: #3B82F6; color: white; }
+    .tier-C { background: #10B981; color: white; }
+    .scroll-hide::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="p-8 flex justify-between items-center z-50">
+    <div class="flex items-center gap-6">
+      <img src="https://paccoastponds.com/assets/logo-tan.png" alt="Laguna Koi" class="h-24">
+      <div>
+        <h1 class="text-4xl font-bold tracking-tighter">Laguna Koi</h1>
+        <p class="text-[var(--blue)] font-semibold text-sm tracking-widest opacity-70 uppercase">Retail Kiosk Mode</p>
+      </div>
+    </div>
+    <div class="flex gap-4">
+      <button onclick="toggleFilters()" class="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-full font-bold text-sm transition flex items-center gap-2">
+        <span class="text-lg">🔍</span> Filter Inventory
+      </button>
+      <div class="px-6 py-3 bg-[var(--blue)] rounded-full font-black text-sm">
+        STORE: ALISO VIEJO
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Display (Carousel) -->
+  <main class="flex-1 relative">
+    <div id="koiCarousel" class="h-full w-full flex transition-transform duration-1000 ease-in-out">
+      <!-- Koi slides will be injected here -->
+    </div>
+
+    <!-- Slide Indicators -->
+    <div id="indicators" class="absolute bottom-40 left-1/2 -translate-x-1/2 flex gap-3 z-50"></div>
+
+    <!-- Navigation -->
+    <button onclick="prevSlide()" class="absolute left-8 top-1/2 -translate-y-1/2 w-16 h-16 bg-white/5 hover:bg-white/20 rounded-full flex items-center justify-center text-4xl z-50 transition">‹</button>
+    <button onclick="nextSlide()" class="absolute right-8 top-1/2 -translate-y-1/2 w-16 h-16 bg-white/5 hover:bg-white/20 rounded-full flex items-center justify-center text-4xl z-50 transition">›</button>
+  </main>
+
+  <!-- Filter Sidebar -->
+  <div id="filterSidebar" class="fixed inset-y-0 right-0 w-96 bg-[#0F1C12]/95 backdrop-blur-xl border-l border-white/10 p-8 translate-x-full transition-transform duration-500 z-[100] shadow-2xl">
+    <div class="flex justify-between items-center mb-10">
+      <h2 class="text-3xl font-bold">Filters</h2>
+      <button onclick="toggleFilters()" class="text-4xl opacity-50 hover:opacity-100">×</button>
+    </div>
+
+    <div class="space-y-8 scroll-hide overflow-y-auto" style="max-height: calc(100vh - 180px);">
+      <div>
+        <label class="text-xs font-bold text-white/40 uppercase tracking-widest block mb-3">Variety</label>
+        <div id="varietyFilters" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-white/40 uppercase tracking-widest block mb-3">Quality Tier</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="tier-btn p-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/10 transition" data-tier="S">S-Tier Trophy</button>
+          <button class="tier-btn p-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/10 transition" data-tier="A">Tier A</button>
+          <button class="tier-btn p-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/10 transition" data-tier="B">Tier B</button>
+          <button class="tier-btn p-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/10 transition" data-tier="C">Tier C</button>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-white/40 uppercase tracking-widest block mb-3">Location</label>
+        <div class="space-y-2">
+          <label class="flex items-center gap-3 p-4 bg-white/5 rounded-2xl cursor-pointer">
+            <input type="checkbox" class="w-5 h-5 rounded accent-blue-500" checked>
+            <span class="font-semibold">In-Store (Aliso Viejo)</span>
+          </label>
+          <label class="flex items-center gap-3 p-4 bg-white/5 rounded-2xl cursor-pointer">
+            <input type="checkbox" class="w-5 h-5 rounded accent-blue-500" checked>
+            <span class="font-semibold">Warehouse / Virtual</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <button onclick="applyFilters()" class="absolute bottom-8 left-8 right-8 py-5 bg-blue-600 rounded-2xl font-black text-lg shadow-lg hover:bg-blue-500 transition">Apply Filters</button>
+  </div>
+
+  <script>
+    const SUPABASE_URL  = 'https://wxrifqyqhgkllslprtai.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4cmlmcXlxaGdrbGxzbHBydGFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNzUxMzMsImV4cCI6MjA4NzY1MTEzM30.Rnfg9eIQkvnyHMMyYn1GS1LYuZFJ32mxR1qWieS4RkA';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    let _koi = [];
+    let _currentIndex = 0;
+    let _autoplay;
+
+    async function init() {
+      const { data } = await sb.from('koi_fish')
+        .select('*')
+        .eq('status', 'available')
+        .order('featured', { ascending: false });
+
+      _koi = data || [];
+      renderCarousel();
+      startAutoplay();
+
+      // Populate variety filters
+      const varieties = [...new Set(_koi.map(k => k.variety))].sort();
+      document.getElementById('varietyFilters').innerHTML = varieties.map(v =>
+        `<button class="px-4 py-2 bg-white/5 rounded-full text-xs font-semibold hover:bg-white/20 transition">${v}</button>`
+      ).join('');
+    }
+
+    function renderCarousel() {
+      const container = document.getElementById('koiCarousel');
+      const indicators = document.getElementById('indicators');
+
+      container.innerHTML = _koi.map((k, i) => `
+        <div class="w-screen h-full flex-shrink-0 flex items-center justify-center relative p-20">
+          <div class="absolute inset-0 bg-[#0099CC]">
+            ${k.photo_url ? `<img src="${k.photo_url}" class="w-full h-full object-contain mix-blend-screen" />` : ''}
+            <div class="absolute inset-0 kiosk-gradient"></div>
+          </div>
+
+          <div class="relative z-10 w-full max-w-6xl flex flex-col justify-end h-full pb-10">
+            <div class="flex items-center gap-4 mb-6">
+              ${k.quality_tier ? `<span class="tier-badge tier-${k.quality_tier}">Tier ${k.quality_tier}</span>` : ''}
+              <span class="text-white/40 font-bold tracking-widest text-xs uppercase">${k.location || 'Virtual Inventory'}</span>
+            </div>
+
+            <div class="flex justify-between items-end">
+              <div>
+                <h2 class="text-8xl font-black tracking-tighter mb-2">${k.variety}</h2>
+                <div class="flex gap-8 text-xl font-semibold text-white/60 uppercase tracking-widest">
+                  <span>${k.breeder || 'Unknown Breeder'}</span>
+                  <span>${k.size_inches || '—'}" Length</span>
+                  <span>${k.age || '—'}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-white/40 font-bold uppercase tracking-widest text-sm mb-1">List Price</p>
+                <p class="text-7xl font-black text-blue-400">$${Number(k.price).toLocaleString()}</p>
+                <div class="mt-6 flex gap-4 justify-end">
+                  <div class="px-6 py-3 bg-white/10 rounded-xl font-bold">SKU: ${k.sku}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      indicators.innerHTML = _koi.map((_, i) => `
+        <div class="w-3 h-3 rounded-full border-2 border-white/20 ${i===0?'bg-white border-white':''}" onclick="goToSlide(${i})"></div>
+      `).join('');
+    }
+
+    function nextSlide() {
+      _currentIndex = (_currentIndex + 1) % _koi.length;
+      updateSlide();
+    }
+
+    function prevSlide() {
+      _currentIndex = (_currentIndex - 1 + _koi.length) % _koi.length;
+      updateSlide();
+    }
+
+    function goToSlide(i) {
+      _currentIndex = i;
+      updateSlide();
+    }
+
+    function updateSlide() {
+      const container = document.getElementById('koiCarousel');
+      container.style.transform = `translateX(-${_currentIndex * 100}vw)`;
+
+      const dots = document.querySelectorAll('#indicators div');
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('bg-white', i === _currentIndex);
+        dot.classList.toggle('border-white', i === _currentIndex);
+      });
+
+      resetAutoplay();
+    }
+
+    function startAutoplay() {
+      _autoplay = setInterval(nextSlide, 8000);
+    }
+
+    function resetAutoplay() {
+      clearInterval(_autoplay);
+      startAutoplay();
+    }
+
+    function toggleFilters() {
+      const sidebar = document.getElementById('filterSidebar');
+      sidebar.classList.toggle('translate-x-full');
+    }
+
+    function applyFilters() {
+      toggleFilters();
+      // Implementation for real-time filtering...
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    init();
+  </script>
+</body>
+</html>

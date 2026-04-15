@@ -505,6 +505,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let _user         = null;
+let _profile      = null;
 let _isSub        = false;
 let _cart         = JSON.parse(localStorage.getItem('pcp_cart') || '[]');
 let _allCats      = null;
@@ -1487,6 +1488,7 @@ async function renderCoPayment() {
       customer_email: _coInfo.email,
       customer_name:  _coInfo.name,
       auth_token:     authToken,
+      points_to_redeem: _coOrder?.points_to_redeem || 0,
     }),
   });
   const co = await res.json();
@@ -1508,6 +1510,21 @@ async function renderCoPayment() {
     <div class="co-card">
       <h2>Payment</h2>
       <div id="stripe-element"></div>
+
+      ${_profile?.rewards_balance > 0 ? `
+        <div class="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-bold text-blue-800">Redeem Koi Rewards</span>
+            <span class="text-xs font-semibold text-blue-400">${_profile.rewards_balance.toLocaleString()} points available</span>
+          </div>
+          <div class="flex gap-2">
+            <input type="number" id="redeemPoints" class="fld flex-1" placeholder="Points to use" max="${_profile.rewards_balance}">
+            <button onclick="applyRewards()" class="btn-outline text-xs py-2 px-4 whitespace-nowrap">Apply</button>
+          </div>
+          <p class="text-[10px] text-blue-400 mt-2">100 points = $1.00 discount</p>
+        </div>
+      ` : ''}
+
       <p id="stripe-err" style="color:var(--red);font-size:.875rem;margin-top:.5rem;display:none;"></p>
       <button class="btn-primary" id="payBtn" style="width:100%;padding:.875rem;margin-top:1.25rem;text-align:center;">
         Pay $${co.total.toFixed(2)}
@@ -1521,6 +1538,16 @@ async function renderCoPayment() {
   });
   const payEl = _stripeEls.create('payment');
   payEl.mount('#stripe-element');
+
+  window.applyRewards = () => {
+    const points = parseInt(document.getElementById('redeemPoints').value || 0);
+    if (points > (_profile?.rewards_balance || 0)) {
+      toast('Not enough points', false);
+      return;
+    }
+    _coOrder.points_to_redeem = points;
+    renderCoPayment(); // Re-render to show updated totals
+  };
 
   document.getElementById('payBtn').addEventListener('click', async () => {
     const btn  = document.getElementById('payBtn');
@@ -1659,6 +1686,9 @@ async function doRegister() {
 
 async function renderAcctDash(el) {
   el.innerHTML = '<div class="ld"><div class="spin"></div><p>Loading…</p></div>';
+  const { data: profile } = await sb.from('profiles').select('rewards_balance').eq('id', _user.id).single();
+  _profile = profile;
+
   const { data: orders } = await sb.from('shop_orders')
     .select('id, order_number, total, status, created_at')
     .eq('customer_id', _user.id).order('created_at', { ascending: false });
@@ -1668,15 +1698,28 @@ async function renderAcctDash(el) {
       <h1 style="font-size:1.5rem;font-weight:900;margin-bottom:.375rem;">My Account</h1>
       <p style="color:var(--g500);font-size:.875rem;margin-bottom:2rem;">${esc(_user.email)}</p>
 
-      <div class="co-card" style="margin-bottom:1.5rem;">
-        <h2 style="margin-bottom:.5rem;">Subscribe &amp; Save</h2>
-        <p style="font-size:.875rem;color:var(--g500);margin-bottom:1rem;">
-          Save 5% on eligible products automatically. Free to join, cancel any time.
-        </p>
-        ${_isSub
-          ? `<div class="ss-banner" style="margin-bottom:.75rem;">✓ Active — 5% off eligible items at checkout</div>
-             <button id="cancelSubBtn" style="background:none;border:none;color:var(--g500);font-size:.875rem;text-decoration:underline;cursor:pointer;">Cancel subscription</button>`
-          : `<button class="btn-primary" id="joinSubBtn">Join Subscribe &amp; Save — it's free</button>`}
+      <div class="grid md:grid-cols-2 gap-4 mb-6">
+        <div class="co-card" style="margin-bottom:0;">
+          <h2 style="margin-bottom:.5rem;">Koi Rewards</h2>
+          <p style="font-size:.875rem;color:var(--g500);margin-bottom:1rem;">
+            Earn double points on all Koi purchases.
+          </p>
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Available Points</span>
+            <span class="text-2xl font-black text-blue-600">${(_profile?.rewards_balance || 0).toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div class="co-card" style="margin-bottom:0;">
+          <h2 style="margin-bottom:.5rem;">Subscribe &amp; Save</h2>
+          <p style="font-size:.875rem;color:var(--g500);margin-bottom:1rem;">
+            Save 5% on eligible products automatically.
+          </p>
+          ${_isSub
+            ? `<div class="ss-banner" style="margin-bottom:.75rem;">✓ Active — 5% off items</div>
+               <button id="cancelSubBtn" style="background:none;border:none;color:var(--g500);font-size:.875rem;text-decoration:underline;cursor:pointer;">Cancel subscription</button>`
+            : `<button class="btn-primary" id="joinSubBtn">Join S&amp;S — it's free</button>`}
+        </div>
       </div>
 
       <h2 style="font-weight:800;margin-bottom:1rem;">Order History</h2>
