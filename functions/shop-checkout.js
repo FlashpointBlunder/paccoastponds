@@ -16,7 +16,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { items, shipping_address, shipping_rate, customer_email, customer_name, auth_token, points_to_redeem } = body;
+  const { items, shipping_address, shipping_rate, customer_email, customer_name, auth_token, karats_to_redeem } = body;
   if (!items?.length || !shipping_address || !customer_email || !customer_name) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing required fields' }) };
   }
@@ -28,13 +28,13 @@ exports.handler = async (event) => {
   // Check if user is a subscriber (for Subscribe & Save discount) and fetch rewards
   let isSubscriber = false;
   let customerId = null;
-  let availablePoints = 0;
+  let availableKarats = 0;
   if (auth_token) {
     const { data: { user } } = await sb.auth.getUser(auth_token);
     if (user) {
       customerId = user.id;
       const { data: profile } = await sb.from('profiles').select('rewards_balance').eq('id', user.id).single();
-      availablePoints = profile?.rewards_balance || 0;
+      availableKarats = profile?.rewards_balance || 0;
 
       const { data: sub } = await sb.from('shop_subscribers').select('id').eq('user_id', user.id).maybeSingle();
       isSubscriber = !!sub;
@@ -117,10 +117,10 @@ exports.handler = async (event) => {
   const freeShip = !hasFreight && subtotal >= 99;
   const shippingCost = (hasFreight || freeShip) ? 0 : parseFloat(shipping_rate?.rate || 0);
 
-  // REDEMPTION LOGIC: $0.01 per point
+  // REDEMPTION LOGIC: $0.01 per karat
   let rewardsDiscount = 0;
-  if (points_to_redeem && customerId) {
-    const points = Math.min(parseInt(points_to_redeem), availablePoints);
+  if (karats_to_redeem && customerId) {
+    const points = Math.min(parseInt(karats_to_redeem), availableKarats);
     if (points > 0) {
       rewardsDiscount = +(points * 0.01).toFixed(2);
     }
@@ -179,9 +179,9 @@ exports.handler = async (event) => {
       order_id: order.id,
       points: -pointsRedeemed,
       type: 'redeem',
-      description: `Points redeemed on order ${orderNumber}`,
+      description: `Karats redeemed on order ${orderNumber}`,
     });
-    const newBalance = availablePoints - pointsRedeemed;
+    const newBalance = availableKarats - pointsRedeemed;
     await sb.from('profiles').update({ rewards_balance: newBalance }).eq('id', customerId);
   }
 

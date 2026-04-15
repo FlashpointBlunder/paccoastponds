@@ -1488,7 +1488,7 @@ async function renderCoPayment() {
       customer_email: _coInfo.email,
       customer_name:  _coInfo.name,
       auth_token:     authToken,
-      points_to_redeem: _coOrder?.points_to_redeem || 0,
+      karats_to_redeem: _coOrder?.karats_to_redeem || 0,
     }),
   });
   const co = await res.json();
@@ -1514,14 +1514,14 @@ async function renderCoPayment() {
       ${_profile?.rewards_balance > 0 ? `
         <div class="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-bold text-blue-800">Redeem Koi Rewards</span>
-            <span class="text-xs font-semibold text-blue-400">${_profile.rewards_balance.toLocaleString()} points available</span>
+            <span class="text-sm font-bold text-blue-800">Redeem Koi Karats</span>
+            <span class="text-xs font-semibold text-blue-400">${_profile.rewards_balance.toLocaleString()} karats available</span>
           </div>
           <div class="flex gap-2">
-            <input type="number" id="redeemPoints" class="fld flex-1" placeholder="Points to use" max="${_profile.rewards_balance}">
+            <input type="number" id="redeemPoints" class="fld flex-1" placeholder="Karats to use" max="${_profile.rewards_balance}">
             <button onclick="applyRewards()" class="btn-outline text-xs py-2 px-4 whitespace-nowrap">Apply</button>
           </div>
-          <p class="text-[10px] text-blue-400 mt-2">100 points = $1.00 discount</p>
+          <p class="text-[10px] text-blue-400 mt-2">100 karats = $1.00 discount</p>
         </div>
       ` : ''}
 
@@ -1542,10 +1542,10 @@ async function renderCoPayment() {
   window.applyRewards = () => {
     const points = parseInt(document.getElementById('redeemPoints').value || 0);
     if (points > (_profile?.rewards_balance || 0)) {
-      toast('Not enough points', false);
+      toast('Not enough karats', false);
       return;
     }
-    _coOrder.points_to_redeem = points;
+    _coOrder.karats_to_redeem = points;
     renderCoPayment(); // Re-render to show updated totals
   };
 
@@ -1700,12 +1700,12 @@ async function renderAcctDash(el) {
 
       <div class="grid md:grid-cols-2 gap-4 mb-6">
         <div class="co-card" style="margin-bottom:0;">
-          <h2 style="margin-bottom:.5rem;">Koi Rewards</h2>
+          <h2 style="margin-bottom:.5rem;">Koi Karats</h2>
           <p style="font-size:.875rem;color:var(--g500);margin-bottom:1rem;">
-            Earn double points on all Koi purchases.
+            Earn double karats on all Koi purchases.
           </p>
           <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Available Points</span>
+            <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Available Karats</span>
             <span class="text-2xl font-black text-blue-600">${(_profile?.rewards_balance || 0).toLocaleString()}</span>
           </div>
         </div>

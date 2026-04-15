@@ -52,24 +52,24 @@ exports.handler = async (event) => {
 
     // AWARD REWARDS (only if marking paid for the first time)
     if (order.customer_id) {
-      let earnedPoints = 0;
+      let earnedKarats = 0;
       (items || []).forEach(i => {
-        const pointsPerDollar = i.koi_id ? 2 : 1; // DOUBLE POINTS FOR KOI
-        earnedPoints += Math.floor(parseFloat(i.unit_price) * i.quantity * pointsPerDollar);
+        const karatsPerDollar = i.koi_id ? 2 : 1; // DOUBLE KARATS FOR KOI
+        earnedKarats += Math.floor(parseFloat(i.unit_price) * i.quantity * karatsPerDollar);
       });
 
-      if (earnedPoints > 0) {
+      if (earnedKarats > 0) {
         await sb.from('rewards_ledger').insert({
           profile_id: order.customer_id,
           order_id: order.id,
-          points: earnedPoints,
+          points: earnedKarats,
           type: 'earn',
-          description: `Points earned from order ${order.order_number}`,
+          description: `Karats earned from order ${order.order_number}`,
         });
 
         // Increment profile balance
         const { data: profile } = await sb.from('profiles').select('rewards_balance').eq('id', order.customer_id).single();
-        const newBalance = (profile?.rewards_balance || 0) + earnedPoints;
+        const newBalance = (profile?.rewards_balance || 0) + earnedKarats;
         await sb.from('profiles').update({ rewards_balance: newBalance }).eq('id', order.customer_id);
       }
     }
