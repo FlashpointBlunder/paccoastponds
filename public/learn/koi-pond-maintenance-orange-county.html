@@ -537,7 +537,9 @@
     // Phone mask
     const phoneInput = document.getElementById('mq-phone');
     phoneInput.addEventListener('input', function () {
-      let d = this.value.replace(/\D/g, '').slice(0, 10);
+      let d = this.value.replace(/\D/g, '');
+      if (d.length >= 11 && d.charAt(0) === '1') d = d.slice(1);
+      d = d.slice(0, 10);
       if (d.length >= 7) d = '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
       else if (d.length >= 4) d = '(' + d.slice(0,3) + ') ' + d.slice(3);
       else if (d.length >= 1) d = '(' + d;

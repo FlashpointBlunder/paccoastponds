@@ -736,7 +736,9 @@
       if (!el) return;
 
       function formatUS(digits) {
-        const d = (digits || '').replace(/\D+/g,'').slice(0,10);
+        let d = (digits || '').replace(/\D+/g,'');
+        if (d.length >= 11 && d.charAt(0) === '1') d = d.slice(1);
+        d = d.slice(0,10);
         const p1 = d.slice(0,3), p2 = d.slice(3,6), p3 = d.slice(6,10);
         if (d.length > 6) return `(${p1}) ${p2}-${p3}`;
         if (d.length > 3) return `(${p1}) ${p2}`;
@@ -901,7 +903,9 @@
       const sp = document.getElementById('servicePhone');
       if (!sp) return;
       function fmtPhone(val) {
-        const d = (val||'').replace(/\D+/g,'').slice(0,10);
+        let d = (val||'').replace(/\D+/g,'');
+        if (d.length >= 11 && d.charAt(0) === '1') d = d.slice(1);
+        d = d.slice(0,10);
         const a=d.slice(0,3),b=d.slice(3,6),c=d.slice(6,10);
         if(d.length>6) return `(${a}) ${b}-${c}`;
         if(d.length>3) return `(${a}) ${b}`;

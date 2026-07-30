@@ -344,7 +344,7 @@
   <script>
     (function phoneMask(){
       const el=document.getElementById('phone');if(!el)return;
-      function formatUS(digits){const d=(digits||'').replace(/\D+/g,'').slice(0,10);const p1=d.slice(0,3),p2=d.slice(3,6),p3=d.slice(6,10);if(d.length>6)return`(${p1}) ${p2}-${p3}`;if(d.length>3)return`(${p1}) ${p2}`;if(d.length>0)return`(${p1}`;return'';}
+      function formatUS(digits){let d=(digits||'').replace(/\D+/g,'');if(d.length>=11&&d.charAt(0)==='1')d=d.slice(1);d=d.slice(0,10);const p1=d.slice(0,3),p2=d.slice(3,6),p3=d.slice(6,10);if(d.length>6)return`(${p1}) ${p2}-${p3}`;if(d.length>3)return`(${p1}) ${p2}`;if(d.length>0)return`(${p1}`;return'';}
       function setFormatted(val){el.value=formatUS((val||'').replace(/\D+/g,''));}
       el.addEventListener('input',()=>setFormatted(el.value));
       el.addEventListener('paste',(e)=>{e.preventDefault();setFormatted((e.clipboardData||window.clipboardData).getData('text'));});
