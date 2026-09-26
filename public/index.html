@@ -203,7 +203,7 @@
         <a href="#gallery" class="hover:text-[var(--brand-green)]">Gallery</a>
         <a href="#areas" class="hover:text-[var(--brand-green)]">Service Areas</a>
         <a href="#faq" class="hover:text-[var(--brand-green)]">FAQ</a>
-        <a href="/learn/" class="hover:text-[var(--brand-green)]">Learn</a>
+        
       </nav>
       <a href="#quote" class="px-5 py-3 btn">Get a Quote</a>
     </div>
@@ -219,7 +219,7 @@
         <div class="mt-8 flex flex-wrap gap-4">
           <a href="#quote" class="px-6 py-3 btn">Request a Free Estimate</a>
           <a href="#gallery" class="px-6 py-3 border-2 border-white">See Renders</a>
-          <a href="/thank-you" class="px-6 py-3 bg-[var(--brand-blue)] hover:bg-[#1784b3]">Schedule Now</a>
+          <a href="/schedule" class="px-6 py-3 bg-[var(--brand-blue)] hover:bg-[#1784b3]">Schedule Now</a>
           <a href="#faq" class="px-6 py-3 border-2 border-white">See FAQs</a>
         </div>
         <!-- What You Get checklist -->
@@ -626,7 +626,7 @@
   </footer>
 
   <!-- Floating Calendly CTA (desktop only) -->
-  <a href="/thank-you" class="cta-float hidden md:inline-flex" aria-label="Schedule free estimate">Schedule Free Estimate</a>
+  <a href="/schedule" class="cta-float hidden md:inline-flex" aria-label="Schedule free estimate">Schedule Free Estimate</a>
 
   <!-- Mobile bottom bar: Call + Schedule -->
   <div class="mobile-bar fixed inset-x-0 bottom-0 z-50 md:hidden">
@@ -636,7 +636,7 @@
          aria-label="Call Pacific Coast Ponds now">
          📞 Call Now
       </a>
-      <a href="/thank-you"
+      <a href="/schedule"
          class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-blue)] text-white shadow-lg"
          aria-label="Schedule your free estimate">
          Schedule
@@ -736,7 +736,9 @@
       if (!el) return;
 
       function formatUS(digits) {
-        const d = (digits || '').replace(/\D+/g,'').slice(0,10);
+        let d = (digits || '').replace(/\D+/g,'');
+        if (d.length >= 11 && d.charAt(0) === '1') d = d.slice(1);
+        d = d.slice(0,10);
         const p1 = d.slice(0,3), p2 = d.slice(3,6), p3 = d.slice(6,10);
         if (d.length > 6) return `(${p1}) ${p2}-${p3}`;
         if (d.length > 3) return `(${p1}) ${p2}`;
@@ -901,7 +903,9 @@
       const sp = document.getElementById('servicePhone');
       if (!sp) return;
       function fmtPhone(val) {
-        const d = (val||'').replace(/\D+/g,'').slice(0,10);
+        let d = (val||'').replace(/\D+/g,'');
+        if (d.length >= 11 && d.charAt(0) === '1') d = d.slice(1);
+        d = d.slice(0,10);
         const a=d.slice(0,3),b=d.slice(3,6),c=d.slice(6,10);
         if(d.length>6) return `(${a}) ${b}-${c}`;
         if(d.length>3) return `(${a}) ${b}`;
