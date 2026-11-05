@@ -12,6 +12,9 @@
 [functions."run-monthly-billing"]
   schedule = "0 8 1 * *"
 
+[functions."supabase-keepalive"]
+  schedule = "@daily"
+
 [[headers]]
   for = "/*"
   [headers.values]

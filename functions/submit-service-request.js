@@ -64,15 +64,18 @@ exports.handler = async (event) => {
     project_type:      project_type      || null,
   }).select('id').single();
 
-  if (error) {
-    console.error('service_requests insert error:', error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
-  }
+  if (error) console.error('service_requests insert error:', error);
 
+  // Email even when the insert fails (e.g. Supabase free tier paused) so the lead isn't lost.
+  let emailed = false;
   try {
-    await sendLeadEmail({ type, full_name, email, phone, address, city, zip, message, service_frequency, project_type, id: inserted && inserted.id });
+    emailed = await sendLeadEmail({ type, full_name, email, phone, address, city, zip, message, service_frequency, project_type, id: inserted && inserted.id, dbError: error && error.message });
   } catch (e) {
     console.error('lead email failed:', e);
+  }
+
+  if (error && !emailed) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
 
   return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
@@ -88,7 +91,7 @@ async function sendLeadEmail(r) {
   const to = process.env.LEAD_EMAIL || process.env.ADMIN_EMAIL;
   if (!process.env.RESEND_API_KEY || !to) {
     console.log('RESEND_API_KEY or ADMIN_EMAIL not set — skipping lead email');
-    return;
+    return false;
   }
   const label = r.project_type || TYPE_LABEL[r.type] || r.type;
   const rows = [
@@ -107,6 +110,7 @@ async function sendLeadEmail(r) {
 
   const html = `<div style="font-family:Arial,sans-serif;max-width:560px">
     <h2 style="color:#1E5E37;margin:0 0 12px">New Lead — ${esc(label)}</h2>
+    ${r.dbError ? `<p style="background:#fde8e8;color:#9b1c1c;padding:10px 12px;margin:0 0 12px">⚠ Not saved to the database (${esc(r.dbError)}) — this email is the only record. Check Supabase.</p>` : ''}
     <table style="border-collapse:collapse;font-size:15px">${rows}</table>
     <p style="margin-top:20px"><a href="https://admin.paccoastponds.com" style="background:#1E5E37;color:#fff;padding:10px 18px;text-decoration:none;font-weight:bold">Open in Admin → Requests</a></p>
   </div>`;
@@ -122,5 +126,9 @@ async function sendLeadEmail(r) {
       html,
     }),
   });
-  if (!res.ok) console.error('Resend error:', res.status, await res.text());
+  if (!res.ok) {
+    console.error('Resend error:', res.status, await res.text());
+    return false;
+  }
+  return true;
 }
