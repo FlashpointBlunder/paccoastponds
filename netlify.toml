@@ -12,9 +12,19 @@
 [functions."run-monthly-billing"]
   schedule = "0 8 1 * *"
 
+[functions."supabase-keepalive"]
+  schedule = "@daily"
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Learn section unpublished 2026-09-26 — redirect old indexed URLs
+[[redirects]]
+  from = "/learn/*"
+  to = "/"
+  status = 301
+  force = true

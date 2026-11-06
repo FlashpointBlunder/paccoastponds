@@ -93,7 +93,7 @@
         <a href="https://paccoastponds.com/#gallery" class="hover:text-[var(--brand-green)]">Gallery</a>
         <a href="https://paccoastponds.com/#areas" class="hover:text-[var(--brand-green)]">Service Areas</a>
         <a href="https://paccoastponds.com/#faq" class="hover:text-[var(--brand-green)]">FAQ</a>
-        <a href="/learn/" class="hover:text-[var(--brand-green)]">Learn</a>
+        
       </nav>
       <a href="#quote" class="px-5 py-3 btn">Get a Quote</a>
     </div>
@@ -109,7 +109,7 @@
         <div class="mt-8 flex flex-wrap gap-4">
           <a href="#quote" class="px-6 py-3 btn">Request a Free Estimate</a>
           <a href="https://paccoastponds.com/#gallery" class="px-6 py-3 border-2 border-white hover:bg-white/10 transition">See Renders</a>
-          <a href="/thank-you" class="px-6 py-3 bg-[var(--brand-blue)] hover:bg-[#1784b3] transition">Schedule Now</a>
+          <a href="/schedule" class="px-6 py-3 bg-[var(--brand-blue)] hover:bg-[#1784b3] transition">Schedule Now</a>
           <a href="#faq" class="px-6 py-3 border-2 border-white hover:bg-white/10 transition">See FAQs</a>
         </div>
         <ul class="mt-6 space-y-2 text-gray-200">
@@ -255,23 +255,12 @@
     </div>
   </section>
 
-  <!-- RESOURCES -->
-  <section class="py-12 bg-[var(--brand-cream)]">
-    <div class="max-w-7xl mx-auto px-6">
-      <h2 class="text-2xl font-extrabold mb-6">Orange County Koi Pond Resources</h2>
-      <div class="flex flex-col gap-3">
-        <a href="/learn/koi-pond-cost-orange-county/" class="text-[var(--brand-green)] underline font-semibold">How much does a koi pond cost in Orange County? →</a>
-        <a href="/learn/koi-pond-maintenance-orange-county/" class="text-[var(--brand-green)] underline font-semibold">Orange County Koi Pond Maintenance Guide →</a>
-      </div>
-    </div>
-  </section>
-
   <!-- CTA BANNER -->
   <section class="py-16 bg-[var(--brand-green)] text-white text-center">
     <div class="max-w-7xl mx-auto px-6">
       <h2 class="text-3xl font-extrabold">Ready to Build Your Koi Pond in Orange County?</h2>
       <p class="mt-4 text-green-100 text-lg">Free 3D rendering and fixed-price proposal. No obligation.</p>
-      <a href="/thank-you" class="mt-8 inline-block px-10 py-4 bg-white text-[var(--brand-green)] font-bold uppercase tracking-wide hover:bg-gray-100 transition">Schedule Free Estimate</a>
+      <a href="/schedule" class="mt-8 inline-block px-10 py-4 bg-white text-[var(--brand-green)] font-bold uppercase tracking-wide hover:bg-gray-100 transition">Schedule Free Estimate</a>
     </div>
   </section>
 
@@ -293,7 +282,7 @@
   </footer>
 
   <!-- Floating CTA (desktop only) -->
-  <a href="/thank-you" class="cta-float hidden md:inline-flex" aria-label="Schedule free estimate">Schedule Free Estimate</a>
+  <a href="/schedule" class="cta-float hidden md:inline-flex" aria-label="Schedule free estimate">Schedule Free Estimate</a>
 
   <!-- Mobile bottom bar -->
   <div class="mobile-bar fixed inset-x-0 bottom-0 z-50 md:hidden">
@@ -301,7 +290,7 @@
       <a href="tel:+19495414903"
          class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-green)] text-white shadow-lg"
          aria-label="Call Pacific Coast Ponds now">📞 Call Now</a>
-      <a href="/thank-you"
+      <a href="/schedule"
          class="w-full text-center rounded-md px-4 py-3 font-extrabold uppercase tracking-wide bg-[var(--brand-blue)] text-white shadow-lg"
          aria-label="Schedule your free estimate">Schedule</a>
     </div>
@@ -344,7 +333,7 @@
   <script>
     (function phoneMask(){
       const el=document.getElementById('phone');if(!el)return;
-      function formatUS(digits){const d=(digits||'').replace(/\D+/g,'').slice(0,10);const p1=d.slice(0,3),p2=d.slice(3,6),p3=d.slice(6,10);if(d.length>6)return`(${p1}) ${p2}-${p3}`;if(d.length>3)return`(${p1}) ${p2}`;if(d.length>0)return`(${p1}`;return'';}
+      function formatUS(digits){let d=(digits||'').replace(/\D+/g,'');if(d.length>=11&&d.charAt(0)==='1')d=d.slice(1);d=d.slice(0,10);const p1=d.slice(0,3),p2=d.slice(3,6),p3=d.slice(6,10);if(d.length>6)return`(${p1}) ${p2}-${p3}`;if(d.length>3)return`(${p1}) ${p2}`;if(d.length>0)return`(${p1}`;return'';}
       function setFormatted(val){el.value=formatUS((val||'').replace(/\D+/g,''));}
       el.addEventListener('input',()=>setFormatted(el.value));
       el.addEventListener('paste',(e)=>{e.preventDefault();setFormatted((e.clipboardData||window.clipboardData).getData('text'));});

@@ -100,6 +100,7 @@
 
           <input required name="full_name" placeholder="Full Name *" class="field" />
           <input required name="phone" id="lpPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Phone Number *" class="field" />
+          <p id="lpPhoneErr" class="text-red-600 text-xs font-semibold hidden"></p>
           <input name="email" type="email" placeholder="Email Address" class="field" />
           <input required name="zip" placeholder="ZIP Code *" pattern="[0-9]{5}" maxlength="5" inputmode="numeric" class="field" />
           <select name="frequency" class="field bg-white">
@@ -297,31 +298,55 @@
   </form>
 
   <script>
-    // Phone auto-format
+    // Phone helpers — strip non-digits, drop a single leading US country code
+    // ("1..." / "+1..."), then cap at 10 digits.
+    function normalizeUSPhone(value) {
+      let d = String(value || '').replace(/\D/g, '');
+      if (d.length >= 11 && d.charAt(0) === '1') d = d.slice(1);
+      return d.slice(0, 10);
+    }
+    function formatUSPhone(d) {
+      if (d.length >= 7) return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+      if (d.length >= 4) return '(' + d.slice(0,3) + ') ' + d.slice(3);
+      if (d.length > 0)  return '(' + d;
+      return '';
+    }
+
+    // Phone auto-format ("input" fires for both typing and paste)
     (function () {
       const el = document.getElementById('lpPhone');
       if (!el) return;
-      el.addEventListener('input', function () {
-        const d = this.value.replace(/\D/g, '').slice(0, 10);
-        if (d.length >= 7)      this.value = '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
-        else if (d.length >= 4) this.value = '(' + d.slice(0,3) + ') ' + d.slice(3);
-        else if (d.length > 0)  this.value = '(' + d;
-      });
+      const apply = function () {
+        el.value = formatUSPhone(normalizeUSPhone(el.value));
+        const pe = document.getElementById('lpPhoneErr');
+        if (pe) pe.classList.add('hidden');
+      };
+      el.addEventListener('input', apply);
+      el.addEventListener('blur', apply);
     })();
 
     async function handleLpSubmit(e) {
       e.preventDefault();
       const form = e.target;
-      const err  = document.getElementById('lpErr');
+      const err      = document.getElementById('lpErr');
+      const phoneErr = document.getElementById('lpPhoneErr');
       err.classList.add('hidden');
+      phoneErr.classList.add('hidden');
 
       const name  = (form.full_name.value || '').trim();
-      const phone = (form.phone.value || '').replace(/\D/g, '');
+      const phone = normalizeUSPhone(form.phone.value);
       const zip   = (form.zip.value || '').trim();
 
       if (!name)              { err.textContent = 'Please enter your name.';                    err.classList.remove('hidden'); return false; }
-      if (phone.length !== 10){ err.textContent = 'Please enter a valid 10-digit phone number.'; err.classList.remove('hidden'); return false; }
+      if (phone.length !== 10 || phone.charAt(0) === '0' || phone.charAt(0) === '1') {
+        phoneErr.textContent = 'Please enter a 10-digit phone number';
+        phoneErr.classList.remove('hidden');
+        return false;
+      }
       if (!/^\d{5}$/.test(zip)){ err.textContent = 'Please enter a valid 5-digit ZIP code.';   err.classList.remove('hidden'); return false; }
+
+      // Submit a consistent, canonical (###) ###-#### value
+      form.phone.value = formatUSPhone(phone);
 
       // Fire conversion event → GTM picks this up and fires Google Ads conversion tag
       window.dataLayer = window.dataLayer || [];

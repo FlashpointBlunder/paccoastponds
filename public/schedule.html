@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schedule Your Free Estimate | Pacific Coast Ponds</title>
+  <meta name="description" content="Tell us a little about your pond and we'll reach out to schedule your free on-site estimate.">
+  <meta name="robots" content="noindex, follow" />
+  <link rel="canonical" href="https://paccoastponds.com/schedule">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17993828944"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'AW-17993828944');
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root{ --brand-green:#1E5E37; --brand-blue:#2CA7DF; --brand-cream:#F8FAF7; --brand-dark:#0F1C12; }
+    body{font-family:Inter,ui-sans-serif,system-ui}
+    h1,h2,h3{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.5px}
+    .field{width:100%;border:1px solid #d1d5db;padding:.8rem 1rem;font-size:16px;border-radius:.375rem}
+    .field:focus{outline:2px solid var(--brand-blue);outline-offset:0;border-color:transparent}
+    .field.invalid{border-color:#dc2626}
+  </style>
+</head>
+<body class="bg-[var(--brand-cream)] text-gray-900">
+
+  <header class="w-full border-b-4 border-[var(--brand-green)] bg-white">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <img src="/assets/logo.webp" alt="Pacific Coast Ponds logo" class="h-12 w-auto" width="160" height="48">
+        <span class="text-xl font-bold uppercase">Pacific Coast Ponds</span>
+      </a>
+      <a href="/" class="text-sm underline">Back to site</a>
+    </div>
+  </header>
+
+  <main class="max-w-xl mx-auto px-6 py-10">
+    <h1 class="text-3xl font-extrabold mb-2 text-[var(--brand-green)]">Get on the Schedule</h1>
+    <p class="text-gray-600 mb-8">Tell us a little about your pond and we'll call you to set up a time. Takes 30 seconds.</p>
+
+    <form id="scheduleForm" novalidate class="bg-white shadow-lg rounded-lg p-6 space-y-5">
+      <div>
+        <label for="name" class="block text-sm font-semibold mb-1">Name</label>
+        <input id="name" name="name" type="text" autocomplete="name" class="field" required>
+      </div>
+      <div>
+        <label for="phone" class="block text-sm font-semibold mb-1">Phone</label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(949) 555-1234" class="field" required>
+      </div>
+      <div>
+        <label for="zip" class="block text-sm font-semibold mb-1">ZIP Code</label>
+        <input id="zip" name="zip" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="5" class="field" required>
+      </div>
+      <div>
+        <label for="message" class="block text-sm font-semibold mb-1">What do you need?</label>
+        <textarea id="message" name="message" rows="3" maxlength="1000" placeholder="e.g. Green water in my koi pond, need a cleanout" class="field" required></textarea>
+      </div>
+
+      <p id="formError" class="text-sm text-red-600" hidden></p>
+
+      <button id="submitBtn" type="submit" class="w-full bg-[var(--brand-green)] hover:bg-[#174a2b] text-white font-extrabold uppercase tracking-wide px-6 py-4 transition disabled:opacity-60">
+        Request My Appointment
+      </button>
+      <p class="text-xs text-gray-500 text-center">Prefer to talk? Call <a class="underline" href="tel:+19495414903">(949) 541-4903</a></p>
+    </form>
+  </main>
+
+  <script>
+    (function(){
+      const form = document.getElementById('scheduleForm');
+      const err  = document.getElementById('formError');
+      const btn  = document.getElementById('submitBtn');
+      const $ = id => document.getElementById(id);
+
+      // Phone mask — strip leading US country code
+      $('phone').addEventListener('input', e => {
+        let d = e.target.value.replace(/\D/g, '');
+        if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+        d = d.slice(0, 10);
+        e.target.value = d.length > 6 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
+                       : d.length > 3 ? `(${d.slice(0,3)}) ${d.slice(3)}` : d;
+      });
+      $('zip').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 5); });
+
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        err.hidden = true;
+        const vals = {
+          name:    $('name').value.trim(),
+          phone:   $('phone').value.replace(/\D/g, ''),
+          zip:     $('zip').value.trim(),
+          message: $('message').value.trim(),
+        };
+        const checks = { name: vals.name.length >= 2, phone: vals.phone.length === 10, zip: /^\d{5}$/.test(vals.zip), message: vals.message.length > 0 };
+        let ok = true;
+        for (const k in checks) { $(k).classList.toggle('invalid', !checks[k]); if (!checks[k]) ok = false; }
+        if (!ok) { err.textContent = 'Please fill in all fields (10-digit phone, 5-digit ZIP).'; err.hidden = false; return; }
+
+        btn.disabled = true; btn.textContent = 'Sending…';
+        try {
+          const res = await fetch('/.netlify/functions/submit-service-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'other',
+              project_type: 'Schedule Now',
+              full_name: vals.name,
+              phone: $('phone').value.trim(),
+              zip: vals.zip,
+              message: vals.message,
+            }),
+          });
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Something went wrong');
+          const qs = new URLSearchParams({ name: vals.name, phone: vals.phone, zip: vals.zip });
+          location.href = '/thank-you?' + qs.toString();
+        } catch (ex) {
+          err.textContent = ex.message + ' — please call us at (949) 541-4903.';
+          err.hidden = false;
+          btn.disabled = false; btn.textContent = 'Request My Appointment';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
