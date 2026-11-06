@@ -350,6 +350,7 @@
       const rawDigits=(data.get("phone")||"").replace(/\D+/g,'');
       if(rawDigits.length!==10){alert("Please enter a valid 10-digit US phone number.");return false;}
       try{await fetch("/",{method:"POST",body:data});}catch(err){console.warn("Netlify POST failed.",err);}
+      if(!data.get('bot-field')){try{const d=(data.get('phone')||'').replace(/\D+/g,'');await fetch('/.netlify/functions/submit-service-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'install',full_name:data.get('name')||'',email:data.get('email')||null,phone:d.length===10?'+1'+d:data.get('phone'),address:data.get('street')||null,city:data.get('city')||null,zip:data.get('zip')||null,message:data.get('details')||null,project_type:data.get('project_type')||null})});}catch(_){}} // lead alert email + DB
       const name=encodeURIComponent(data.get("name")||"");
       const email=encodeURIComponent(data.get("email")||"");
       const phone=encodeURIComponent(normalizePhoneUS(data.get("phone")||""));

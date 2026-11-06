@@ -783,6 +783,7 @@
       // Record submission with Netlify
       try { await fetch("/", { method: "POST", body: data }); }
       catch (err) { console.warn("Netlify POST failed; continuing to redirect.", err); }
+      if(!data.get('bot-field')){try{const d=(data.get('phone')||'').replace(/\D+/g,'');await fetch('/.netlify/functions/submit-service-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'install',full_name:data.get('name')||'',email:data.get('email')||null,phone:d.length===10?'+1'+d:data.get('phone'),address:data.get('street')||null,city:data.get('city')||null,zip:data.get('zip')||null,message:data.get('details')||null,project_type:data.get('project_type')||null})});}catch(_){}} // lead alert email + DB
 
       // Build redirect with prefill params for Calendly
       const name   = encodeURIComponent(data.get("name")   || "");
@@ -974,32 +975,6 @@
       }
     }
 
-    // ── Also save install leads to DB (alongside Netlify form) ───────────────
-    const _origLeadSubmit = window.handleLeadSubmit;
-    window.handleLeadSubmit = async function(e) {
-      // Fire-and-forget — save to DB before Netlify redirect
-      try {
-        const form = e.target || document.getElementById('leadForm');
-        const fd   = new FormData(form);
-        const phone = (fd.get('phone')||'').replace(/\D+/g,'');
-        await fetch('/.netlify/functions/submit-service-request', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type:         'install',
-            full_name:    fd.get('name')         || '',
-            email:        fd.get('email')        || null,
-            phone:        phone.length===10 ? '+1'+phone : fd.get('phone'),
-            address:      fd.get('street')       || null,
-            city:         fd.get('city')         || null,
-            zip:          fd.get('zip')          || null,
-            message:      fd.get('details')      || null,
-            project_type: fd.get('project_type') || null,
-          }),
-        });
-      } catch (_) { /* don't block redirect */ }
-      // Call the original handler
-      return _origLeadSubmit ? _origLeadSubmit(e) : true;
-    };
   </script>
 
 <!-- AI Chat Widget -->
